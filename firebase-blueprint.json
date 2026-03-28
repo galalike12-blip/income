@@ -1,0 +1,157 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Stores user settings and Google Sheets integration info.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The user's unique ID."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address."
+        },
+        "spreadsheetId": {
+          "type": "string",
+          "description": "The ID of the connected Google Spreadsheet."
+        },
+        "createdAt": {
+          "type": "timestamp"
+        }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "JobEntry": {
+      "title": "JobEntry",
+      "description": "A single job or ride entry.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string",
+          "description": "ISO date string (YYYY-MM-DD)"
+        },
+        "customerMustPay": {
+          "type": "number"
+        },
+        "appNetIncome": {
+          "type": "number"
+        },
+        "upfrontCost": {
+          "type": "number"
+        },
+        "actualReceived": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "timestamp"
+        }
+      },
+      "required": ["userId", "date", "customerMustPay", "appNetIncome", "upfrontCost", "actualReceived", "createdAt"]
+    },
+    "Incentive": {
+      "title": "Incentive",
+      "description": "Daily incentive amount.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "timestamp"
+        }
+      },
+      "required": ["userId", "date", "amount", "updatedAt"]
+    },
+    "ExpenseEntry": {
+      "title": "ExpenseEntry",
+      "description": "A single expense entry.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string",
+          "description": "ISO date string (YYYY-MM-DD)"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "category": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "timestamp"
+        }
+      },
+      "required": ["userId", "date", "amount", "category", "createdAt"]
+    },
+    "Goal": {
+      "title": "Goal",
+      "description": "User income goal.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["daily", "monthly"]
+        },
+        "targetAmount": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "timestamp"
+        }
+      },
+      "required": ["userId", "type", "targetAmount", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "User profiles and settings."
+    },
+    "/users/{userId}/jobs/{jobId}": {
+      "schema": {
+        "$ref": "#/entities/JobEntry"
+      },
+      "description": "Jobs for a specific user."
+    },
+    "/users/{userId}/incentives/{incentiveId}": {
+      "schema": {
+        "$ref": "#/entities/Incentive"
+      },
+      "description": "Daily incentives for a specific user."
+    },
+    "/users/{userId}/expenses/{expenseId}": {
+      "schema": {
+        "$ref": "#/entities/ExpenseEntry"
+      },
+      "description": "Expenses for a specific user."
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": {
+        "$ref": "#/entities/Goal"
+      },
+      "description": "Income goals for a specific user."
+    }
+  }
+}
