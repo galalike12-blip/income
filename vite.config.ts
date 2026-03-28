@@ -21,7 +21,7 @@ export default defineConfig(({mode}) => {
       hmr: process.env.DISABLE_HMR !== 'true',
     },
     build: {
-      chunkSizeWarningLimit: 4000,
+      chunkSizeWarningLimit: 1000,
     },
   };
 });

@@ -71,8 +71,6 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
   const fixedExpensesOrder = preferences.fixedExpensesOrder || [];
   const setFixedExpensesOrder = (newOrder: string[]) => updatePreferences({ fixedExpensesOrder: newOrder });
   const [isFixedExpensesLocked, setIsFixedExpensesLocked] = useState(preferences.isFixedExpensesLocked ?? true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all');
   const [variableExpenseDateFilter, setVariableExpenseDateFilter] = useState(new Date().toISOString().split('T')[0]);
   const [showVariableHistory, setShowVariableHistory] = useState(false);
 
@@ -178,17 +176,8 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
     return expenses.filter(e => e.date.startsWith(selectedMonth));
   }, [expenses, selectedMonth]);
 
-  const filteredMonthExpenses = useMemo(() => {
-    return monthExpenses.filter(ex => {
-      const matchesSearch = (ex.payee || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            (ex.note || '').toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = filterCategory === 'all' || ex.category === filterCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }, [monthExpenses, searchQuery, filterCategory]);
-
   const fixedExpenses = useMemo(() => {
-    const fixed = filteredMonthExpenses.filter(e => e.isFixed);
+    const fixed = monthExpenses.filter(e => e.isFixed);
     return fixed.sort((a, b) => {
       const keyA = a.payee || a.category;
       const keyB = b.payee || b.category;
@@ -199,9 +188,9 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
       if (indexB === -1) return -1;
       return indexA - indexB;
     });
-  }, [filteredMonthExpenses, fixedExpensesOrder]);
+  }, [monthExpenses, fixedExpensesOrder]);
 
-  const variableExpenses = filteredMonthExpenses.filter(e => !e.isFixed);
+  const variableExpenses = monthExpenses.filter(e => !e.isFixed);
 
   const groupedVariableHistory = useMemo(() => {
     const oneYearAgo = new Date();
@@ -551,23 +540,6 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
 
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6">
-      <div className="flex gap-4">
-        <input
-          type="text"
-          placeholder="Search..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          className="flex-1 px-4 py-2 glass-input rounded-2xl"
-        />
-        <select
-          value={filterCategory}
-          onChange={e => setFilterCategory(e.target.value)}
-          className="px-4 py-2 glass-input rounded-2xl"
-        >
-          <option value="all">All Categories</option>
-          {customCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-        </select>
-      </div>
       {/* Header & Month Picker */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
