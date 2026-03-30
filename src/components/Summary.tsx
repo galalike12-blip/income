@@ -198,22 +198,6 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
 
   return (
     <div className="max-w-5xl mx-auto px-4 pt-2 pb-4 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 glass-panel p-4 rounded-3xl transition-colors overflow-hidden">
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white text-center sm:text-left">{t.summary || 'Summary'}</h1>
-        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto">
-          <button 
-            onClick={() => {
-              setRangeType('monthly');
-              // Optionally set custom range to today if needed, but monthly is more common for "Today" in summary
-            }}
-            className="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100/80 dark:text-indigo-400 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 rounded-2xl transition-colors backdrop-blur-sm"
-          >
-            {t.today || 'วันนี้'}
-          </button>
-        </div>
-      </div>
-
       {/* Range Selector */}
       <div className="glass-panel p-4 rounded-3xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">

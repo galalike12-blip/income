@@ -214,24 +214,24 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
               const today = new Date();
               setSelectedDate(new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0]);
             }}
-            className="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100/80 dark:text-indigo-400 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 rounded-2xl transition-colors backdrop-blur-sm"
+            className="px-4 h-[38px] flex items-center justify-center text-sm font-medium text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100/80 dark:text-indigo-400 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 rounded-2xl transition-colors backdrop-blur-sm"
           >
             {t.today}
           </button>
           <button 
             onClick={() => setIsCustomizing(!isCustomizing)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-2xl border transition-colors backdrop-blur-sm ${isCustomizing ? 'bg-indigo-50/95 border-indigo-200 text-indigo-700 dark:bg-indigo-900/80 dark:border-indigo-700 dark:text-indigo-300' : 'bg-white/95 border-slate-200 text-slate-700 dark:bg-slate-800/95 dark:border-slate-600 dark:text-slate-200'}`}
+            className={`flex items-center gap-2 px-4 h-[38px] rounded-2xl border transition-colors backdrop-blur-sm ${isCustomizing ? 'bg-indigo-50/95 border-indigo-200 text-indigo-700 dark:bg-indigo-900/80 dark:border-indigo-700 dark:text-indigo-300' : 'bg-white/95 border-slate-200 text-slate-700 dark:bg-slate-800/95 dark:border-slate-600 dark:text-slate-200'}`}
           >
             {isCustomizing ? <Check className="w-5 h-5" /> : <Settings2 className="w-5 h-5" />}
             <span className="hidden sm:inline font-medium">{isCustomizing ? t.doneCustomizing : t.customizeLayout}</span>
           </button>
-          <div className="flex items-center gap-2 glass-input px-4 py-2 rounded-2xl">
-            <Calendar className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+          <div className="flex items-center gap-2 glass-input px-4 h-[38px] rounded-2xl w-[145px]">
+            <Calendar className="w-5 h-5 text-slate-500 dark:text-slate-400 flex-shrink-0" />
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent border-none outline-none text-slate-700 dark:text-slate-200 font-medium color-scheme-light dark:color-scheme-dark"
+              className="bg-transparent border-none outline-none text-slate-700 dark:text-slate-200 font-medium color-scheme-light dark:color-scheme-dark w-full"
               style={{ colorScheme: 'light dark' }}
             />
           </div>
@@ -311,21 +311,21 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
               {id === 'summary' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    <SummaryCard title={t.netIncome} amount={summary.netIncome} icon={<DollarSign className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />} bg="bg-emerald-50 dark:bg-emerald-900/30" color="text-emerald-700 dark:text-emerald-400" className="col-span-1 sm:col-span-2 lg:col-span-1 text-4xl" />
+                    <SummaryCard title={t.netIncome} amount={summary.netIncome} icon={<DollarSign className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />} bg="bg-emerald-50 dark:bg-emerald-900/30" color="text-emerald-700 dark:text-emerald-400" className="col-span-1" />
                     
-                    <div className="p-6 rounded-3xl glass-panel-subtle transition-colors">
+                    <div className="p-5 rounded-3xl glass-panel-subtle transition-colors">
                       <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-medium text-violet-700 dark:text-violet-400 opacity-80">{t.dailyIncentive}</h3>
-                        <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl"><Gift className="w-6 h-6 text-violet-600 dark:text-violet-400" /></div>
+                        <h3 className="text-[25px] font-semibold text-violet-700 dark:text-violet-400 opacity-90">{t.dailyIncentive}</h3>
+                        <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl"><Gift className="w-5 h-5 text-violet-600 dark:text-violet-400" /></div>
                       </div>
                       <div className="mt-2 flex items-center gap-1">
-                        <span className="text-3xl font-bold text-violet-700 dark:text-violet-400">฿</span>
+                        <span className="text-[23px] font-bold text-violet-700 dark:text-violet-400">฿</span>
                         <input
                           type="number"
                           value={incentives[selectedDate] || ''}
                           onChange={(e) => setIncentive(selectedDate, parseFloat(e.target.value) || 0)}
                           placeholder="0.00"
-                          className="w-full bg-transparent text-3xl font-bold text-violet-700 dark:text-violet-400 outline-none placeholder-violet-300 dark:placeholder-violet-700/50"
+                          className="w-full bg-transparent text-[23px] font-bold text-violet-700 dark:text-violet-400 outline-none placeholder-violet-300 dark:placeholder-violet-700/50"
                         />
                       </div>
                     </div>
@@ -333,7 +333,7 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
                     <SummaryCard 
                       title={t.vsYesterday} 
                       valueDisplay={diffDisplay}
-                      icon={isPositiveDiff ? <TrendingUp className="w-6 h-6 text-emerald-600 dark:text-emerald-400" /> : <TrendingDown className="w-6 h-6 text-rose-600 dark:text-rose-400" />} 
+                      icon={isPositiveDiff ? <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /> : <TrendingDown className="w-5 h-5 text-rose-600 dark:text-rose-400" />} 
                       bg={isPositiveDiff ? "bg-emerald-50 dark:bg-emerald-900/30" : "bg-rose-50 dark:bg-rose-900/30"} 
                       color={isPositiveDiff ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"} 
                     />
@@ -511,12 +511,12 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
 
 function SummaryCard({ title, amount, valueDisplay, subtitle, icon, bg, color, className = "" }: { title: string, amount?: number, valueDisplay?: string, subtitle?: string, icon: React.ReactNode, bg: string, color: string, className?: string }) {
   return (
-    <div className={`p-6 rounded-3xl glass-panel-subtle transition-colors ${className}`}>
+    <div className={`p-5 rounded-3xl glass-panel-subtle transition-colors ${className}`}>
       <div className="flex justify-between items-start mb-3">
-        <h3 className={`font-medium ${color} opacity-80`}>{title}</h3>
+        <h3 className={`text-[25px] font-semibold ${color} opacity-90`}>{title}</h3>
         <div className={`p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl`}>{icon}</div>
       </div>
-      <div className={`text-3xl font-bold ${color}`}>{valueDisplay || `฿${amount?.toFixed(2)}`}</div>
+      <div className={`text-[23px] font-bold ${color}`}>{valueDisplay || `฿${amount?.toFixed(2)}`}</div>
       {subtitle && <div className={`text-sm mt-1 ${color} opacity-70`}>{subtitle}</div>}
     </div>
   );

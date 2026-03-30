@@ -583,24 +583,24 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
               const today = new Date();
               setSelectedMonth(new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().slice(0, 7));
             }}
-            className="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100/80 dark:text-indigo-400 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 rounded-2xl transition-colors backdrop-blur-sm"
+            className="px-4 h-[38px] flex items-center justify-center text-sm font-medium text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100/80 dark:text-indigo-400 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 rounded-2xl transition-colors backdrop-blur-sm"
           >
             {t.today || 'วันนี้'}
           </button>
           <button 
             onClick={() => setIsCustomizingLayout(!isCustomizingLayout)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-2xl border transition-colors backdrop-blur-sm ${isCustomizingLayout ? 'bg-indigo-50/95 border-indigo-200 text-indigo-700 dark:bg-indigo-900/80 dark:border-indigo-700 dark:text-indigo-300' : 'bg-white/95 border-slate-200 text-slate-700 dark:bg-slate-800/95 dark:border-slate-600 dark:text-slate-200'}`}
+            className={`flex items-center gap-2 px-4 h-[38px] rounded-2xl border transition-colors backdrop-blur-sm ${isCustomizingLayout ? 'bg-indigo-50/95 border-indigo-200 text-indigo-700 dark:bg-indigo-900/80 dark:border-indigo-700 dark:text-indigo-300' : 'bg-white/95 border-slate-200 text-slate-700 dark:bg-slate-800/95 dark:border-slate-600 dark:text-slate-200'}`}
           >
             {isCustomizingLayout ? <Check className="w-5 h-5" /> : <Settings2 className="w-5 h-5" />}
             <span className="hidden sm:inline font-medium">{isCustomizingLayout ? t.doneCustomizing : t.customizeLayout}</span>
           </button>
-          <div className="flex items-center gap-2 glass-input px-4 py-2 rounded-2xl">
-            <Calendar className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+          <div className="flex items-center gap-2 glass-input px-4 h-[38px] rounded-2xl w-[145px]">
+            <Calendar className="w-5 h-5 text-slate-500 dark:text-slate-400 flex-shrink-0" />
             <input 
               type="month" 
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent text-sm font-medium text-slate-900 dark:text-white outline-none cursor-pointer"
+              className="bg-transparent text-sm font-medium text-slate-900 dark:text-white outline-none cursor-pointer w-full"
             />
           </div>
         </div>
