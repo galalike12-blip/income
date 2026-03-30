@@ -489,7 +489,7 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
                             <div className="flex items-center gap-2 px-2">
                               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
                               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-                                {new Date(group.date).toLocaleDateString(currentLang === 'th' ? 'th-TH' : 'en-US', { 
+                                {new Date(group.date + 'T00:00:00').toLocaleDateString(currentLang === 'th' ? 'th-TH' : 'en-US', { 
                                   day: 'numeric', 
                                   month: 'short', 
                                   year: 'numeric' 

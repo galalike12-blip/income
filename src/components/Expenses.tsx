@@ -71,7 +71,10 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
   const fixedExpensesOrder = preferences.fixedExpensesOrder || [];
   const setFixedExpensesOrder = (newOrder: string[]) => updatePreferences({ fixedExpensesOrder: newOrder });
   const [isFixedExpensesLocked, setIsFixedExpensesLocked] = useState(preferences.isFixedExpensesLocked ?? true);
-  const [variableExpenseDateFilter, setVariableExpenseDateFilter] = useState(new Date().toISOString().split('T')[0]);
+  const [variableExpenseDateFilter, setVariableExpenseDateFilter] = useState(() => {
+    const d = new Date();
+    return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+  });
   const [showVariableHistory, setShowVariableHistory] = useState(false);
 
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
@@ -275,8 +278,9 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
     const groups: Record<string, ExpenseEntry[]> = {};
     
     filtered.forEach(exp => {
-      if (!groups[exp.date]) groups[exp.date] = [];
-      groups[exp.date].push(exp);
+      const dateKey = exp.date.split('T')[0];
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push(exp);
     });
     
     return Object.entries(groups)
@@ -1053,12 +1057,12 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
 
                   {!showVariableHistory ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {variableExpenses.filter(e => e.date === variableExpenseDateFilter).length === 0 ? (
+                      {variableExpenses.filter(e => e.date.startsWith(variableExpenseDateFilter)).length === 0 ? (
                         <div className="sm:col-span-2">
                           <p className="text-center text-slate-500 py-8 glass-panel rounded-2xl border-dashed border-2 border-slate-200 dark:border-slate-700">{t.noVariableExpenses || 'ไม่มีรายจ่ายผันแปรในวันที่เลือก'}</p>
                         </div>
                       ) : (
-                        variableExpenses.filter(e => e.date === variableExpenseDateFilter).map(expense => (
+                        variableExpenses.filter(e => e.date.startsWith(variableExpenseDateFilter)).map(expense => (
                           <ExpenseItem
                             key={expense.id}
                             expense={expense}
@@ -1084,7 +1088,7 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
                             <div className="flex items-center gap-2 px-2">
                               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
                               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-                                {new Date(group.date).toLocaleDateString(currentLang === 'th' ? 'th-TH' : currentLang === 'zh' ? 'zh-CN' : 'en-US', { 
+                                {new Date(group.date + 'T00:00:00').toLocaleDateString(currentLang === 'th' ? 'th-TH' : currentLang === 'zh' ? 'zh-CN' : 'en-US', { 
                                   day: 'numeric', 
                                   month: 'short', 
                                   year: 'numeric' 
@@ -1400,7 +1404,7 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-400 font-medium">{t.date || 'Date'}</span>
               <span className="text-slate-700 dark:text-slate-200 font-semibold">
-                {new Date(expense.date).toLocaleString(t.locale || 'th-TH', {
+                {new Date(expense.date.length === 10 ? expense.date + 'T00:00:00' : expense.date).toLocaleString(t.locale || 'th-TH', {
                   day: 'numeric',
                   month: 'short',
                   year: 'numeric',

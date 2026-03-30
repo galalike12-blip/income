@@ -15,10 +15,11 @@ export function Charts({ jobs, incentives, expenses = [] }: { jobs: JobEntry[], 
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setDate(1);
-    return d.toISOString().split('T')[0];
+    return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState(() => {
-    return new Date().toISOString().split('T')[0];
+    const d = new Date();
+    return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
   });
   const [startMonth, setStartMonth] = useState(`${new Date().getFullYear()}-01`);
   const [endMonth, setEndMonth] = useState(`${new Date().getFullYear()}-12`);
@@ -26,13 +27,17 @@ export function Charts({ jobs, incentives, expenses = [] }: { jobs: JobEntry[], 
   const [endYear, setEndYear] = useState(`${new Date().getFullYear()}`);
 
   const isDateInRange = (dateStr: string) => {
-    const today = new Date().toISOString().split('T')[0];
-    if (dateStr > today) return false;
+    const d = new Date();
+    const today = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+    if (dateStr.split('T')[0] > today) return false;
 
     if (dateRangeType === 'all') return true;
     if (dateRangeType === 'month') return dateStr.startsWith(selectedMonth);
     if (dateRangeType === 'year') return dateStr.startsWith(selectedYear);
-    if (dateRangeType === 'custom') return dateStr >= startDate && dateStr <= endDate;
+    if (dateRangeType === 'custom') {
+      const dStr = dateStr.split('T')[0];
+      return dStr >= startDate && dStr <= endDate;
+    }
     if (dateRangeType === 'custom-month') {
       const monthStr = dateStr.substring(0, 7);
       return monthStr >= startMonth && monthStr <= endMonth;
@@ -58,12 +63,13 @@ export function Charts({ jobs, incentives, expenses = [] }: { jobs: JobEntry[], 
     const groups: Record<string, { name: string; netIncome: number; tips: number; expenses: number; losses: number }> = {};
 
     const initGroup = (dateStr: string) => {
-      const dateObj = new Date(dateStr);
+      const parsedDateStr = dateStr.length === 10 ? `${dateStr}T00:00:00` : dateStr;
+      const dateObj = new Date(parsedDateStr);
       let key = '';
       let name = '';
 
       if (viewMode === 'daily') {
-        key = dateStr;
+        key = dateStr.split('T')[0];
         name = dateObj.toLocaleDateString(currentLang, { month: 'short', day: 'numeric' });
       } else if (viewMode === 'monthly') {
         key = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;

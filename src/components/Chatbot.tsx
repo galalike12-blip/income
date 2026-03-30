@@ -166,7 +166,10 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive }: ChatbotP
               category: args.category,
               payee: args.payee || '',
               note: args.note || '',
-              date: args.date || new Date().toISOString().split('T')[0],
+              date: args.date || (() => {
+                const d = new Date();
+                return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+              })(),
               isPaid: true
             });
             toast.success(t.synced || 'เพิ่มรายจ่ายสำเร็จ');

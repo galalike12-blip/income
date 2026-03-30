@@ -49,13 +49,16 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setDate(1);
-    return d.toISOString().split('T')[0];
+    return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState(() => {
     const d = new Date();
-    return d.toISOString().split('T')[0];
+    return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
   });
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 7);
+  }); // YYYY-MM
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear().toString());
 
   const filteredData = useMemo(() => {
@@ -63,27 +66,29 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     let end: Date;
 
     if (rangeType === 'monthly') {
-      start = new Date(`${selectedMonth}-01`);
+      start = new Date(`${selectedMonth}-01T00:00:00`);
       end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
     } else if (rangeType === 'ytd') {
       const now = new Date();
       start = new Date(now.getFullYear(), 0, 1); // Jan 1st of current year
-      end = now;
+      end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
     } else {
-      start = new Date(startDate);
-      end = new Date(endDate);
+      start = new Date(`${startDate}T00:00:00`);
+      end = new Date(`${endDate}T00:00:00`);
     }
 
     start.setHours(0, 0, 0, 0);
     end.setHours(23, 59, 59, 999);
 
     const filteredJobs = jobs.filter(j => {
-      const d = new Date(j.date);
+      const dateStr = j.date.length === 10 ? `${j.date}T00:00:00` : j.date;
+      const d = new Date(dateStr);
       return d >= start && d <= end;
     });
 
     const filteredExpenses = expenses.filter(e => {
-      const d = new Date(e.date);
+      const dateStr = e.date.length === 10 ? `${e.date}T00:00:00` : e.date;
+      const d = new Date(dateStr);
       return d >= start && d <= end;
     });
 
@@ -110,7 +115,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     const { start, end } = filteredData;
     const current = new Date(start);
     while (current <= end) {
-      const dateStr = current.toISOString().split('T')[0];
+      const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
       const dailyIncentive = incentives[dateStr] || 0;
       totalIncome += dailyIncentive;
       current.setDate(current.getDate() + 1);
@@ -145,8 +150,9 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     const isCustomLong = rangeType === 'custom' && (filteredData.end.getTime() - filteredData.start.getTime() > 40 * 24 * 60 * 60 * 1000);
 
     const getGroupKey = (dateStr: string) => {
-      if (rangeType === 'ytd' || isCustomLong) return dateStr.slice(0, 7); // YYYY-MM
-      return dateStr; // YYYY-MM-DD
+      const datePart = dateStr.split('T')[0];
+      if (rangeType === 'ytd' || isCustomLong) return datePart.slice(0, 7); // YYYY-MM
+      return datePart; // YYYY-MM-DD
     };
 
     filteredJobs.forEach(j => {
@@ -160,7 +166,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     // Add incentives to timeGroups
     const curr = new Date(start);
     while (curr <= end) {
-      const dateStr = curr.toISOString().split('T')[0];
+      const dateStr = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`;
       const dailyIncentive = incentives[dateStr] || 0;
       if (dailyIncentive > 0) {
         const key = getGroupKey(dateStr);
@@ -395,7 +401,17 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
                     contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                     formatter={(value: number) => `฿${value.toLocaleString()}`}
                   />
-                  <Legend layout="vertical" align="right" verticalAlign="middle" iconType="circle" wrapperStyle={{ fontSize: '10px' }} />
+                  <Legend 
+                    layout="vertical" 
+                    align="right" 
+                    verticalAlign="middle" 
+                    iconType="circle" 
+                    wrapperStyle={{ fontSize: '11px' }}
+                    formatter={(value, entry: any) => {
+                      const percent = stats.totalExpenses > 0 ? ((entry.payload.value / stats.totalExpenses) * 100).toFixed(1) : 0;
+                      return <span className="text-slate-700 dark:text-slate-300 font-medium">{value} ({percent}%)</span>;
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
@@ -427,7 +443,10 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
                       <div className="text-[10px] text-slate-400 font-medium">{e.date}</div>
                     </div>
                   </div>
-                  <div className="text-sm font-black text-rose-600 dark:text-rose-400">฿{e.amount.toLocaleString()}</div>
+                  <div className="text-right">
+                    <div className="text-sm font-black text-rose-600 dark:text-rose-400">฿{e.amount.toLocaleString()}</div>
+                    <div className="text-[10px] text-slate-400 font-medium">{stats.totalExpenses > 0 ? ((e.amount / stats.totalExpenses) * 100).toFixed(1) : 0}%</div>
+                  </div>
                 </div>
               ))
             ) : (
@@ -457,7 +476,10 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
                       <div className="text-[10px] text-slate-400 font-medium">{t.income || 'Income'}</div>
                     </div>
                   </div>
-                  <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">฿{j.appNetIncome.toLocaleString()}</div>
+                  <div className="text-right">
+                    <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">฿{j.appNetIncome.toLocaleString()}</div>
+                    <div className="text-[10px] text-slate-400 font-medium">{stats.totalIncome > 0 ? ((j.appNetIncome / stats.totalIncome) * 100).toFixed(1) : 0}%</div>
+                  </div>
                 </div>
               ))
             ) : (
