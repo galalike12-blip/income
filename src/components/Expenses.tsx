@@ -133,11 +133,7 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
         if (data.category) setExpenseCategory(data.category);
         if (data.payee) setExpensePayee(data.payee);
         
-        let finalNote = data.note || '';
-        if (data.time) {
-          finalNote = finalNote ? `${finalNote} (${data.time})` : data.time;
-        }
-        setExpenseNote(finalNote);
+        setExpenseNote(data.note || '');
 
         if (data.date && /^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
           const time = data.time || "00:00";
