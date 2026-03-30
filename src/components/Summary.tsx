@@ -335,7 +335,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
             <BarChart3 className="w-4 h-4 text-indigo-500" />
             {t.incomeVsExpenses || 'Income vs Expenses'}
           </h3>
-          <div className="h-[300px] w-full">
+          <div className="h-[300px] w-full min-w-0 relative">
             {stats.chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stats.chartData}>
@@ -374,7 +374,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
             <PieChartIcon className="w-4 h-4 text-indigo-500" />
             {t.expenseBreakdown || 'Expense Breakdown'}
           </h3>
-          <div className="h-[300px] w-full">
+          <div className="h-[300px] w-full min-w-0 relative">
             {stats.expensePieData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>

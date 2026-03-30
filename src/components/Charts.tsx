@@ -227,7 +227,7 @@ export function Charts({ jobs, incentives, expenses = [] }: { jobs: JobEntry[], 
 
         <div className="w-full overflow-x-auto pb-4">
           {chartData.length > 0 ? (
-            <div style={{ minWidth: `max(100%, ${chartData.length * 80}px)`, height: '320px' }}>
+            <div style={{ minWidth: `max(100%, ${chartData.length * 80}px)`, height: '320px' }} className="relative">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }} maxBarSize={20}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
@@ -256,7 +256,7 @@ export function Charts({ jobs, incentives, expenses = [] }: { jobs: JobEntry[], 
       {expenses.length > 0 && (
         <div className="glass-panel p-6 sm:p-8 rounded-3xl transition-colors">
           <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-8">{t.expenseCharts || 'กราฟรายจ่าย'}</h2>
-          <div className="w-full h-[320px] sm:h-[400px]">
+          <div className="w-full h-[320px] sm:h-[400px] min-w-0 relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie

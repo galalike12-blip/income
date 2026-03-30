@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { JobEntry, ExpenseEntry, MonthlyBudget, UserPreferences } from '../types';
-import { Plus, Trash2, Calendar, DollarSign, Wallet, PieChart, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Edit2, GripVertical, ChevronDown, ChevronUp, Settings2, Check, Lock, Unlock, BarChart2, AlertCircle, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Calendar, DollarSign, Wallet, PieChart, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Edit2, GripVertical, ChevronDown, ChevronUp, Settings2, Check, Lock, Unlock, BarChart2, AlertCircle, ChevronRight, Camera, Loader2 } from 'lucide-react';
 import { Tooltip } from 'recharts';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
+import { GoogleGenAI } from '@google/genai';
 
 const COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#64748b'];
 
@@ -72,6 +73,73 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
 
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [expenseToDelete, setExpenseToDelete] = useState<ExpenseEntry | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleScanReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!process.env.GEMINI_API_KEY) {
+      toast.error("API Key is missing");
+      return;
+    }
+
+    setIsScanning(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64Data = event.target?.result as string;
+      const base64Content = base64Data.split(',')[1];
+
+      try {
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+        
+        const prompt = `Extract expense details from this receipt image. 
+        Return ONLY a JSON object with the following fields:
+        - amount: number
+        - category: string (one of: food, fuel, rent, utilities, shopping, maintenance, other)
+        - payee: string (the store or person paid)
+        - note: string (a brief description)
+        
+        If you cannot find a field, use an empty string or 0 for amount.
+        Respond in JSON format only.`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: {
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  data: base64Content,
+                  mimeType: file.type
+                }
+              }
+            ]
+          },
+          config: {
+            responseMimeType: "application/json"
+          }
+        });
+
+        const data = JSON.parse(response.text || '{}');
+
+        if (data.amount) setExpenseAmount(data.amount.toString());
+        if (data.category) setExpenseCategory(data.category);
+        if (data.payee) setExpensePayee(data.payee);
+        if (data.note) setExpenseNote(data.note);
+
+        toast.success(t.synced || 'สแกนสำเร็จ');
+      } catch (error) {
+        console.error(error);
+        toast.error(t.scanError2 || 'เกิดข้อผิดพลาดในการสแกนสลิป');
+      } finally {
+        setIsScanning(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleEditClick = (expense: ExpenseEntry) => {
     setEditingExpenseId(expense.id);
@@ -631,6 +699,30 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
           </h2>
           
           <div className="flex items-center gap-2">
+            {!editingExpenseId && (
+              <>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleScanReceipt}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isScanning}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all text-sm font-medium border border-indigo-100 dark:border-indigo-800/50"
+                >
+                  {isScanning ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Camera className="w-4 h-4" />
+                  )}
+                  {isScanning ? (t.scanning || 'กำลังสแกน...') : (t.scanReceipt || 'สแกนสลิป')}
+                </button>
+              </>
+            )}
             {editingExpenseId && (
               <span className="text-xs font-medium px-2.5 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-full">
                 {t.edit || 'แก้ไข'} Mode

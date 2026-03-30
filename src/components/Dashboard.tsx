@@ -344,7 +344,7 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
                       <BarChart2 className="w-5 h-5 text-indigo-500" />
                       {t.incomeComparison || 'เปรียบเทียบรายได้ 7 วันล่าสุด'}
                     </h3>
-                    <div className="h-[250px] w-full">
+                    <div className="h-[250px] w-full min-w-0 relative">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={last7DaysData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />

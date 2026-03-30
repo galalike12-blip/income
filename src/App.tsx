@@ -174,25 +174,16 @@ function MainContent() {
       </div>
       <Header />
       
-      <div className="max-w-5xl mx-auto px-2 sm:px-4 mt-2 mb-4 flex justify-center">
-        <div className="flex w-full sm:w-auto glass-panel-subtle p-1 rounded-full overflow-x-auto hide-scrollbar">
-          <button 
-            onClick={() => setActiveTab('dashboard')} 
-            className={`flex-1 sm:flex-none px-2.5 sm:px-6 py-2 sm:py-2.5 rounded-full text-[10px] sm:text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-white/90 dark:bg-slate-700/90 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}
-          >
-            {currentLang === 'th' ? 'รายรับ' : 'Income'}
+      <div className="max-w-5xl mx-auto px-4 mt-2 mb-4 flex justify-center">
+        <div className="flex glass-panel-subtle p-1 rounded-full overflow-x-auto hide-scrollbar">
+          <button onClick={() => setActiveTab('dashboard')} className={`px-4 sm:px-6 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+            {t.income || 'รายรับ (Income)'}
           </button>
-          <button 
-            onClick={() => setActiveTab('expenses')} 
-            className={`flex-1 sm:flex-none px-2.5 sm:px-6 py-2 sm:py-2.5 rounded-full text-[10px] sm:text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'expenses' ? 'bg-white/90 dark:bg-slate-700/90 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}
-          >
-            {currentLang === 'th' ? 'รายจ่าย' : 'Expenses'}
+          <button onClick={() => setActiveTab('expenses')} className={`px-4 sm:px-6 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'expenses' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+            {t.expenses || 'รายจ่าย (Expenses)'}
           </button>
-          <button 
-            onClick={() => setActiveTab('summary')} 
-            className={`flex-1 sm:flex-none px-2.5 sm:px-6 py-2 sm:py-2.5 rounded-full text-[10px] sm:text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'summary' ? 'bg-white/90 dark:bg-slate-700/90 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}
-          >
-            {currentLang === 'th' ? 'สรุป' : 'Summary'}
+          <button onClick={() => setActiveTab('summary')} className={`px-4 sm:px-6 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'summary' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+            {t.summary || 'สรุป (Summary)'}
           </button>
         </div>
       </div>
@@ -234,7 +225,7 @@ function MainContent() {
           incentives={incentives}
         />
       )}
-      <Chatbot jobs={jobs} />
+      <Chatbot jobs={jobs} addExpense={addExpense} />
       <Toaster position="top-center" richColors />
     </div>
   );

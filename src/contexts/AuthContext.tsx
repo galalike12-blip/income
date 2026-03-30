@@ -11,6 +11,8 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 import { GoogleSheetsService } from '../services/googleSheets';
 
+import { toast } from 'sonner';
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
@@ -42,16 +44,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (currentUser) {
         // Fetch user profile from Firestore
         const docRef = doc(db, 'users', currentUser.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setSpreadsheetIdState(docSnap.data().spreadsheetId || null);
-        } else {
-          // Create user profile
-          await setDoc(docRef, {
-            uid: currentUser.uid,
-            email: currentUser.email,
-            createdAt: serverTimestamp()
-          });
+        try {
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setSpreadsheetIdState(docSnap.data().spreadsheetId || null);
+          } else {
+            // Create user profile
+            await setDoc(docRef, {
+              uid: currentUser.uid,
+              email: currentUser.email,
+              createdAt: serverTimestamp()
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching user profile:", error);
         }
       } else {
         setSpreadsheetIdState(null);
@@ -98,8 +104,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error signing in with Google", error);
+      
+      if (error.code === 'auth/popup-blocked') {
+        toast.error('เบราว์เซอร์บล็อกหน้าต่าง Pop-up กรุณากดอนุญาตที่แถบ URL ด้านบนแล้วลองใหม่อีกครั้ง');
+      } else if (error.code === 'auth/unauthorized-domain') {
+        toast.error('โดเมนนี้ยังไม่ได้รับอนุญาตใน Firebase Console กรุณาแจ้งผู้ดูแลระบบ');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        // User closed the popup, no need for a loud error
+      } else {
+        toast.error('เกิดข้อผิดพลาดในการเข้าสู่ระบบ: ' + (error.message || 'Unknown error'));
+      }
       throw error;
     }
   };
