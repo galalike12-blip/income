@@ -197,7 +197,23 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
   const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4'];
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-5xl mx-auto px-4 pt-2 pb-4 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 glass-panel p-4 rounded-3xl transition-colors overflow-hidden">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white text-center sm:text-left">{t.summary || 'Summary'}</h1>
+        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto">
+          <button 
+            onClick={() => {
+              setRangeType('monthly');
+              // Optionally set custom range to today if needed, but monthly is more common for "Today" in summary
+            }}
+            className="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100/80 dark:text-indigo-400 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 rounded-2xl transition-colors backdrop-blur-sm"
+          >
+            {t.today || 'วันนี้'}
+          </button>
+        </div>
+      </div>
+
       {/* Range Selector */}
       <div className="glass-panel p-4 rounded-3xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -268,7 +284,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -407,14 +423,14 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
         {/* Top Expenses List */}
         <div className="glass-panel p-6 rounded-3xl">
           <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
             <TrendingDown className="w-4 h-4 text-rose-500" />
             {t.topExpenses || 'Top Expenses'}
           </h3>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {stats.topExpenses.length > 0 ? (
               stats.topExpenses.map((e, i) => (
                 <div key={e.id} className="flex items-center justify-between p-3 bg-white/50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
@@ -444,7 +460,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
             <TrendingUp className="w-4 h-4 text-emerald-500" />
             {t.topIncomeSources || 'Top Income Days'}
           </h3>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {stats.topIncomeDays.length > 0 ? (
               stats.topIncomeDays.map((j, i) => (
                 <div key={j.id} className="flex items-center justify-between p-3 bg-white/50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">

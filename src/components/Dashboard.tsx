@@ -204,11 +204,11 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-4 space-y-6">
+    <div className="max-w-5xl mx-auto px-4 pt-2 pb-4 space-y-6">
       {/* Header & Date Picker */}
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 glass-panel p-4 rounded-3xl transition-colors">
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{t.dailyEarnings}</h1>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 glass-panel p-4 rounded-3xl transition-colors overflow-hidden">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white text-center sm:text-left">{t.dailyEarnings}</h1>
+        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto">
           <button 
             onClick={() => {
               const today = new Date();
@@ -310,7 +310,7 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
 
               {id === 'summary' && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                     <SummaryCard title={t.netIncome} amount={summary.netIncome} icon={<DollarSign className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />} bg="bg-emerald-50 dark:bg-emerald-900/30" color="text-emerald-700 dark:text-emerald-400" className="col-span-1 sm:col-span-2 lg:col-span-1 text-4xl" />
                     
                     <div className="p-6 rounded-3xl glass-panel-subtle transition-colors">
@@ -376,7 +376,7 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
                     )}
                   </div>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                     <div>
                       <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2 ml-1">{t.customerMustPay}</label>
                       <input type="number" step="0.01" value={customerMustPay} onChange={e => setCustomerMustPay(e.target.value)} placeholder="0.00" className="w-full px-4 py-3 glass-input rounded-2xl" required />
@@ -412,7 +412,7 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
                     </div>
                   </div>
 
-                  <div className="flex gap-3 mt-6">
+                  <div className="flex gap-2 mt-6">
                     {editingId && (
                       <button type="button" onClick={cancelEdit} className="w-1/3 py-3.5 glass-button-secondary font-medium rounded-2xl flex items-center justify-center gap-2">
                         <X className="w-5 h-5" />
@@ -447,7 +447,7 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
                         {t.noEntries}
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {todaysJobs.map((job, index) => (
                           <JobItem 
                             key={job.id} 
@@ -469,7 +469,7 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
                         </div>
                       ) : (
                         groupedHistory.map((group) => (
-                          <div key={group.date} className="space-y-3">
+                          <div key={group.date} className="space-y-2">
                             <div className="flex items-center gap-2 px-2">
                               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
                               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
@@ -481,7 +481,7 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
                               </span>
                               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {group.items.map((job, index) => (
                                 <JobItem 
                                   key={job.id} 
@@ -570,7 +570,7 @@ function JobItem({ job, index, editingId, handleEditClick, deleteJob, t }: any) 
 
       {isExpanded && (
         <div className="p-4 bg-slate-50/80 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-700">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 mb-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-400 font-medium">{t.customerMustPay}</span>
               <span className="text-slate-700 dark:text-slate-200 font-semibold">฿{job.customerMustPay.toLocaleString()}</span>

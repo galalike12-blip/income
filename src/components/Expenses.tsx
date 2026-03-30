@@ -573,40 +573,36 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-4 space-y-6">
+    <div className="max-w-5xl mx-auto px-4 pt-2 pb-4 space-y-6">
       {/* Header & Month Picker */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{t.expenseManagement || 'ระบบจัดการรายจ่าย'}</h1>
-          <p className="text-slate-500 dark:text-slate-400">Fixed Cost Pro</p>
-        </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <button
-            onClick={() => setIsCustomizingLayout(!isCustomizingLayout)}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors ${
-              isCustomizingLayout 
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-indigo-900/20' 
-                : 'bg-white/50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-slate-800/80 border border-white/40 dark:border-slate-700/50'
-            }`}
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 glass-panel p-4 rounded-3xl transition-colors overflow-hidden">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white text-center sm:text-left">{t.expenseManagement || 'ระบบจัดการรายจ่าย'}</h1>
+        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto">
+          <button 
+            onClick={() => {
+              const today = new Date();
+              setSelectedMonth(new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().slice(0, 7));
+            }}
+            className="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100/80 dark:text-indigo-400 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 rounded-2xl transition-colors backdrop-blur-sm"
           >
-            {isCustomizingLayout ? (
-              <>
-                <Check className="w-4 h-4" />
-                {t.doneCustomizing || 'เสร็จสิ้น'}
-              </>
-            ) : (
-              <>
-                <Settings2 className="w-4 h-4" />
-                {t.customizeLayout || 'ปรับแต่งหน้าจอ'}
-              </>
-            )}
+            {t.today || 'วันนี้'}
           </button>
-          <input 
-            type="month" 
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="flex-1 sm:flex-none px-4 py-2 glass-input rounded-xl font-medium"
-          />
+          <button 
+            onClick={() => setIsCustomizingLayout(!isCustomizingLayout)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-2xl border transition-colors backdrop-blur-sm ${isCustomizingLayout ? 'bg-indigo-50/95 border-indigo-200 text-indigo-700 dark:bg-indigo-900/80 dark:border-indigo-700 dark:text-indigo-300' : 'bg-white/95 border-slate-200 text-slate-700 dark:bg-slate-800/95 dark:border-slate-600 dark:text-slate-200'}`}
+          >
+            {isCustomizingLayout ? <Check className="w-5 h-5" /> : <Settings2 className="w-5 h-5" />}
+            <span className="hidden sm:inline font-medium">{isCustomizingLayout ? t.doneCustomizing : t.customizeLayout}</span>
+          </button>
+          <div className="flex items-center gap-2 glass-input px-4 py-2 rounded-2xl">
+            <Calendar className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+            <input 
+              type="month" 
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-transparent text-sm font-medium text-slate-900 dark:text-white outline-none cursor-pointer"
+            />
+          </div>
         </div>
       </div>
 
@@ -983,7 +979,7 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
               axis="y" 
               values={fixedExpenses} 
               onReorder={(newOrder) => setFixedExpensesOrder(newOrder.map(e => e.payee || e.category))} 
-              className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+              className="grid grid-cols-1 sm:grid-cols-2 gap-2"
             >
               {fixedExpenses.map(expense => (
                 <Reorder.Item 
@@ -1045,7 +1041,7 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
                   </div>
 
                   {!showVariableHistory ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {variableExpenses.filter(e => e.date === variableExpenseDateFilter).length === 0 ? (
                         <div className="sm:col-span-2">
                           <p className="text-center text-slate-500 py-8 glass-panel rounded-2xl border-dashed border-2 border-slate-200 dark:border-slate-700">{t.noVariableExpenses || 'ไม่มีรายจ่ายผันแปรในวันที่เลือก'}</p>
@@ -1073,7 +1069,7 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
                         </div>
                       ) : (
                         groupedVariableHistory.map((group) => (
-                          <div key={group.date} className="space-y-3">
+                          <div key={group.date} className="space-y-2">
                             <div className="flex items-center gap-2 px-2">
                               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
                               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
@@ -1085,7 +1081,7 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
                               </span>
                               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {group.items.map((expense) => (
                                 <ExpenseItem
                                   key={expense.id}

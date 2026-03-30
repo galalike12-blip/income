@@ -22,7 +22,7 @@ export function Header() {
   }, []);
 
   return (
-    <header className="glass-panel mx-4 mt-4 rounded-3xl px-6 py-4 flex justify-between items-center transition-colors relative z-50">
+    <header className="glass-panel mx-4 mt-3 rounded-3xl px-6 py-4 flex justify-between items-center transition-colors relative z-50">
       <h1 className="text-xl font-bold text-slate-800 dark:text-white">{t.appTitle}</h1>
       
       <div ref={menuRef}>
