@@ -226,12 +226,12 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
             <span className="hidden sm:inline font-medium">{isCustomizing ? t.doneCustomizing : t.customizeLayout}</span>
           </button>
           <div className="flex items-center gap-2 glass-input px-4 h-[38px] rounded-2xl w-[145px]">
-            <Calendar className="w-5 h-5 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+            <Calendar className="w-5 h-5 text-slate-500 dark:text-slate-400 flex-shrink-0 -ml-[4px]" />
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent border-none outline-none text-slate-700 dark:text-slate-200 font-medium color-scheme-light dark:color-scheme-dark w-full"
+              className="bg-transparent border-none outline-none text-slate-700 dark:text-slate-200 font-medium text-[14px] color-scheme-light dark:color-scheme-dark w-full"
               style={{ colorScheme: 'light dark' }}
             />
           </div>

@@ -595,12 +595,12 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
             <span className="hidden sm:inline font-medium">{isCustomizingLayout ? t.doneCustomizing : t.customizeLayout}</span>
           </button>
           <div className="flex items-center gap-2 glass-input px-4 h-[38px] rounded-2xl w-[145px]">
-            <Calendar className="w-5 h-5 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+            <Calendar className="w-5 h-5 text-slate-500 dark:text-slate-400 flex-shrink-0 -ml-[4px]" />
             <input 
               type="month" 
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent text-sm font-medium text-slate-900 dark:text-white outline-none cursor-pointer w-full"
+              className="bg-transparent text-[14px] font-medium text-slate-900 dark:text-white outline-none cursor-pointer w-full"
             />
           </div>
         </div>
