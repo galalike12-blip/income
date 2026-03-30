@@ -30,6 +30,25 @@ function MainContent() {
     return new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
   });
   const [activeTab, setActiveTab] = useState<'dashboard' | 'expenses' | 'summary'>('dashboard');
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   // Migrate old data format to new format
   const jobs: JobEntry[] = rawJobs.map(j => {
@@ -172,7 +191,7 @@ function MainContent() {
         <div className="blob blob-2"></div>
         <div className="blob blob-3"></div>
       </div>
-      <Header />
+      <Header onInstall={deferredPrompt ? handleInstallApp : undefined} />
       
       <div className="max-w-5xl mx-auto px-4 mt-3 mb-2 flex justify-center">
         <div className="flex w-full max-w-md glass-panel-subtle p-1 rounded-full overflow-hidden">

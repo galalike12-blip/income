@@ -48,7 +48,10 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
   const [expenseCategory, setExpenseCategory] = useState('');
   const [expensePayee, setExpensePayee] = useState('');
   const [expenseNote, setExpenseNote] = useState('');
-  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [expenseDate, setExpenseDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+  });
   const [isFixed, setIsFixed] = useState(false);
   const [frequency, setFrequency] = useState<'monthly' | 'yearly'>('monthly');
   const [isIndefinite, setIsIndefinite] = useState(false);
@@ -100,6 +103,8 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
         - category: string (one of: food, fuel, rent, utilities, shopping, maintenance, other)
         - payee: string (the store or person paid)
         - note: string (a brief description)
+        - date: string (format: YYYY-MM-DD)
+        - time: string (format: HH:mm)
         
         If you cannot find a field, use an empty string or 0 for amount.
         Respond in JSON format only.`;
@@ -127,7 +132,17 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
         if (data.amount) setExpenseAmount(data.amount.toString());
         if (data.category) setExpenseCategory(data.category);
         if (data.payee) setExpensePayee(data.payee);
-        if (data.note) setExpenseNote(data.note);
+        
+        let finalNote = data.note || '';
+        if (data.time) {
+          finalNote = finalNote ? `${finalNote} (${data.time})` : data.time;
+        }
+        setExpenseNote(finalNote);
+
+        if (data.date && /^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
+          const time = data.time || "00:00";
+          setExpenseDate(`${data.date}T${time}`);
+        }
 
         toast.success(t.synced || 'สแกนสำเร็จ');
       } catch (error) {
@@ -168,7 +183,7 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
     setExpenseCategory('');
     setExpensePayee('');
     setExpenseNote('');
-    setExpenseDate(new Date().toISOString().split('T')[0]);
+    setExpenseDate(new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 16));
     setIsFixed(false);
     setFrequency('monthly');
     setIsIndefinite(false);
@@ -396,7 +411,7 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
               } else {
                 newDate.setMonth(newDate.getMonth() + offset);
               }
-              const formattedDate = newDate.toISOString().split('T')[0];
+              const formattedDate = new Date(newDate.getTime() - (newDate.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
               
               if (i < groupExpenses.length) {
                 // Update existing
@@ -473,7 +488,7 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
               } else {
                 d.setMonth(d.getMonth() + i);
               }
-              const formattedDate = d.toISOString().split('T')[0];
+              const formattedDate = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
               
               if (i === 0) {
                 updateExpense(originalExpense.id, {
@@ -538,7 +553,7 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
           } else {
             d.setMonth(d.getMonth() + i);
           }
-          const formattedDate = d.toISOString().split('T')[0];
+          const formattedDate = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
           
           addExpense({
             date: formattedDate,
@@ -731,7 +746,7 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
           <div className="sm:col-span-3">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.date || 'วันที่'}</label>
             <input 
-              type="date" 
+              type="datetime-local" 
               value={expenseDate} 
               onChange={e => setExpenseDate(e.target.value)} 
               className="w-full px-4 py-3 glass-input rounded-2xl"
@@ -1388,7 +1403,15 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
           <div className="grid grid-cols-1 gap-3 mb-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-400 font-medium">{t.date || 'Date'}</span>
-              <span className="text-slate-700 dark:text-slate-200 font-semibold">{expense.date}</span>
+              <span className="text-slate-700 dark:text-slate-200 font-semibold">
+                {new Date(expense.date).toLocaleString(t.locale || 'th-TH', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </span>
             </div>
             {expense.payee && (
               <div className="flex items-center justify-between text-sm">

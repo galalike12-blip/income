@@ -1,6 +1,6 @@
 export interface JobEntry {
   id: string;
-  date: string; // YYYY-MM-DD
+  date: string; // ISO string (YYYY-MM-DDTHH:mm) or YYYY-MM-DD
   customerMustPay: number;
   upfrontCost: number;
   appNetIncome: number;
@@ -9,7 +9,7 @@ export interface JobEntry {
 
 export interface ExpenseEntry {
   id: string;
-  date: string; // YYYY-MM-DD
+  date: string; // ISO string (YYYY-MM-DDTHH:mm) or YYYY-MM-DD
   amount: number;
   category: string;
   payee?: string;

@@ -34,6 +34,10 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
   const [upfrontCost, setUpfrontCost] = useState('');
   const [appNetIncome, setAppNetIncome] = useState('');
   const [actualReceived, setActualReceived] = useState('');
+  const [jobTime, setJobTime] = useState(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  });
   
   const [dailyGoalAmount, setDailyGoalAmount] = useState('');
   const [isEditingGoal, setIsEditingGoal] = useState(false);
@@ -54,7 +58,7 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
   const currentLoss = difference < 0 ? Math.abs(difference) : 0;
   const currentNet = currentAppNet + difference;
 
-  const todaysJobs = useMemo(() => jobs.filter(j => j.date === selectedDate), [jobs, selectedDate]);
+  const todaysJobs = useMemo(() => jobs.filter(j => j.date.startsWith(selectedDate)), [jobs, selectedDate]);
   const groupedHistory = useMemo(() => {
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
@@ -63,8 +67,9 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
     const groups: Record<string, JobEntry[]> = {};
     
     filtered.forEach(job => {
-      if (!groups[job.date]) groups[job.date] = [];
-      groups[job.date].push(job);
+      const dateKey = job.date.split('T')[0];
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push(job);
     });
     
     return Object.entries(groups)
@@ -102,7 +107,7 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
     return d.toISOString().split('T')[0];
   }, [selectedDate]);
 
-  const yesterdaysJobs = useMemo(() => jobs.filter(j => j.date === yesterdayStr), [jobs, yesterdayStr]);
+  const yesterdaysJobs = useMemo(() => jobs.filter(j => j.date.startsWith(yesterdayStr)), [jobs, yesterdayStr]);
 
   const yesterdayGrossIncome = useMemo(() => {
     const totalAppNetIncome = yesterdaysJobs.reduce((sum, j) => sum + j.appNetIncome, 0);
@@ -131,7 +136,7 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
-      const dayJobs = jobs.filter(j => j.date === dateStr);
+      const dayJobs = jobs.filter(j => j.date.startsWith(dateStr));
       
       const totalAppNetIncome = dayJobs.reduce((sum, j) => sum + j.appNetIncome, 0);
       let totalTip = 0;
@@ -158,6 +163,11 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
     setAppNetIncome(job.appNetIncome.toString());
     setUpfrontCost(job.upfrontCost ? job.upfrontCost.toString() : '');
     setActualReceived(job.actualReceived ? job.actualReceived.toString() : '');
+    if (job.date.includes('T')) {
+      setJobTime(job.date.split('T')[1]);
+    } else {
+      setJobTime('00:00');
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -167,6 +177,8 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
     setAppNetIncome('');
     setUpfrontCost('');
     setActualReceived('');
+    const now = new Date();
+    setJobTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -174,7 +186,7 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
     if (!customerMustPay || !appNetIncome) return;
 
     const jobData = {
-      date: selectedDate,
+      date: `${selectedDate}T${jobTime}`,
       customerMustPay: currentCustomerMustPay,
       upfrontCost: currentUpfront,
       appNetIncome: currentAppNet,
@@ -376,24 +388,28 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
                     )}
                   </div>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2 ml-1">{t.customerMustPay}</label>
-                      <input type="number" step="0.01" value={customerMustPay} onChange={e => setCustomerMustPay(e.target.value)} placeholder="0.00" className="w-full px-4 py-3 glass-input rounded-2xl" required />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2 ml-1">{t.customerMustPay}</label>
+                        <input type="number" step="0.01" value={customerMustPay} onChange={e => setCustomerMustPay(e.target.value)} placeholder="0.00" className="w-full px-4 py-3 glass-input rounded-2xl" required />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2 ml-1">{t.appNetIncome}</label>
+                        <input type="number" step="0.01" value={appNetIncome} onChange={e => setAppNetIncome(e.target.value)} placeholder="0.00" className="w-full px-4 py-3 glass-input rounded-2xl" required />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2 ml-1">{t.actualReceived}</label>
+                        <input type="number" step="0.01" value={actualReceived} onChange={e => setActualReceived(e.target.value)} placeholder={`${t.actualReceived} (Optional)`} className="w-full px-4 py-3 glass-input rounded-2xl" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2 ml-1">{t.upfrontCost}</label>
+                        <input type="number" step="0.01" value={upfrontCost} onChange={e => setUpfrontCost(e.target.value)} placeholder="0.00" className="w-full px-4 py-3 glass-input rounded-2xl" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2 ml-1">เวลา (Time)</label>
+                        <input type="time" value={jobTime} onChange={e => setJobTime(e.target.value)} className="w-full px-4 py-3 glass-input rounded-2xl" required />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2 ml-1">{t.appNetIncome}</label>
-                      <input type="number" step="0.01" value={appNetIncome} onChange={e => setAppNetIncome(e.target.value)} placeholder="0.00" className="w-full px-4 py-3 glass-input rounded-2xl" required />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2 ml-1">{t.actualReceived}</label>
-                      <input type="number" step="0.01" value={actualReceived} onChange={e => setActualReceived(e.target.value)} placeholder={`${t.actualReceived} (Optional)`} className="w-full px-4 py-3 glass-input rounded-2xl" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2 ml-1">{t.upfrontCost}</label>
-                      <input type="number" step="0.01" value={upfrontCost} onChange={e => setUpfrontCost(e.target.value)} placeholder="0.00" className="w-full px-4 py-3 glass-input rounded-2xl" />
-                    </div>
-                  </div>
 
                   <div className="glass-panel-subtle p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4 text-sm mt-6">
                     <div className="flex justify-between w-full sm:w-auto gap-4">
@@ -549,8 +565,11 @@ function JobItem({ job, index, editingId, handleEditClick, deleteJob, t }: any) 
             {index + 1}
           </div>
           <div className="min-w-0">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5">
-              {t.jobSequence} {index + 1}
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5 flex justify-between">
+              <span>{t.jobSequence} {index + 1}</span>
+              {job.date.includes('T') && (
+                <span>{job.date.split('T')[1]}</span>
+              )}
             </div>
             <div className="text-lg font-bold text-slate-800 dark:text-slate-100 truncate">
               ฿{net.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

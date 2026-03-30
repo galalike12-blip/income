@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Moon, Sun, Monitor, Globe, LogIn, LogOut, Menu, X } from 'lucide-react';
+import { Moon, Sun, Monitor, Globe, LogIn, LogOut, Menu, X, Download } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { useAuth } from '../contexts/AuthContext';
 
-export function Header() {
+export function Header({ onInstall }: { onInstall?: () => void }) {
   const { theme, setTheme, language, setLanguage, currentLang } = useSettings();
   const t = translations[currentLang];
   const { user, loginWithGoogle, logout } = useAuth();
@@ -100,6 +100,20 @@ export function Header() {
                 <option value="dark" className="text-slate-900">{t.dark}</option>
               </select>
             </div>
+
+            {/* Install App */}
+            {onInstall && (
+              <button 
+                onClick={() => {
+                  onInstall();
+                  setIsMenuOpen(false);
+                }}
+                className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                <span>{t.installApp}</span>
+              </button>
+            )}
           </div>
         )}
       </div>

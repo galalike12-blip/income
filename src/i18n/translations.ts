@@ -20,6 +20,7 @@ export const translations = {
     cancel: "Cancel",
     customizeLayout: "Customize Layout",
     doneCustomizing: "Done",
+    locale: "en-US",
     todaysEntries: "Today's Entries",
     noEntries: "No entries for this date yet. Add one to get started!",
     jobSequence: "Job",
@@ -171,6 +172,8 @@ export const translations = {
     confirmDelete: "Confirm Delete",
     deleteAllOccurrences: "Delete All Occurrences",
     confirm: "Confirm",
+    installApp: "Install App",
+    installAppDesc: "Install this app on your home screen for quick access.",
   },
   th: {
     appTitle: "ติดตามรายได้",
@@ -193,6 +196,7 @@ export const translations = {
     cancel: "ยกเลิก",
     customizeLayout: "ปรับแต่งหน้าจอ",
     doneCustomizing: "เสร็จสิ้น",
+    locale: "th-TH",
     todaysEntries: "รายการวันนี้",
     noEntries: "ยังไม่มีรายการสำหรับวันนี้ เพิ่มรายการเพื่อเริ่มต้น!",
     jobSequence: "งานที่",
@@ -344,6 +348,8 @@ export const translations = {
     confirmDelete: "ยืนยันการลบ",
     deleteAllOccurrences: "ลบทุกรายการ",
     confirm: "ยืนยัน",
+    installApp: "ติดตั้งแอป",
+    installAppDesc: "ติดตั้งแอปนี้บนหน้าจอหลักเพื่อการเข้าถึงที่รวดเร็ว",
   },
   zh: {
     appTitle: "收入与小费追踪器",
@@ -366,6 +372,7 @@ export const translations = {
     cancel: "取消",
     customizeLayout: "自定义布局",
     doneCustomizing: "完成",
+    locale: "zh-CN",
     todaysEntries: "今日记录",
     noEntries: "今天还没有记录。添加一个开始吧！",
     jobSequence: "工作",
@@ -517,5 +524,7 @@ export const translations = {
     confirmDelete: "确认删除",
     deleteAllOccurrences: "删除所有项",
     confirm: "确认",
+    installApp: "安装应用",
+    installAppDesc: "将此应用安装到主屏幕以快速访问。",
   }
 };
