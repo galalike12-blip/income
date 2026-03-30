@@ -383,7 +383,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
           <div className="h-[300px] w-full min-w-0 relative">
             {stats.expensePieData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
+                <PieChart style={{ marginLeft: -11 }}>
                   <Pie
                     data={stats.expensePieData}
                     cx="50%"
@@ -406,7 +406,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
                     align="right" 
                     verticalAlign="middle" 
                     iconType="circle" 
-                    wrapperStyle={{ fontSize: '11px' }}
+                    wrapperStyle={{ fontSize: '11px', marginRight: -30 }}
                     formatter={(value, entry: any) => {
                       const percent = stats.totalExpenses > 0 ? ((entry.payload.value / stats.totalExpenses) * 100).toFixed(1) : 0;
                       return <span className="text-slate-700 dark:text-slate-300 font-medium">{value} ({percent}%)</span>;
