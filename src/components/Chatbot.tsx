@@ -16,10 +16,12 @@ interface ChatMessage {
 
 interface ChatbotProps {
   jobs: JobEntry[];
+  incentives: Record<string, number>;
   addExpense: (expense: Omit<ExpenseEntry, 'id'>) => void;
+  setIncentive: (date: string, amount: number) => void;
 }
 
-export function Chatbot({ jobs, addExpense }: ChatbotProps) {
+export function Chatbot({ jobs, incentives, addExpense, setIncentive }: ChatbotProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
   
@@ -91,9 +93,23 @@ export function Chatbot({ jobs, addExpense }: ChatbotProps) {
         }
       };
 
+      const setIncentiveTool: FunctionDeclaration = {
+        name: "setIncentive",
+        description: "Set a daily incentive amount for a specific date.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            date: { type: Type.STRING, description: "Date in YYYY-MM-DD format." },
+            amount: { type: Type.NUMBER, description: "The incentive amount" }
+          },
+          required: ["date", "amount"]
+        }
+      };
+
       const context = `You are an AI assistant for an income and tip tracking app. 
       The user's current data:
-      ${JSON.stringify(jobs, null, 2)}
+      Jobs: ${JSON.stringify(jobs, null, 2)}
+      Daily Incentives: ${JSON.stringify(incentives, null, 2)}
       
       Note on fields:
       - customerMustPay: The fare amount before app discount.
@@ -109,6 +125,7 @@ export function Chatbot({ jobs, addExpense }: ChatbotProps) {
       The user's preferred language code is '${currentLang}'. Please respond in this language.
       
       If the user uploads an image of a receipt or slip, extract the details and call the 'addExpense' tool.
+      If the user mentions a daily incentive, use the 'setIncentive' tool.
       Always confirm with the user before adding if the details are not 100% clear.`;
 
       const history = messages.map(m => ({
@@ -131,7 +148,7 @@ export function Chatbot({ jobs, addExpense }: ChatbotProps) {
         contents: [...history, { role: 'user', parts }],
         config: {
           systemInstruction: context,
-          tools: [{ functionDeclarations: [addExpenseTool] }],
+          tools: [{ functionDeclarations: [addExpenseTool, setIncentiveTool] }],
           thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL }
         }
       });
@@ -153,6 +170,10 @@ export function Chatbot({ jobs, addExpense }: ChatbotProps) {
               isPaid: true
             });
             toast.success(t.synced || 'เพิ่มรายจ่ายสำเร็จ');
+          } else if (call.name === 'setIncentive') {
+            const args = call.args as any;
+            setIncentive(args.date, args.amount);
+            toast.success(t.synced || 'บันทึกอินเซนทีฟสำเร็จ');
           }
         }
       }
