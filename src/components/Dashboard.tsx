@@ -1,10 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { JobEntry, DailySummary, ExpenseEntry, Goal, UserPreferences } from '../types';
-import { Plus, Trash2, Calendar, DollarSign, TrendingUp, TrendingDown, Pencil, X, Settings2, Check, GripVertical, ChevronDown, ChevronUp, Gift, Target, Receipt, Scan, Loader2, Camera, BarChart2 } from 'lucide-react';
+import { Plus, Trash2, Calendar, DollarSign, TrendingUp, TrendingDown, Pencil, X, Settings2, Check, GripVertical, ChevronDown, ChevronUp, Gift, Target, BarChart2 } from 'lucide-react';
 import { motion, Reorder } from 'motion/react';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
-import { scanReceipt } from '../services/aiScanner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DashboardProps {
@@ -39,9 +38,7 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
   const [dailyGoalAmount, setDailyGoalAmount] = useState('');
   const [isEditingGoal, setIsEditingGoal] = useState(false);
 
-  const [isScanning, setIsScanning] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const currentCustomerMustPay = parseFloat(customerMustPay) || 0;
   const currentUpfront = parseFloat(upfrontCost) || 0;
@@ -204,40 +201,6 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
       setGoal({ type: 'daily', targetAmount: amount });
     }
     setIsEditingGoal(false);
-  };
-
-  const handleScanReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsScanning(true);
-    try {
-      const result = await scanReceipt(file);
-      if (result.amount !== null) {
-        setActualReceived(result.amount.toString());
-        // Also set customerMustPay if it's empty, assuming they paid exactly what was required
-        if (!customerMustPay) {
-          setCustomerMustPay(result.amount.toString());
-        }
-        if (!appNetIncome) {
-          setAppNetIncome(result.amount.toString());
-        }
-      } else {
-        alert("ไม่สามารถอ่านตัวเลขจากสลิปได้ กรุณาลองใหม่อีกครั้ง");
-      }
-    } catch (error: any) {
-      console.error(error);
-      if (error?.message === "QUOTA_EXCEEDED") {
-        alert("โควต้าการใช้งาน AI เต็มแล้ว กรุณาลองใหม่ในภายหลัง หรือตรวจสอบการตั้งค่า API Key");
-      } else {
-        alert("เกิดข้อผิดพลาดในการสแกนสลิป");
-      }
-    } finally {
-      setIsScanning(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
   };
 
   return (
@@ -410,26 +373,6 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
                       <span className="text-xs font-medium px-2.5 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-full">
                         {t.edit} Mode
                       </span>
-                    )}
-                    {!editingId && (
-                      <div>
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          className="hidden" 
-                          ref={fileInputRef}
-                          onChange={handleScanReceipt}
-                        />
-                        <button 
-                          type="button" 
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={isScanning}
-                          className="flex items-center gap-2 px-4 py-2 text-sm font-medium glass-button-secondary rounded-xl transition-colors disabled:opacity-50"
-                        >
-                          {isScanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Scan className="w-4 h-4" />}
-                          {isScanning ? "กำลังสแกน..." : "สแกนสลิป (AI)"}
-                        </button>
-                      </div>
                     )}
                   </div>
                   

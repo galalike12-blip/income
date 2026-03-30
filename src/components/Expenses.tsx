@@ -1,12 +1,11 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { JobEntry, ExpenseEntry, MonthlyBudget, UserPreferences } from '../types';
-import { Plus, Trash2, Calendar, DollarSign, Receipt, Scan, Loader2, Camera, Wallet, PieChart, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Edit2, GripVertical, ChevronDown, ChevronUp, Settings2, Check, Lock, Unlock, BarChart2, AlertCircle, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Calendar, DollarSign, Wallet, PieChart, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Edit2, GripVertical, ChevronDown, ChevronUp, Settings2, Check, Lock, Unlock, BarChart2, AlertCircle, ChevronRight } from 'lucide-react';
 import { Tooltip } from 'recharts';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
-import { scanReceipt } from '../services/aiScanner';
 
 const COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#64748b'];
 
@@ -61,9 +60,6 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [isManagingCategories, setIsManagingCategories] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
-
-  const [isScanningExpense, setIsScanningExpense] = useState(false);
-  const expenseFileInputRef = React.useRef<HTMLInputElement>(null);
 
   const [isCustomizingLayout, setIsCustomizingLayout] = useState(false);
   const widgetOrder = preferences.expensesWidgetOrder || ['summary', 'form', 'fixed', 'variable'];
@@ -508,36 +504,6 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
     }
   };
 
-  const handleScanExpenseReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsScanningExpense(true);
-    try {
-      const result = await scanReceipt(file);
-      if (result.amount !== null) {
-        setExpenseAmount(result.amount.toString());
-      } else {
-        toast.error(t.scanError1 || "ไม่สามารถอ่านตัวเลขจากสลิปได้ กรุณาลองใหม่อีกครั้ง");
-      }
-      if (result.payee) {
-        setExpensePayee(result.payee);
-      }
-    } catch (error: any) {
-      console.error(error);
-      if (error?.message === "QUOTA_EXCEEDED") {
-        toast.error("โควต้าการใช้งาน AI เต็มแล้ว กรุณาลองใหม่ในภายหลัง หรือตรวจสอบการตั้งค่า API Key");
-      } else {
-        toast.error(t.scanError2 || "เกิดข้อผิดพลาดในการสแกนสลิป");
-      }
-    } finally {
-      setIsScanningExpense(false);
-      if (expenseFileInputRef.current) {
-        expenseFileInputRef.current.value = '';
-      }
-    }
-  };
-
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6">
       {/* Header & Month Picker */}
@@ -669,30 +635,6 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
               <span className="text-xs font-medium px-2.5 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-full">
                 {t.edit || 'แก้ไข'} Mode
               </span>
-            )}
-            {!editingExpenseId && (
-              <>
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  className="hidden" 
-                  ref={expenseFileInputRef}
-                  onChange={handleScanExpenseReceipt}
-                />
-                <button
-                  type="button"
-                  onClick={() => expenseFileInputRef.current?.click()}
-                  disabled={isScanningExpense}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl text-sm font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors disabled:opacity-50"
-                >
-                  {isScanningExpense ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Camera className="w-4 h-4" />
-                  )}
-                  <span className="hidden sm:inline">{isScanningExpense ? (t.scanning || 'กำลังสแกน...') : (t.scanReceipt || 'สแกนสลิป')}</span>
-                </button>
-              </>
             )}
           </div>
         </div>
@@ -932,7 +874,6 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
                 <div className="glass-panel p-6 rounded-3xl">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-              <Receipt className="w-5 h-5 text-indigo-500" />
               {t.fixedCosts || 'รายจ่ายคงที่ (Fixed Costs)'}
             </h3>
             <button
@@ -984,7 +925,6 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
                     <div className="flex items-center justify-between w-full sm:w-auto">
                       <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-                        <Receipt className="w-5 h-5 text-orange-500" />
                         {showVariableHistory ? t.history : t.variableCosts || 'รายจ่ายผันแปร (Variable Costs)'}
                       </h3>
                       <button 
@@ -1304,7 +1244,6 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
                 <img src={getFaviconUrl(expense.websiteUrl)!} alt="icon" className={`w-8 h-8 rounded-full bg-white p-1 flex-shrink-0 ${expense.isPaid ? 'opacity-70' : ''}`} referrerPolicy="no-referrer" />
               ) : (
                 <div className={`w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 ${expense.isPaid ? 'opacity-70' : ''}`}>
-                  <Receipt className="w-4 h-4 text-slate-500" />
                 </div>
               )}
               <div className={`text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 ${expense.isPaid ? 'opacity-70' : ''}`}>

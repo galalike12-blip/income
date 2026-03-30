@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dashboard } from './components/Dashboard';
 import { Expenses } from './components/Expenses';
 import { Summary } from './components/Summary';
@@ -23,14 +23,13 @@ function MainContent() {
   const { user, googleAccessToken, spreadsheetId } = useAuth();
   const t = translations[currentLang];
   
-  const { rawJobs, incentives, expenses, goals, monthlyBudgets, preferences, updatePreferences, addJob: firestoreAddJob, editJob: firestoreEditJob, deleteJob: firestoreDeleteJob, setIncentive, addExpense, updateExpense, deleteExpense, setGoal, setMonthlyBudget, importJobs, clearAllData } = useUserData(user);
+  const { rawJobs, incentives, expenses, goals, monthlyBudgets, preferences, updatePreferences, addJob: firestoreAddJob, editJob: firestoreEditJob, deleteJob: firestoreDeleteJob, setIncentive, addExpense, updateExpense, deleteExpense, setGoal, setMonthlyBudget, clearAllData } = useUserData(user);
   
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     return new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
   });
   const [activeTab, setActiveTab] = useState<'dashboard' | 'expenses' | 'summary'>('dashboard');
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Migrate old data format to new format
   const jobs: JobEntry[] = rawJobs.map(j => {
@@ -160,90 +159,11 @@ function MainContent() {
       }
     };
 
-    const handleExportCSV = () => {
-      const headers = ['ID', 'Date', 'Customer Must Pay', 'Upfront Cost', 'App Net Income', 'Actual Received', 'Tip', 'Loss', 'Total Net Income'];
-      const csvRows = [headers.join(',')];
-      
-      jobs.forEach(j => {
-        const amountToCollect = j.customerMustPay + j.upfrontCost;
-        const diff = (j.actualReceived ?? amountToCollect) - amountToCollect;
-        const tip = diff > 0 ? diff : 0;
-        const loss = diff < 0 ? Math.abs(diff) : 0;
-        const totalNet = j.appNetIncome + diff;
-        
-        const row = [
-          j.id,
-          j.date,
-          j.customerMustPay,
-          j.upfrontCost,
-          j.appNetIncome,
-          j.actualReceived,
-          tip,
-          loss,
-          totalNet
-        ].join(',');
-        
-        csvRows.push(row);
-      });
-      
-      const csvString = csvRows.join('\n');
-      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `income_tracker_data_${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    };
-
-    const handleTriggerImport = () => {
-      fileInputRef.current?.click();
-    };
-
     window.addEventListener('sync-all-sheets', handleSyncAll);
-    window.addEventListener('export-csv', handleExportCSV);
-    window.addEventListener('trigger-import-csv', handleTriggerImport);
     return () => {
       window.removeEventListener('sync-all-sheets', handleSyncAll);
-      window.removeEventListener('export-csv', handleExportCSV);
-      window.removeEventListener('trigger-import-csv', handleTriggerImport);
     };
   }, [jobs, user, googleAccessToken, spreadsheetId]);
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      if (!text) return;
-
-      const lines = text.split('\n').filter(line => line.trim() !== '');
-      if (lines.length <= 1) return;
-
-      const importedJobs: JobEntry[] = [];
-      for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(',');
-        if (cols.length >= 6) {
-          importedJobs.push({
-            id: cols[0],
-            date: cols[1],
-            customerMustPay: parseFloat(cols[2]) || 0,
-            upfrontCost: parseFloat(cols[3]) || 0,
-            appNetIncome: parseFloat(cols[4]) || 0,
-            actualReceived: parseFloat(cols[5]) || 0,
-          });
-        }
-      }
-
-      importJobs(importedJobs);
-    };
-    reader.readAsText(file);
-    e.target.value = ''; // Reset input
-  };
 
   return (
     <div className="min-h-screen font-sans text-slate-900 dark:text-slate-100 pb-20 transition-colors duration-200 relative">
@@ -252,25 +172,27 @@ function MainContent() {
         <div className="blob blob-2"></div>
         <div className="blob blob-3"></div>
       </div>
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        style={{ display: 'none' }} 
-        accept=".csv" 
-        onChange={handleFileUpload} 
-      />
       <Header />
       
-      <div className="max-w-5xl mx-auto px-4 mt-2 mb-4 flex justify-center">
-        <div className="flex glass-panel-subtle p-1 rounded-full overflow-x-auto hide-scrollbar">
-          <button onClick={() => setActiveTab('dashboard')} className={`px-4 sm:px-6 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-            {t.income || 'รายรับ (Income)'}
+      <div className="max-w-5xl mx-auto px-2 sm:px-4 mt-2 mb-4 flex justify-center">
+        <div className="flex w-full sm:w-auto glass-panel-subtle p-1 rounded-full overflow-x-auto hide-scrollbar">
+          <button 
+            onClick={() => setActiveTab('dashboard')} 
+            className={`flex-1 sm:flex-none px-2.5 sm:px-6 py-2 sm:py-2.5 rounded-full text-[10px] sm:text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-white/90 dark:bg-slate-700/90 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}
+          >
+            {currentLang === 'th' ? 'รายรับ' : 'Income'}
           </button>
-          <button onClick={() => setActiveTab('expenses')} className={`px-4 sm:px-6 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'expenses' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-            {t.expenses || 'รายจ่าย (Expenses)'}
+          <button 
+            onClick={() => setActiveTab('expenses')} 
+            className={`flex-1 sm:flex-none px-2.5 sm:px-6 py-2 sm:py-2.5 rounded-full text-[10px] sm:text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'expenses' ? 'bg-white/90 dark:bg-slate-700/90 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}
+          >
+            {currentLang === 'th' ? 'รายจ่าย' : 'Expenses'}
           </button>
-          <button onClick={() => setActiveTab('summary')} className={`px-4 sm:px-6 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'summary' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-            {t.summary || 'สรุป (Summary)'}
+          <button 
+            onClick={() => setActiveTab('summary')} 
+            className={`flex-1 sm:flex-none px-2.5 sm:px-6 py-2 sm:py-2.5 rounded-full text-[10px] sm:text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'summary' ? 'bg-white/90 dark:bg-slate-700/90 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}
+          >
+            {currentLang === 'th' ? 'สรุป' : 'Summary'}
           </button>
         </div>
       </div>

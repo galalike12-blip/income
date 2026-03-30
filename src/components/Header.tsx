@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Moon, Sun, Monitor, Globe, LogIn, LogOut, FileSpreadsheet, AlertCircle, RefreshCw, Menu, X, Download, Upload } from 'lucide-react';
+import { Moon, Sun, Monitor, Globe, LogIn, LogOut, Menu, X } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,8 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 export function Header() {
   const { theme, setTheme, language, setLanguage, currentLang } = useSettings();
   const t = translations[currentLang];
-  const { user, loginWithGoogle, logout, spreadsheetId, googleAccessToken } = useAuth();
-  const [isSyncing, setIsSyncing] = useState(false);
+  const { user, loginWithGoogle, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -21,27 +20,6 @@ export function Header() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const handleSyncAll = async () => {
-    if (!googleAccessToken || !spreadsheetId) return;
-    setIsSyncing(true);
-    try {
-      // Dispatch a custom event that App.tsx can listen to
-      window.dispatchEvent(new CustomEvent('sync-all-sheets'));
-    } finally {
-      setTimeout(() => setIsSyncing(false), 2000);
-    }
-  };
-
-  const handleExportCSV = () => {
-    window.dispatchEvent(new CustomEvent('export-csv'));
-    setIsMenuOpen(false);
-  };
-
-  const handleImportCSV = () => {
-    window.dispatchEvent(new CustomEvent('trigger-import-csv'));
-    setIsMenuOpen(false);
-  };
 
   return (
     <header className="glass-panel mx-4 mt-4 rounded-3xl px-6 py-4 flex justify-between items-center transition-colors relative z-50">
@@ -68,33 +46,6 @@ export function Header() {
                     <span className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.email}</span>
                   </div>
                 </div>
-                
-                {spreadsheetId && googleAccessToken ? (
-                  <div className="flex flex-col gap-2">
-                    <button 
-                      onClick={handleSyncAll}
-                      disabled={isSyncing}
-                      className="flex items-center gap-2 px-3 py-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                    >
-                      <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                      <span>{isSyncing ? t.syncing : t.syncAll}</span>
-                    </button>
-                    <a 
-                      href={`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 px-3 py-2.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      <FileSpreadsheet className="w-4 h-4" />
-                      <span>{t.connectedToSheets}</span>
-                    </a>
-                  </div>
-                ) : spreadsheetId && !googleAccessToken ? (
-                  <button onClick={loginWithGoogle} className="flex items-center gap-2 px-3 py-2.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded-lg text-sm font-medium transition-colors">
-                    <AlertCircle className="w-4 h-4" />
-                    <span>{t.reconnectSheets}</span>
-                  </button>
-                ) : null}
                 
                 <button onClick={logout} className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors mt-1">
                   <LogOut className="w-4 h-4" />
@@ -130,28 +81,6 @@ export function Header() {
                 <option value="zh" className="text-slate-900">中文</option>
               </select>
             </div>
-
-            {/* Export CSV */}
-            <button 
-              onClick={handleExportCSV}
-              className="flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors text-slate-700 dark:text-slate-300 w-full"
-            >
-              <div className="flex items-center gap-2">
-                <Download className="w-4 h-4" />
-                <span className="text-sm font-medium">{t.exportCsv}</span>
-              </div>
-            </button>
-
-            {/* Import CSV */}
-            <button 
-              onClick={handleImportCSV}
-              className="flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors text-slate-700 dark:text-slate-300 w-full"
-            >
-              <div className="flex items-center gap-2">
-                <Upload className="w-4 h-4" />
-                <span className="text-sm font-medium">{t.importCsv}</span>
-              </div>
-            </button>
 
             {/* Theme Selector */}
             <div className="flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors">
