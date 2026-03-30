@@ -127,12 +127,12 @@ export function Chatbot({ jobs, addExpense }: ChatbotProps) {
       }
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.1-flash-lite-preview',
         contents: [...history, { role: 'user', parts }],
         config: {
           systemInstruction: context,
           tools: [{ functionDeclarations: [addExpenseTool] }],
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
+          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL }
         }
       });
 
