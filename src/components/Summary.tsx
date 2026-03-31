@@ -287,7 +287,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
         >
           <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-1">
             <TrendingUp className="w-4 h-4" />
-            <span className="text-[10px] font-bold uppercase tracking-wider">{t.totalIncome || 'Total Income'}</span>
+            <span className="text-sm font-bold uppercase tracking-wider">{t.totalIncome || 'Total Income'}</span>
           </div>
           <div className="text-xl font-black text-slate-800 dark:text-slate-100">฿{stats.totalIncome.toLocaleString()}</div>
         </motion.div>
@@ -301,7 +301,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
         >
           <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 mb-1">
             <TrendingDown className="w-4 h-4" />
-            <span className="text-[10px] font-bold uppercase tracking-wider">{t.totalExpensesSummary || 'Total Expenses'}</span>
+            <span className="text-sm font-bold uppercase tracking-wider">{t.totalExpensesSummary || 'Total Expenses'}</span>
           </div>
           <div className="text-xl font-black text-slate-800 dark:text-slate-100">฿{stats.totalExpenses.toLocaleString()}</div>
         </motion.div>
@@ -315,7 +315,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
         >
           <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 mb-1">
             <Wallet className="w-4 h-4" />
-            <span className="text-[10px] font-bold uppercase tracking-wider">{t.netBalance || 'Net Balance'}</span>
+            <span className="text-sm font-bold uppercase tracking-wider">{t.netBalance || 'Net Balance'}</span>
           </div>
           <div className={`text-xl font-black ${stats.netBalance >= 0 ? 'text-slate-800 dark:text-slate-100' : 'text-rose-600'}`}>
             ฿{stats.netBalance.toLocaleString()}
@@ -331,7 +331,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
         >
           <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-1">
             <PieChartIcon className="w-4 h-4" />
-            <span className="text-[10px] font-bold uppercase tracking-wider">{t.savingsRate || 'Savings Rate'}</span>
+            <span className="text-sm font-bold uppercase tracking-wider">{t.savingsRate || 'Savings Rate'}</span>
           </div>
           <div className="text-xl font-black text-slate-800 dark:text-slate-100">{stats.savingsRate.toFixed(1)}%</div>
         </motion.div>

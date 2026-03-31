@@ -325,7 +325,7 @@ export const translations = {
     incomeVsExpenses: "รายรับเทียบกับรายจ่าย",
     expenseBreakdown: "สัดส่วนรายจ่าย",
     incomeBreakdown: "สัดส่วนรายรับ",
-    customRange: "กำหนดช่วงเวลาเอง",
+    customRange: "กำหนดเอง",
     startDate: "วันที่เริ่มต้น",
     endDate: "วันที่สิ้นสุด",
     selectRange: "เลือกช่วงเวลา",
