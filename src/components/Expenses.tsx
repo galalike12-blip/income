@@ -63,6 +63,7 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
   const setCustomCategories = (newCategories: string[]) => updatePreferences({ customCategories: newCategories });
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [isManagingCategories, setIsManagingCategories] = useState(false);
+  const [isCategoryOrderLocked, setIsCategoryOrderLocked] = useState(true);
   const [newCategoryName, setNewCategoryName] = useState('');
 
   const [isCustomizingLayout, setIsCustomizingLayout] = useState(false);
@@ -1137,10 +1138,27 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
       {isManagingCategories && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-md shadow-xl">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
-              {t.manageCategories || 'จัดการหมวดหมู่'}
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">{t.dragToReorder || 'ลากเพื่อจัดลำดับหมวดหมู่'}</p>
+            <div className="flex justify-between items-center mb-1">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                {t.manageCategories || 'จัดการหมวดหมู่'}
+              </h3>
+              <button
+                onClick={() => setIsCategoryOrderLocked(!isCategoryOrderLocked)}
+                className={`p-2 rounded-xl transition-colors ${
+                  isCategoryOrderLocked 
+                    ? 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400' 
+                    : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                }`}
+                title={isCategoryOrderLocked ? 'ปลดล็อกเพื่อจัดเรียง' : 'ล็อกตำแหน่ง'}
+              >
+                {isCategoryOrderLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mb-4">
+              {isCategoryOrderLocked 
+                ? (t.unlockToReorder || 'ปลดล็อกเพื่อจัดลำดับหมวดหมู่') 
+                : (t.dragToReorder || 'ลากเพื่อจัดลำดับหมวดหมู่')}
+            </p>
             
             <div className="mb-6">
               {customCategories.length === 0 ? (
@@ -1156,10 +1174,13 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
                     <Reorder.Item 
                       key={cat} 
                       value={cat}
-                      className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-transparent active:border-indigo-500/50 active:shadow-sm"
+                      dragListener={!isCategoryOrderLocked}
+                      className={`flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-transparent ${!isCategoryOrderLocked ? 'active:border-indigo-500/50 active:shadow-sm' : ''}`}
                     >
                       <div className="flex items-center gap-3">
-                        <GripVertical className="w-4 h-4 text-slate-400 cursor-grab active:cursor-grabbing" />
+                        {!isCategoryOrderLocked && (
+                          <GripVertical className="w-4 h-4 text-slate-400 cursor-grab active:cursor-grabbing" />
+                        )}
                         <span className="text-slate-700 dark:text-slate-300 font-medium">{cat}</span>
                       </div>
                       <button 

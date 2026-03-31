@@ -244,7 +244,7 @@ function MainContent() {
           incentives={incentives}
         />
       )}
-      <Chatbot jobs={jobs} incentives={incentives} addExpense={addExpense} setIncentive={setIncentive} />
+      <Chatbot jobs={jobs} incentives={incentives} addExpense={addExpense} setIncentive={setIncentive} addJob={addJob} />
       <Toaster position="top-center" richColors />
     </div>
   );

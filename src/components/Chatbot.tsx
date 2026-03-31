@@ -19,9 +19,10 @@ interface ChatbotProps {
   incentives: Record<string, number>;
   addExpense: (expense: Omit<ExpenseEntry, 'id'>) => void;
   setIncentive: (date: string, amount: number) => void;
+  addJob?: (job: Omit<JobEntry, 'id'>) => void;
 }
 
-export function Chatbot({ jobs, incentives, addExpense, setIncentive }: ChatbotProps) {
+export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob }: ChatbotProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
   
@@ -106,6 +107,22 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive }: ChatbotP
         }
       };
 
+      const addJobTool: FunctionDeclaration = {
+        name: "addJob",
+        description: "Add a new job/income entry with fare details.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            customerMustPay: { type: Type.NUMBER, description: "The fare amount before app discount" },
+            appNetIncome: { type: Type.NUMBER, description: "The net income reported by the app" },
+            actualReceived: { type: Type.NUMBER, description: "The actual cash/transfer amount the customer paid" },
+            upfrontCost: { type: Type.NUMBER, description: "Extra expenses paid upfront by the driver (e.g., toll fees)" },
+            date: { type: Type.STRING, description: "Date and time in YYYY-MM-DDTHH:mm format. Use current date/time if not specified." }
+          },
+          required: ["customerMustPay", "appNetIncome"]
+        }
+      };
+
       const context = `You are an AI assistant for an income and tip tracking app. 
       The user's current data:
       Jobs: ${JSON.stringify(jobs, null, 2)}
@@ -125,6 +142,7 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive }: ChatbotP
       The user's preferred language code is '${currentLang}'. Please respond in this language.
       
       If the user uploads an image of a receipt or slip, extract the details and call the 'addExpense' tool.
+      If the user mentions adding a job or income, use the 'addJob' tool.
       If the user mentions a daily incentive, use the 'setIncentive' tool.
       Always confirm with the user before adding if the details are not 100% clear.`;
 
@@ -148,7 +166,7 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive }: ChatbotP
         contents: [...history, { role: 'user', parts }],
         config: {
           systemInstruction: context,
-          tools: [{ functionDeclarations: [addExpenseTool, setIncentiveTool] }],
+          tools: [{ functionDeclarations: [addExpenseTool, setIncentiveTool, addJobTool] }],
           thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL }
         }
       });
@@ -177,6 +195,19 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive }: ChatbotP
             const args = call.args as any;
             setIncentive(args.date, args.amount);
             toast.success(t.synced || 'บันทึกอินเซนทีฟสำเร็จ');
+          } else if (call.name === 'addJob' && addJob) {
+            const args = call.args as any;
+            addJob({
+              customerMustPay: args.customerMustPay,
+              appNetIncome: args.appNetIncome,
+              actualReceived: args.actualReceived !== undefined ? args.actualReceived : args.customerMustPay,
+              upfrontCost: args.upfrontCost || 0,
+              date: args.date || (() => {
+                const d = new Date();
+                return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+              })()
+            });
+            toast.success(t.synced || 'เพิ่มรายรับสำเร็จ');
           }
         }
       }

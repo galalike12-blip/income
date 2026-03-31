@@ -129,6 +129,9 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
   const last7DaysData = useMemo(() => {
     const data = [];
     const [selYear, selMonth, selDay] = selectedDate.split('-').map(Number);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
     for (let i = 6; i >= 0; i--) {
       const d = new Date(selYear, selMonth - 1, selDay);
       d.setDate(d.getDate() - i);
@@ -136,6 +139,11 @@ export function Dashboard({ jobs, addJob, editJob, deleteJob, selectedDate, setS
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
+      
+      if (d > today) {
+        continue;
+      }
+
       const dayJobs = jobs.filter(j => j.date.startsWith(dateStr));
       
       const totalAppNetIncome = dayJobs.reduce((sum, j) => sum + j.appNetIncome, 0);

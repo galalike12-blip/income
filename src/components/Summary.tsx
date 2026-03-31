@@ -71,7 +71,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     } else if (rangeType === 'ytd') {
       const now = new Date();
       start = new Date(now.getFullYear(), 0, 1); // Jan 1st of current year
-      end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+      end = now;
     } else {
       start = new Date(`${startDate}T00:00:00`);
       end = new Date(`${endDate}T00:00:00`);
@@ -80,19 +80,23 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     start.setHours(0, 0, 0, 0);
     end.setHours(23, 59, 59, 999);
 
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const effectiveEnd = end > today ? today : end;
+
     const filteredJobs = jobs.filter(j => {
       const dateStr = j.date.length === 10 ? `${j.date}T00:00:00` : j.date;
       const d = new Date(dateStr);
-      return d >= start && d <= end;
+      return d >= start && d <= effectiveEnd;
     });
 
     const filteredExpenses = expenses.filter(e => {
       const dateStr = e.date.length === 10 ? `${e.date}T00:00:00` : e.date;
       const d = new Date(dateStr);
-      return d >= start && d <= end;
+      return d >= start && d <= effectiveEnd;
     });
 
-    return { filteredJobs, filteredExpenses, start, end };
+    return { filteredJobs, filteredExpenses, start, end: effectiveEnd };
   }, [jobs, expenses, rangeType, startDate, endDate, selectedMonth, selectedYear]);
 
   const stats = useMemo(() => {
