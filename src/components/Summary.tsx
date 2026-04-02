@@ -384,16 +384,16 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
             <PieChartIcon className="w-4 h-4 text-indigo-500" />
             {t.expenseBreakdown || 'Expense Breakdown'}
           </h3>
-          <div className="h-[300px] w-full min-w-0 relative">
+          <div className="h-[350px] w-full min-w-0 relative">
             {stats.expensePieData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart style={{ marginLeft: -11 }}>
+                <PieChart>
                   <Pie
                     data={stats.expensePieData}
                     cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
+                    cy="45%"
+                    innerRadius="60%"
+                    outerRadius="80%"
                     paddingAngle={5}
                     dataKey="value"
                   >
@@ -406,11 +406,11 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
                     formatter={(value: number) => `฿${value.toLocaleString()}`}
                   />
                   <Legend 
-                    layout="vertical" 
-                    align="right" 
-                    verticalAlign="middle" 
+                    layout="horizontal" 
+                    align="center" 
+                    verticalAlign="bottom" 
                     iconType="circle" 
-                    wrapperStyle={{ fontSize: '11px', marginRight: -30 }}
+                    wrapperStyle={{ fontSize: '10px', paddingTop: '10px', paddingBottom: '10px' }}
                     formatter={(value, entry: any) => {
                       const percent = stats.totalExpenses > 0 ? ((entry.payload.value / stats.totalExpenses) * 100).toFixed(1) : 0;
                       return <span className="text-slate-700 dark:text-slate-300 font-medium">{value} ({percent}%)</span>;

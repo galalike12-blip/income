@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { JobEntry, ExpenseEntry, MonthlyBudget, UserPreferences } from '../types';
-import { Plus, Trash2, Calendar, DollarSign, Wallet, PieChart, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Edit2, GripVertical, ChevronDown, ChevronUp, Settings2, Check, Lock, Unlock, BarChart2, AlertCircle, ChevronRight, Camera, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Calendar, DollarSign, Wallet, PieChart, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Edit2, GripVertical, ChevronDown, ChevronUp, Settings2, Check, Lock, Unlock, BarChart2, AlertCircle, ChevronRight, Camera, Loader2, X, Search } from 'lucide-react';
 import { Tooltip } from 'recharts';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -77,6 +77,8 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
     return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
   });
   const [showVariableHistory, setShowVariableHistory] = useState(false);
+  const [variableSearchQuery, setVariableSearchQuery] = useState('');
+  const [variableCategoryFilter, setVariableCategoryFilter] = useState('all');
 
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [expenseToDelete, setExpenseToDelete] = useState<ExpenseEntry | null>(null);
@@ -256,7 +258,22 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
   }, [expenses, selectedMonth]);
 
   const fixedExpenses = useMemo(() => {
-    const fixed = monthExpenses.filter(e => e.isFixed);
+    let fixed = monthExpenses.filter(e => e.isFixed);
+    
+    if (variableSearchQuery) {
+      const query = variableSearchQuery.toLowerCase();
+      fixed = fixed.filter(e => 
+        (e.payee?.toLowerCase().includes(query)) || 
+        (e.note?.toLowerCase().includes(query)) ||
+        (t[e.category as keyof typeof t]?.toLowerCase().includes(query)) ||
+        (e.category.toLowerCase().includes(query))
+      );
+    }
+    
+    if (variableCategoryFilter !== 'all') {
+      fixed = fixed.filter(e => e.category === variableCategoryFilter);
+    }
+
     return fixed.sort((a, b) => {
       const keyA = a.payee || a.category;
       const keyB = b.payee || b.category;
@@ -267,15 +284,48 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
       if (indexB === -1) return -1;
       return indexA - indexB;
     });
-  }, [monthExpenses, fixedExpensesOrder]);
+  }, [monthExpenses, fixedExpensesOrder, variableSearchQuery, variableCategoryFilter, t]);
 
-  const variableExpenses = monthExpenses.filter(e => !e.isFixed);
+  const variableExpenses = useMemo(() => {
+    let filtered = monthExpenses.filter(e => !e.isFixed);
+    
+    if (variableSearchQuery) {
+      const query = variableSearchQuery.toLowerCase();
+      filtered = filtered.filter(e => 
+        (e.payee?.toLowerCase().includes(query)) || 
+        (e.note?.toLowerCase().includes(query)) ||
+        (t[e.category as keyof typeof t]?.toLowerCase().includes(query)) ||
+        (e.category.toLowerCase().includes(query))
+      );
+    }
+    
+    if (variableCategoryFilter !== 'all') {
+      filtered = filtered.filter(e => e.category === variableCategoryFilter);
+    }
+    
+    return filtered;
+  }, [monthExpenses, variableSearchQuery, variableCategoryFilter, t]);
 
   const groupedVariableHistory = useMemo(() => {
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
     
-    const filtered = expenses.filter(e => !e.isFixed && new Date(e.date) >= oneYearAgo);
+    let filtered = expenses.filter(e => !e.isFixed && new Date(e.date) >= oneYearAgo);
+    
+    if (variableSearchQuery) {
+      const query = variableSearchQuery.toLowerCase();
+      filtered = filtered.filter(e => 
+        (e.payee?.toLowerCase().includes(query)) || 
+        (e.note?.toLowerCase().includes(query)) ||
+        (t[e.category as keyof typeof t]?.toLowerCase().includes(query)) ||
+        (e.category.toLowerCase().includes(query))
+      );
+    }
+    
+    if (variableCategoryFilter !== 'all') {
+      filtered = filtered.filter(e => e.category === variableCategoryFilter);
+    }
+
     const groups: Record<string, ExpenseEntry[]> = {};
     
     filtered.forEach(exp => {
@@ -287,7 +337,7 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
     return Object.entries(groups)
       .sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
       .map(([date, items]) => ({ date, items }));
-  }, [expenses]);
+  }, [expenses, variableSearchQuery, variableCategoryFilter, t]);
 
   const totalFixed = fixedExpenses.reduce((sum, e) => sum + e.amount, 0);
   const totalVariable = variableExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -621,6 +671,54 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
           </div>
         </div>
       </div>
+      
+      {!isCustomizingLayout && (
+        <div className="glass-panel p-4 rounded-3xl flex flex-col md:flex-row items-start md:items-center gap-4">
+          <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-semibold text-sm px-2">
+            <Settings2 className="w-4 h-4" />
+            {t.filter || 'ตัวกรอง'}
+          </div>
+          
+          <div className="flex-1 w-full relative">
+            <input 
+              type="text"
+              placeholder={t.search || 'ค้นหา...'}
+              value={variableSearchQuery}
+              onChange={(e) => setVariableSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 glass-input rounded-2xl text-sm"
+            />
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+              <Search className="w-4 h-4" />
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={variableCategoryFilter}
+              onChange={(e) => setVariableCategoryFilter(e.target.value)}
+              className="px-4 py-2 glass-input rounded-2xl text-sm min-w-[150px]"
+            >
+              <option value="all">{t.allCategories || 'ทุกหมวดหมู่'}</option>
+              {[...new Set(expenses.map(e => e.category))].map(cat => (
+                <option key={cat} value={cat}>{t[cat as keyof typeof t] || cat}</option>
+              ))}
+            </select>
+
+            {(variableSearchQuery || variableCategoryFilter !== 'all') && (
+              <button
+                onClick={() => {
+                  setVariableSearchQuery('');
+                  setVariableCategoryFilter('all');
+                }}
+                className="flex items-center gap-2 px-4 py-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-2xl transition-colors text-sm font-medium"
+              >
+                <X className="w-4 h-4" />
+                {t.clearFilters || 'ล้างตัวกรอง'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {isCustomizingLayout ? (
         <Reorder.Group axis="y" values={widgetOrder} onReorder={setWidgetOrder} className="space-y-4">
@@ -989,7 +1087,11 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
             </button>
           </div>
           {fixedExpenses.length === 0 ? (
-            <p className="text-center text-slate-500 py-4">{t.noFixedExpenses || 'ไม่มีรายจ่ายคงที่ในเดือนนี้'}</p>
+            <p className="text-center text-slate-500 py-8 glass-panel rounded-2xl border-dashed border-2 border-slate-200 dark:border-slate-700">
+              {(variableSearchQuery || variableCategoryFilter !== 'all') 
+                ? (t.noResultsFound || 'ไม่พบผลลัพธ์ที่ตรงตามเงื่อนไข') 
+                : (t.noFixedExpenses || 'ไม่มีรายจ่ายคงที่ในเดือนนี้')}
+            </p>
           ) : (
             <Reorder.Group 
               axis="y" 
@@ -1045,6 +1147,7 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
                       >
                         {showVariableHistory ? t.today : t.history}
                       </button>
+                      
                       {!showVariableHistory && (
                         <input 
                           type="date" 
@@ -1060,7 +1163,11 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {variableExpenses.filter(e => e.date.startsWith(variableExpenseDateFilter)).length === 0 ? (
                         <div className="sm:col-span-2">
-                          <p className="text-center text-slate-500 py-8 glass-panel rounded-2xl border-dashed border-2 border-slate-200 dark:border-slate-700">{t.noVariableExpenses || 'ไม่มีรายจ่ายผันแปรในวันที่เลือก'}</p>
+                          <p className="text-center text-slate-500 py-8 glass-panel rounded-2xl border-dashed border-2 border-slate-200 dark:border-slate-700">
+                            {(variableSearchQuery || variableCategoryFilter !== 'all') 
+                              ? (t.noResultsFound || 'ไม่พบผลลัพธ์ที่ตรงตามเงื่อนไข') 
+                              : (t.noVariableExpenses || 'ไม่มีรายจ่ายผันแปรในวันที่เลือก')}
+                          </p>
                         </div>
                       ) : (
                         variableExpenses.filter(e => e.date.startsWith(variableExpenseDateFilter)).map(expense => (
@@ -1081,7 +1188,9 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
                     <div className="space-y-8">
                       {groupedVariableHistory.length === 0 ? (
                         <div className="glass-panel-subtle border-dashed rounded-3xl p-10 text-center text-slate-500 dark:text-slate-400 transition-colors">
-                          {t.noDataForRange}
+                          {(variableSearchQuery || variableCategoryFilter !== 'all') 
+                            ? (t.noResultsFound || 'ไม่พบผลลัพธ์ที่ตรงตามเงื่อนไข') 
+                            : (t.noDataForRange || 'ไม่มีข้อมูลในช่วงเวลานี้')}
                         </div>
                       ) : (
                         groupedVariableHistory.map((group) => (
