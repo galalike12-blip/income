@@ -13,6 +13,7 @@ const COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'
 interface ExpensesProps {
   jobs: JobEntry[];
   expenses: ExpenseEntry[];
+  incentives: Record<string, number>;
   addExpense: (expense: Omit<ExpenseEntry, 'id'>) => void;
   updateExpense: (id: string, updates: Partial<ExpenseEntry>) => void;
   deleteExpense: (id: string) => void;
@@ -37,7 +38,7 @@ const getFaviconUrl = (url?: string) => {
   }
 };
 
-export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpense, monthlyBudgets, setMonthlyBudget, preferences, updatePreferences, clearAllData }: ExpensesProps) {
+export function Expenses({ jobs, expenses, incentives, addExpense, updateExpense, deleteExpense, monthlyBudgets, setMonthlyBudget, preferences, updatePreferences, clearAllData }: ExpensesProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
@@ -244,12 +245,22 @@ export function Expenses({ jobs, expenses, addExpense, updateExpense, deleteExpe
     const prevMonthExpenses = expenses.filter(e => e.date.startsWith(prevMonthStr));
     
     const prevIncome = prevMonthJobs.reduce((sum, j) => sum + (j.actualReceived || 0), 0);
+    
+    // Add incentives for prev month
+    let prevIncentives = 0;
+    const pStart = new Date(year, month - 2, 1);
+    const pEnd = new Date(year, month - 1, 0);
+    const curr = new Date(pStart);
+    while (curr <= pEnd) {
+      const dateStr = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`;
+      prevIncentives += incentives[dateStr] || 0;
+      curr.setDate(curr.getDate() + 1);
+    }
+
     const prevExpenseTotal = prevMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
     
-    // If we have a budget for the previous month, we can calculate the carry over
-    // If not, we assume 0 or the user starts fresh
-    return (prevBudget + prevIncome) - prevExpenseTotal;
-  }, [selectedMonth, monthlyBudgets, jobs, expenses]);
+    return (prevBudget + prevIncome + prevIncentives) - prevExpenseTotal;
+  }, [selectedMonth, monthlyBudgets, jobs, expenses, incentives]);
 
   const effectiveBudget = currentBudget > 0 ? currentBudget : (carryOverBalance > 0 ? carryOverBalance : 0);
 

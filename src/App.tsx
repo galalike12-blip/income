@@ -227,6 +227,7 @@ function MainContent() {
         <Expenses 
           jobs={jobs}
           expenses={expenses}
+          incentives={incentives}
           addExpense={addExpense}
           updateExpense={updateExpense}
           deleteExpense={deleteExpense}
@@ -242,6 +243,7 @@ function MainContent() {
           jobs={jobs}
           expenses={expenses}
           incentives={incentives}
+          monthlyBudgets={monthlyBudgets}
         />
       )}
       <Chatbot jobs={jobs} incentives={incentives} addExpense={addExpense} setIncentive={setIncentive} addJob={addJob} />

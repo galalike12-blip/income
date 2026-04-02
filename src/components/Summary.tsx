@@ -12,7 +12,8 @@ import {
   CalendarDays,
   CalendarRange,
   ChevronDown,
-  Filter
+  Filter,
+  Landmark
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -29,7 +30,7 @@ import {
   AreaChart,
   Area
 } from 'recharts';
-import { JobEntry, ExpenseEntry } from '../types';
+import { JobEntry, ExpenseEntry, MonthlyBudget } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 
@@ -37,11 +38,12 @@ interface SummaryProps {
   jobs: JobEntry[];
   expenses: ExpenseEntry[];
   incentives: Record<string, number>;
+  monthlyBudgets: MonthlyBudget[];
 }
 
 type RangeType = 'custom' | 'monthly' | 'ytd';
 
-export function Summary({ jobs, expenses, incentives }: SummaryProps) {
+export function Summary({ jobs, expenses, incentives, monthlyBudgets }: SummaryProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
@@ -84,20 +86,59 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     today.setHours(23, 59, 59, 999);
     const effectiveEnd = end > today ? today : end;
 
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = effectiveEnd.toISOString().split('T')[0];
+
     const filteredJobs = jobs.filter(j => {
-      const dateStr = j.date.length === 10 ? `${j.date}T00:00:00` : j.date;
-      const d = new Date(dateStr);
-      return d >= start && d <= effectiveEnd;
+      const d = j.date.split('T')[0];
+      return d >= startStr && d <= endStr;
     });
 
     const filteredExpenses = expenses.filter(e => {
-      const dateStr = e.date.length === 10 ? `${e.date}T00:00:00` : e.date;
-      const d = new Date(dateStr);
-      return d >= start && d <= effectiveEnd;
+      const d = e.date.split('T')[0];
+      return d >= startStr && d <= endStr;
     });
 
-    return { filteredJobs, filteredExpenses, start, end: effectiveEnd };
+    return { filteredJobs, filteredExpenses, start, end: effectiveEnd, startStr, endStr };
   }, [jobs, expenses, rangeType, startDate, endDate, selectedMonth, selectedYear]);
+
+  const carryOverBalance = useMemo(() => {
+    const { startStr } = filteredData;
+    const monthStr = startStr.slice(0, 7); // YYYY-MM
+    
+    const [year, month] = monthStr.split('-').map(Number);
+    const prevDate = new Date(year, month - 2, 1);
+    const prevMonthStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+    
+    const prevBudget = monthlyBudgets.find(b => b.month === prevMonthStr)?.amount || 0;
+    const prevMonthJobs = jobs.filter(j => j.date.startsWith(prevMonthStr));
+    const prevMonthExpenses = expenses.filter(e => e.date.startsWith(prevMonthStr));
+    
+    let prevIncome = prevMonthJobs.reduce((sum, j) => sum + (j.actualReceived || 0), 0);
+    
+    const pStart = new Date(year, month - 2, 1);
+    const pEnd = new Date(year, month - 1, 0);
+    const curr = new Date(pStart);
+    while (curr <= pEnd) {
+      const dateStr = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`;
+      prevIncome += incentives[dateStr] || 0;
+      curr.setDate(curr.getDate() + 1);
+    }
+
+    const prevExpenseTotal = prevMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+    
+    return (prevBudget + prevIncome) - prevExpenseTotal;
+  }, [filteredData, monthlyBudgets, jobs, expenses, incentives]);
+
+  const currentBudget = useMemo(() => {
+    const { startStr } = filteredData;
+    const monthStr = startStr.slice(0, 7);
+    return monthlyBudgets.find(b => b.month === monthStr)?.amount || 0;
+  }, [monthlyBudgets, filteredData]);
+
+  const effectiveBudget = useMemo(() => {
+    return currentBudget > 0 ? currentBudget : (carryOverBalance > 0 ? carryOverBalance : 0);
+  }, [currentBudget, carryOverBalance]);
 
   const stats = useMemo(() => {
     const { filteredJobs, filteredExpenses } = filteredData;
@@ -126,8 +167,12 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     }
 
     const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const netBalance = totalIncome - totalExpenses;
-    const savingsRate = totalIncome > 0 ? (netBalance / totalIncome) * 100 : 0;
+    
+    // User requested: Total Income in Summary comes from Carry Over (or manual budget)
+    // New Earnings from Jobs are separate
+    const displayIncome = effectiveBudget;
+    const netBalance = displayIncome - totalExpenses;
+    const savingsRate = displayIncome > 0 ? (netBalance / displayIncome) * 100 : 0;
 
     // Expense by category
     const expenseByCategory: Record<string, number> = {};
@@ -192,7 +237,8 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     })).sort((a, b) => a.date.localeCompare(b.date));
 
     return {
-      totalIncome,
+      totalIncome: displayIncome,
+      monthEarnings: totalIncome,
       totalExpenses,
       netBalance,
       savingsRate,
@@ -202,7 +248,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
       topExpenses: [...filteredExpenses].sort((a, b) => b.amount - a.amount).slice(0, 5),
       topIncomeDays: [...filteredJobs].sort((a, b) => b.appNetIncome - a.appNetIncome).slice(0, 5)
     };
-  }, [filteredData, t, rangeType]);
+  }, [filteredData, t, rangeType, effectiveBudget]);
 
   const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4'];
 
@@ -278,7 +324,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -286,10 +332,12 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
           className="glass-panel p-4 rounded-3xl border-l-4 border-emerald-500"
         >
           <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-1">
-            <TrendingUp className="w-4 h-4" />
-            <span className="text-sm font-bold uppercase tracking-wider">{t.totalIncome || 'Total Income'}</span>
+            <Wallet className="w-4 h-4" />
+            <span className="text-sm font-bold uppercase tracking-wider">
+              {rangeType === 'monthly' ? (t.carryOver || 'Carry Over') : (t.totalIncome || 'Total Income')}
+            </span>
           </div>
-          <div className="text-xl font-black text-slate-800 dark:text-slate-100">฿{stats.totalIncome.toLocaleString()}</div>
+          <div className="text-xl font-black text-slate-800 dark:text-slate-100">฿{stats.totalIncome.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
         </motion.div>
 
         <motion.div 
@@ -303,7 +351,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
             <TrendingDown className="w-4 h-4" />
             <span className="text-sm font-bold uppercase tracking-wider">{t.totalExpensesSummary || 'Total Expenses'}</span>
           </div>
-          <div className="text-xl font-black text-slate-800 dark:text-slate-100">฿{stats.totalExpenses.toLocaleString()}</div>
+          <div className="text-xl font-black text-slate-800 dark:text-slate-100">฿{stats.totalExpenses.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
         </motion.div>
 
         <motion.div 
@@ -318,8 +366,36 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
             <span className="text-sm font-bold uppercase tracking-wider">{t.netBalance || 'Net Balance'}</span>
           </div>
           <div className={`text-xl font-black ${stats.netBalance >= 0 ? 'text-slate-800 dark:text-slate-100' : 'text-rose-600'}`}>
-            ฿{stats.netBalance.toLocaleString()}
+            ฿{stats.netBalance.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.05 }}
+          className="glass-panel p-4 rounded-3xl border-l-4 border-blue-500"
+        >
+          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 mb-1">
+            <TrendingUp className="w-4 h-4" />
+            <span className="text-sm font-bold uppercase tracking-wider">{t.monthEarnings || 'Month Earnings'}</span>
+          </div>
+          <div className="text-xl font-black text-slate-800 dark:text-slate-100">฿{stats.monthEarnings.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.15 }}
+          className="glass-panel p-4 rounded-3xl border-l-4 border-teal-500"
+        >
+          <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400 mb-1">
+            <Landmark className="w-4 h-4" />
+            <span className="text-sm font-bold uppercase tracking-wider">{t.totalCash || 'Total Cash (Both Accounts)'}</span>
+          </div>
+          <div className="text-xl font-black text-slate-800 dark:text-slate-100">฿{(stats.netBalance + stats.monthEarnings).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
         </motion.div>
 
         <motion.div 
@@ -508,10 +584,24 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
                   <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
                   <span>
                     {currentLang === 'th' 
-                      ? `คุณมีรายรับทั้งหมด ฿${stats.totalIncome.toLocaleString()} และรายจ่าย ฿${stats.totalExpenses.toLocaleString()}`
-                      : `You have a total income of ฿${stats.totalIncome.toLocaleString()} and expenses of ฿${stats.totalExpenses.toLocaleString()}.`}
+                      ? (rangeType === 'monthly' 
+                          ? `คุณมียอดยกมา ฿${stats.totalIncome.toLocaleString()} และรายจ่าย ฿${stats.totalExpenses.toLocaleString()}`
+                          : `คุณมีรายรับทั้งหมด ฿${stats.totalIncome.toLocaleString()} และรายจ่าย ฿${stats.totalExpenses.toLocaleString()}`)
+                      : (rangeType === 'monthly'
+                          ? `You have a carry over of ฿${stats.totalIncome.toLocaleString()} and expenses of ฿${stats.totalExpenses.toLocaleString()}.`
+                          : `You have a total income of ฿${stats.totalIncome.toLocaleString()} and expenses of ฿${stats.totalExpenses.toLocaleString()}.`)}
                   </span>
                 </li>
+                {rangeType === 'monthly' && (
+                  <li className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
+                    <span>
+                      {currentLang === 'th'
+                        ? `รายได้ใหม่ในเดือนนี้คือ ฿${stats.monthEarnings.toLocaleString()}`
+                        : `New earnings this month: ฿${stats.monthEarnings.toLocaleString()}`}
+                    </span>
+                  </li>
+                )}
                 <li className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
                   <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
                   <span>
