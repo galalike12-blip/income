@@ -109,17 +109,17 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob }: 
 
       const addJobTool: FunctionDeclaration = {
         name: "addJob",
-        description: "Add a new job/income entry with fare details.",
+        description: "Add a new job/income entry with fare details. For quick entry, only appNetIncome is needed.",
         parameters: {
           type: Type.OBJECT,
           properties: {
-            customerMustPay: { type: Type.NUMBER, description: "The fare amount before app discount" },
-            appNetIncome: { type: Type.NUMBER, description: "The net income reported by the app" },
-            actualReceived: { type: Type.NUMBER, description: "The actual cash/transfer amount the customer paid" },
+            customerMustPay: { type: Type.NUMBER, description: "The fare amount before app discount. If not provided, will default to appNetIncome." },
+            appNetIncome: { type: Type.NUMBER, description: "The net income reported by the app (ยอดสุทธิ)" },
+            actualReceived: { type: Type.NUMBER, description: "The actual cash/transfer amount the customer paid. If not provided, defaults to appNetIncome." },
             upfrontCost: { type: Type.NUMBER, description: "Extra expenses paid upfront by the driver (e.g., toll fees)" },
             date: { type: Type.STRING, description: "Date and time in YYYY-MM-DDTHH:mm format. Use current date/time if not specified." }
           },
-          required: ["customerMustPay", "appNetIncome"]
+          required: ["appNetIncome"]
         }
       };
 
@@ -197,10 +197,13 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob }: 
             toast.success(t.synced || 'บันทึกอินเซนทีฟสำเร็จ');
           } else if (call.name === 'addJob' && addJob) {
             const args = call.args as any;
+            const finalAppNet = args.appNetIncome;
+            const finalCustomerPay = args.customerMustPay !== undefined ? args.customerMustPay : finalAppNet;
+            
             addJob({
-              customerMustPay: args.customerMustPay,
-              appNetIncome: args.appNetIncome,
-              actualReceived: args.actualReceived !== undefined ? args.actualReceived : args.customerMustPay,
+              customerMustPay: finalCustomerPay,
+              appNetIncome: finalAppNet,
+              actualReceived: args.actualReceived !== undefined ? args.actualReceived : finalAppNet,
               upfrontCost: args.upfrontCost || 0,
               date: args.date || (() => {
                 const d = new Date();

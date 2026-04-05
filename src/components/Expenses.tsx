@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { JobEntry, ExpenseEntry, MonthlyBudget, UserPreferences } from '../types';
+import { JobEntry, ExpenseEntry, UserPreferences } from '../types';
 import { Plus, Trash2, Calendar, DollarSign, Wallet, PieChart, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Edit2, GripVertical, ChevronDown, ChevronUp, Settings2, Check, Lock, Unlock, BarChart2, AlertCircle, ChevronRight, Camera, Loader2, X, Search } from 'lucide-react';
 import { Tooltip } from 'recharts';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
@@ -17,8 +17,6 @@ interface ExpensesProps {
   addExpense: (expense: Omit<ExpenseEntry, 'id'>) => void;
   updateExpense: (id: string, updates: Partial<ExpenseEntry>) => void;
   deleteExpense: (id: string) => void;
-  monthlyBudgets: MonthlyBudget[];
-  setMonthlyBudget: (budget: MonthlyBudget) => void;
   preferences: UserPreferences;
   updatePreferences: (updates: Partial<UserPreferences>) => void;
   clearAllData: () => Promise<void>;
@@ -38,7 +36,7 @@ const getFaviconUrl = (url?: string) => {
   }
 };
 
-export function Expenses({ jobs, expenses, incentives, addExpense, updateExpense, deleteExpense, monthlyBudgets, setMonthlyBudget, preferences, updatePreferences, clearAllData }: ExpensesProps) {
+export function Expenses({ jobs, expenses, incentives, addExpense, updateExpense, deleteExpense, preferences, updatePreferences, clearAllData }: ExpensesProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
@@ -228,41 +226,18 @@ export function Expenses({ jobs, expenses, incentives, addExpense, updateExpense
     setExpenseToDelete(null);
   };
 
-  const currentBudget = monthlyBudgets.find(b => b.month === selectedMonth)?.amount || 0;
-  const [budgetInput, setBudgetInput] = useState(currentBudget.toString());
-  const [isEditingBudget, setIsEditingBudget] = useState(false);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [resetInput, setResetInput] = useState('');
+  const expenseBalance = preferences.expenseBalance || 0;
+  const [isEditingBalance, setIsEditingBalance] = useState(false);
+  const [balanceInput, setBalanceInput] = useState(expenseBalance.toString());
 
-  // Calculate carry over from previous month
-  const carryOverBalance = useMemo(() => {
-    const [year, month] = selectedMonth.split('-').map(Number);
-    const prevDate = new Date(year, month - 2, 1);
-    const prevMonthStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
-    
-    const prevBudget = monthlyBudgets.find(b => b.month === prevMonthStr)?.amount || 0;
-    const prevMonthJobs = jobs.filter(j => j.date.startsWith(prevMonthStr));
-    const prevMonthExpenses = expenses.filter(e => e.date.startsWith(prevMonthStr));
-    
-    const prevIncome = prevMonthJobs.reduce((sum, j) => sum + (j.actualReceived || 0), 0);
-    
-    // Add incentives for prev month
-    let prevIncentives = 0;
-    const pStart = new Date(year, month - 2, 1);
-    const pEnd = new Date(year, month - 1, 0);
-    const curr = new Date(pStart);
-    while (curr <= pEnd) {
-      const dateStr = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`;
-      prevIncentives += incentives[dateStr] || 0;
-      curr.setDate(curr.getDate() + 1);
+  const handleBalanceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = parseFloat(balanceInput);
+    if (!isNaN(amount)) {
+      updatePreferences({ expenseBalance: amount });
     }
-
-    const prevExpenseTotal = prevMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
-    
-    return (prevBudget + prevIncome + prevIncentives) - prevExpenseTotal;
-  }, [selectedMonth, monthlyBudgets, jobs, expenses, incentives]);
-
-  const effectiveBudget = currentBudget > 0 ? currentBudget : (carryOverBalance > 0 ? carryOverBalance : 0);
+    setIsEditingBalance(false);
+  };
 
   const monthExpenses = useMemo(() => {
     return expenses.filter(e => e.date.startsWith(selectedMonth));
@@ -353,7 +328,9 @@ export function Expenses({ jobs, expenses, incentives, addExpense, updateExpense
   const totalFixed = fixedExpenses.reduce((sum, e) => sum + e.amount, 0);
   const totalVariable = variableExpenses.reduce((sum, e) => sum + e.amount, 0);
   const totalExpenses = totalFixed + totalVariable;
-  const remainingBudget = effectiveBudget - totalExpenses;
+
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetInput, setResetInput] = useState('');
 
   const handleResetData = async () => {
     if (resetInput === 'RESET') {
@@ -429,15 +406,6 @@ export function Expenses({ jobs, expenses, incentives, addExpense, updateExpense
     }
     return data;
   }, [expenses, currentLang]);
-
-  const handleBudgetSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const amount = parseFloat(budgetInput);
-    if (!isNaN(amount)) {
-      setMonthlyBudget({ month: selectedMonth, amount });
-    }
-    setIsEditingBudget(false);
-  };
 
   const handleExpenseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -751,66 +719,72 @@ export function Expenses({ jobs, expenses, incentives, addExpense, updateExpense
             <div key={id}>
               {id === 'summary' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Wallet className="w-16 h-16 text-emerald-500" />
-          </div>
-          <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">
-            {currentBudget > 0 ? (t.startingBudget || 'เงินตั้งต้นเดือนนี้') : (t.carryOverFromLastMonth || 'ยอดยกมาจากเดือนที่แล้ว')}
-          </h3>
-          {isEditingBudget ? (
-            <form onSubmit={handleBudgetSubmit} className="flex gap-2 mt-2">
-              <input
-                type="number"
-                value={budgetInput}
-                onChange={e => setBudgetInput(e.target.value)}
-                className="w-full px-3 py-1 glass-input rounded-lg"
-                autoFocus
-                onBlur={handleBudgetSubmit}
-              />
-            </form>
-          ) : (
-            <div 
-              className={`text-3xl font-bold ${currentBudget > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'} cursor-pointer hover:opacity-80 transition-opacity`}
-              onClick={() => {
-                setBudgetInput(currentBudget.toString());
-                setIsEditingBudget(true);
-              }}
-            >
-              ฿{effectiveBudget.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              {currentBudget === 0 && effectiveBudget > 0 && (
-                <span className="text-xs font-normal ml-2 opacity-60 italic">({t.carryOver || 'ยกมา'})</span>
+                  <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <Wallet className="w-16 h-16 text-emerald-500" />
+                    </div>
+                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">
+                      ยอดเงินคงเหลือในบัญชีรายจ่าย
+                    </h3>
+                    {isEditingBalance ? (
+                      <form onSubmit={handleBalanceSubmit} className="flex gap-2 mt-2">
+                        <input
+                          type="number"
+                          value={balanceInput}
+                          onChange={e => setBalanceInput(e.target.value)}
+                          className="w-full px-3 py-1 glass-input rounded-lg"
+                          autoFocus
+                          onBlur={handleBalanceSubmit}
+                        />
+                      </form>
+                    ) : (
+                      <div 
+                        className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => {
+                          setBalanceInput(expenseBalance.toString());
+                          setIsEditingBalance(true);
+                        }}
+                      >
+                        ฿{expenseBalance.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <ArrowDownCircle className="w-16 h-16 text-rose-500" />
+                    </div>
+                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{t.totalExpensesThisMonth || 'รายจ่ายรวมเดือนนี้'}</h3>
+                    <div className="text-3xl font-bold text-rose-600 dark:text-rose-400">
+                      ฿{totalExpenses.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <div className="flex gap-4 mt-2 text-sm">
+                      <span className="text-slate-500">{t.fixed || 'คงที่'}: ฿{totalFixed.toLocaleString()}</span>
+                      <span className="text-slate-500">{t.variable || 'ผันแปร'}: ฿{totalVariable.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <PieChart className="w-16 h-16 text-indigo-500" />
+                    </div>
+                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{t.necessityRatio || 'สัดส่วนความจำเป็น'}</h3>
+                    <div className="flex items-end gap-2">
+                      <div className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
+                        {totalExpenses > 0 ? Math.round((totalNecessary / totalExpenses) * 100) : 0}%
+                      </div>
+                      <div className="text-sm text-slate-500 mb-1">จำเป็น</div>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 mt-3">
+                      <div 
+                        className="bg-indigo-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${totalExpenses > 0 ? (totalNecessary / totalExpenses) * 100 : 0}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
               )}
-            </div>
-          )}
-        </div>
 
-        <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <ArrowDownCircle className="w-16 h-16 text-rose-500" />
-          </div>
-          <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{t.totalExpensesThisMonth || 'รายจ่ายรวมเดือนนี้'}</h3>
-          <div className="text-3xl font-bold text-rose-600 dark:text-rose-400">
-            ฿{totalExpenses.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-          <div className="flex gap-4 mt-2 text-sm">
-            <span className="text-slate-500">{t.fixed || 'คงที่'}: ฿{totalFixed.toLocaleString()}</span>
-            <span className="text-slate-500">{t.variable || 'ผันแปร'}: ฿{totalVariable.toLocaleString()}</span>
-          </div>
-        </div>
-
-        <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <PieChart className="w-16 h-16 text-indigo-500" />
-          </div>
-          <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{t.remainingBudget || 'ยอดคงเหลือ'}</h3>
-          <div className={`text-3xl font-bold ${remainingBudget >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-600 dark:text-rose-400'}`}>
-            ฿{remainingBudget.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-        </div>
-      </div>
-
-              )}
               {id === 'form' && (
                 <div id="expense-form" className={`glass-panel p-6 sm:p-8 rounded-3xl space-y-6 transition-all ${editingExpenseId ? 'ring-2 ring-indigo-400/50 dark:ring-indigo-500/50' : ''}`}>
         <div className="flex justify-between items-center mb-2">

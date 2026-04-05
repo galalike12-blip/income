@@ -30,7 +30,7 @@ import {
   AreaChart,
   Area
 } from 'recharts';
-import { JobEntry, ExpenseEntry, MonthlyBudget } from '../types';
+import { JobEntry, ExpenseEntry } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 
@@ -38,12 +38,11 @@ interface SummaryProps {
   jobs: JobEntry[];
   expenses: ExpenseEntry[];
   incentives: Record<string, number>;
-  monthlyBudgets: MonthlyBudget[];
 }
 
 type RangeType = 'custom' | 'monthly' | 'ytd';
 
-export function Summary({ jobs, expenses, incentives, monthlyBudgets }: SummaryProps) {
+export function Summary({ jobs, expenses, incentives }: SummaryProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
@@ -67,17 +66,23 @@ export function Summary({ jobs, expenses, incentives, monthlyBudgets }: SummaryP
     let start: Date;
     let end: Date;
 
+    const isValidDate = (d: Date) => d instanceof Date && !isNaN(d.getTime());
+
     if (rangeType === 'monthly') {
-      start = new Date(`${selectedMonth}-01T00:00:00`);
+      start = new Date(`${selectedMonth || new Date().toISOString().slice(0, 7)}-01T00:00:00`);
+      if (!isValidDate(start)) start = new Date();
       end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
     } else if (rangeType === 'ytd') {
       const now = new Date();
       start = new Date(now.getFullYear(), 0, 1); // Jan 1st of current year
       end = now;
     } else {
-      start = new Date(`${startDate}T00:00:00`);
-      end = new Date(`${endDate}T00:00:00`);
+      start = new Date(`${startDate || new Date().toISOString().split('T')[0]}T00:00:00`);
+      end = new Date(`${endDate || new Date().toISOString().split('T')[0]}T00:00:00`);
     }
+
+    if (!isValidDate(start)) start = new Date();
+    if (!isValidDate(end)) end = new Date();
 
     start.setHours(0, 0, 0, 0);
     end.setHours(23, 59, 59, 999);
@@ -104,13 +109,18 @@ export function Summary({ jobs, expenses, incentives, monthlyBudgets }: SummaryP
 
   const carryOverBalance = useMemo(() => {
     const { startStr } = filteredData;
+    if (!startStr) return 0;
     const monthStr = startStr.slice(0, 7); // YYYY-MM
     
     const [year, month] = monthStr.split('-').map(Number);
+    if (isNaN(year) || isNaN(month)) return 0;
+
     const prevDate = new Date(year, month - 2, 1);
+    if (isNaN(prevDate.getTime())) return 0;
+
     const prevMonthStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
     
-    const prevBudget = monthlyBudgets.find(b => b.month === prevMonthStr)?.amount || 0;
+    const prevBudget = 0;
     const prevMonthJobs = jobs.filter(j => j.date.startsWith(prevMonthStr));
     const prevMonthExpenses = expenses.filter(e => e.date.startsWith(prevMonthStr));
     
@@ -118,6 +128,8 @@ export function Summary({ jobs, expenses, incentives, monthlyBudgets }: SummaryP
     
     const pStart = new Date(year, month - 2, 1);
     const pEnd = new Date(year, month - 1, 0);
+    if (isNaN(pStart.getTime()) || isNaN(pEnd.getTime())) return 0;
+
     const curr = new Date(pStart);
     while (curr <= pEnd) {
       const dateStr = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`;
@@ -128,13 +140,11 @@ export function Summary({ jobs, expenses, incentives, monthlyBudgets }: SummaryP
     const prevExpenseTotal = prevMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
     
     return (prevBudget + prevIncome) - prevExpenseTotal;
-  }, [filteredData, monthlyBudgets, jobs, expenses, incentives]);
+  }, [filteredData, jobs, expenses, incentives]);
 
   const currentBudget = useMemo(() => {
-    const { startStr } = filteredData;
-    const monthStr = startStr.slice(0, 7);
-    return monthlyBudgets.find(b => b.month === monthStr)?.amount || 0;
-  }, [monthlyBudgets, filteredData]);
+    return 0;
+  }, []);
 
   const effectiveBudget = useMemo(() => {
     return currentBudget > 0 ? currentBudget : (carryOverBalance > 0 ? carryOverBalance : 0);

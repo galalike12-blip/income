@@ -5,6 +5,7 @@ export interface JobEntry {
   upfrontCost: number;
   appNetIncome: number;
   actualReceived: number;
+  transferred?: boolean;
 }
 
 export interface ExpenseEntry {
@@ -24,17 +25,13 @@ export interface ExpenseEntry {
   groupId?: string;
 }
 
-export interface MonthlyBudget {
-  month: string; // YYYY-MM
-  amount: number;
-}
-
 export interface UserPreferences {
   dashboardWidgetOrder?: string[];
   expensesWidgetOrder?: string[];
   fixedExpensesOrder?: string[];
   isFixedExpensesLocked?: boolean;
   customCategories?: string[];
+  expenseBalance?: number;
 }
 
 export interface Goal {

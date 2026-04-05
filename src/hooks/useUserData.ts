@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, query, orderBy, getDoc, getDocs, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { JobEntry, ExpenseEntry, Goal, MonthlyBudget, UserPreferences } from '../types';
+import { JobEntry, ExpenseEntry, Goal, UserPreferences } from '../types';
 import { User } from 'firebase/auth';
 import { useLocalStorage } from './useLocalStorage';
 
@@ -10,14 +10,12 @@ export function useUserData(user: User | null) {
   const [localIncentives, setLocalIncentives] = useLocalStorage<Record<string, number>>('income-tracker-incentives', {});
   const [localExpenses, setLocalExpenses] = useLocalStorage<ExpenseEntry[]>('income-tracker-expenses', []);
   const [localGoals, setLocalGoals] = useLocalStorage<Goal[]>('income-tracker-goals', []);
-  const [localMonthlyBudgets, setLocalMonthlyBudgets] = useLocalStorage<MonthlyBudget[]>('income-tracker-budgets', []);
   const [localPreferences, setLocalPreferences] = useLocalStorage<UserPreferences>('income-tracker-preferences', {});
   
   const [firestoreJobs, setFirestoreJobs] = useState<any[]>([]);
   const [firestoreIncentives, setFirestoreIncentives] = useState<Record<string, number>>({});
   const [firestoreExpenses, setFirestoreExpenses] = useState<ExpenseEntry[]>([]);
   const [firestoreGoals, setFirestoreGoals] = useState<Goal[]>([]);
-  const [firestoreMonthlyBudgets, setFirestoreMonthlyBudgets] = useState<MonthlyBudget[]>([]);
   const [firestorePreferences, setFirestorePreferences] = useState<UserPreferences>({});
   const [loading, setLoading] = useState(true);
 
@@ -27,7 +25,6 @@ export function useUserData(user: User | null) {
       setFirestoreIncentives({});
       setFirestoreExpenses([]);
       setFirestoreGoals([]);
-      setFirestoreMonthlyBudgets([]);
       setFirestorePreferences({});
       setLoading(false);
       return;
@@ -79,13 +76,6 @@ export function useUserData(user: User | null) {
       console.error("Error fetching goals:", error);
     });
 
-    // Listen to Monthly Budgets
-    const budgetsRef = collection(db, 'users', user.uid, 'monthlyBudgets');
-    const unsubscribeBudgets = onSnapshot(budgetsRef, (snapshot) => {
-      const bData = snapshot.docs.map(doc => ({ month: doc.id, amount: doc.data().amount })) as MonthlyBudget[];
-      setFirestoreMonthlyBudgets(bData);
-    });
-
     // Listen to Preferences
     const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
     const unsubscribePreferences = onSnapshot(prefRef, (docSnap) => {
@@ -105,7 +95,6 @@ export function useUserData(user: User | null) {
       unsubscribeIncentives();
       unsubscribeExpenses();
       unsubscribeGoals();
-      unsubscribeBudgets();
       unsubscribePreferences();
     };
   }, [user]);
@@ -114,7 +103,6 @@ export function useUserData(user: User | null) {
   const incentives = user ? firestoreIncentives : localIncentives;
   const expenses = user ? firestoreExpenses : localExpenses;
   const goals = user ? firestoreGoals : localGoals;
-  const monthlyBudgets = user ? firestoreMonthlyBudgets : localMonthlyBudgets;
   const preferences = user ? firestorePreferences : localPreferences;
 
   const addJob = async (job: Omit<JobEntry, 'id'>) => {
@@ -181,8 +169,42 @@ export function useUserData(user: User | null) {
     }
   };
 
+  const transferIncomeToExpenses = async () => {
+    // Calculate total net income from all untransferred jobs
+    const untransferredJobs = (user ? firestoreJobs : localJobs).filter(j => !j.transferred);
+    const totalNet = untransferredJobs.reduce((sum, j) => {
+      const amountToCollect = j.customerMustPay + j.upfrontCost;
+      const diff = (j.actualReceived ?? amountToCollect) - amountToCollect;
+      return sum + j.appNetIncome + diff;
+    }, 0);
+
+    const currentBalance = preferences.expenseBalance || 0;
+    const newBalance = currentBalance + totalNet;
+
+    if (user) {
+      // Mark jobs as transferred in Firestore
+      const promises = untransferredJobs.map(j => {
+        const jobRef = doc(db, 'users', user.uid, 'jobs', j.id);
+        return setDoc(jobRef, { transferred: true }, { merge: true });
+      });
+      await Promise.all(promises);
+      
+      // Update balance in preferences
+      const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
+      await setDoc(prefRef, { expenseBalance: newBalance }, { merge: true });
+    } else {
+      // Mark jobs as transferred locally
+      setLocalJobs(prev => prev.map(j => untransferredJobs.some(uj => uj.id === j.id) ? { ...j, transferred: true } : j));
+      // Update balance locally
+      setLocalPreferences(prev => ({ ...prev, expenseBalance: newBalance }));
+    }
+  };
+
   const addExpense = async (expense: Omit<ExpenseEntry, 'id'>) => {
     const newId = Date.now().toString() + Math.random().toString(36).substring(2, 9);
+    const currentBalance = preferences.expenseBalance || 0;
+    const newBalance = currentBalance - expense.amount;
+
     if (user) {
       const expenseRef = doc(db, 'users', user.uid, 'expenses', newId);
       
@@ -196,8 +218,13 @@ export function useUserData(user: User | null) {
         userId: user.uid,
         createdAt: serverTimestamp()
       });
+
+      // Update balance in preferences
+      const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
+      await setDoc(prefRef, { expenseBalance: newBalance }, { merge: true });
     } else {
       setLocalExpenses(prev => [...prev, { ...expense, id: newId }]);
+      setLocalPreferences(prev => ({ ...prev, expenseBalance: newBalance }));
     }
     return newId;
   };
@@ -206,6 +233,19 @@ export function useUserData(user: User | null) {
     if (user) {
       const expenseRef = doc(db, 'users', user.uid, 'expenses', id);
       
+      // If amount is updated, we need to adjust the balance
+      if (updates.amount !== undefined) {
+        const oldExpense = firestoreExpenses.find(e => e.id === id);
+        if (oldExpense) {
+          const diff = updates.amount - oldExpense.amount;
+          const currentBalance = preferences.expenseBalance || 0;
+          const newBalance = currentBalance - diff;
+          
+          const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
+          await setDoc(prefRef, { expenseBalance: newBalance }, { merge: true });
+        }
+      }
+
       // Filter out undefined values
       const cleanUpdates = Object.fromEntries(
         Object.entries(updates).filter(([_, v]) => v !== undefined)
@@ -213,16 +253,35 @@ export function useUserData(user: User | null) {
       
       await setDoc(expenseRef, cleanUpdates, { merge: true });
     } else {
+      if (updates.amount !== undefined) {
+        const oldExpense = localExpenses.find(e => e.id === id);
+        if (oldExpense) {
+          const diff = updates.amount - oldExpense.amount;
+          const currentBalance = preferences.expenseBalance || 0;
+          const newBalance = currentBalance - diff;
+          setLocalPreferences(prev => ({ ...prev, expenseBalance: newBalance }));
+        }
+      }
       setLocalExpenses(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
     }
   };
 
   const deleteExpense = async (id: string) => {
-    if (user) {
-      const expenseRef = doc(db, 'users', user.uid, 'expenses', id);
-      await deleteDoc(expenseRef);
-    } else {
-      setLocalExpenses(prev => prev.filter(e => e.id !== id));
+    const expenseToDelete = (user ? firestoreExpenses : localExpenses).find(e => e.id === id);
+    if (expenseToDelete) {
+      const currentBalance = preferences.expenseBalance || 0;
+      const newBalance = currentBalance + expenseToDelete.amount;
+
+      if (user) {
+        const expenseRef = doc(db, 'users', user.uid, 'expenses', id);
+        await deleteDoc(expenseRef);
+        
+        const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
+        await setDoc(prefRef, { expenseBalance: newBalance }, { merge: true });
+      } else {
+        setLocalExpenses(prev => prev.filter(e => e.id !== id));
+        setLocalPreferences(prev => ({ ...prev, expenseBalance: newBalance }));
+      }
     }
   };
 
@@ -236,21 +295,24 @@ export function useUserData(user: User | null) {
           const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
           await Promise.all(deletePromises);
         }
+        // Also reset balance
+        const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
+        await setDoc(prefRef, { expenseBalance: 0 }, { merge: true });
       } catch (error) {
         console.error("Error clearing all data:", error);
         throw error;
       }
     } else {
-      localStorage.removeItem('jobs');
-      localStorage.removeItem('expenses');
-      localStorage.removeItem('incentives');
-      localStorage.removeItem('goals');
-      localStorage.removeItem('monthlyBudgets');
+      localStorage.removeItem('income-tracker-jobs');
+      localStorage.removeItem('income-tracker-expenses');
+      localStorage.removeItem('income-tracker-incentives');
+      localStorage.removeItem('income-tracker-goals');
+      localStorage.removeItem('income-tracker-budgets');
       setLocalJobs([]);
       setLocalExpenses([]);
       setLocalIncentives({});
       setLocalGoals([]);
-      setLocalMonthlyBudgets([]);
+      setLocalPreferences(prev => ({ ...prev, expenseBalance: 0 }));
     }
   };
 
@@ -268,22 +330,6 @@ export function useUserData(user: User | null) {
       setLocalGoals(prev => {
         const existing = prev.filter(g => g.type !== goal.type);
         return [...existing, { ...goal, id: goalId }];
-      });
-    }
-  };
-
-  const setMonthlyBudget = async (budget: MonthlyBudget) => {
-    if (user) {
-      const budgetRef = doc(db, 'users', user.uid, 'monthlyBudgets', budget.month);
-      await setDoc(budgetRef, {
-        amount: budget.amount,
-        userId: user.uid,
-        updatedAt: serverTimestamp()
-      });
-    } else {
-      setLocalMonthlyBudgets(prev => {
-        const existing = prev.filter(b => b.month !== budget.month);
-        return [...existing, budget];
       });
     }
   };
@@ -324,7 +370,6 @@ export function useUserData(user: User | null) {
     incentives,
     expenses,
     goals,
-    monthlyBudgets,
     preferences,
     loading,
     addJob,
@@ -335,9 +380,9 @@ export function useUserData(user: User | null) {
     updateExpense,
     deleteExpense,
     setGoal,
-    setMonthlyBudget,
     importJobs,
     updatePreferences,
-    clearAllData
+    clearAllData,
+    transferIncomeToExpenses
   };
 }

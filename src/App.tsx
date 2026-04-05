@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import { Dashboard } from './components/Dashboard';
 import { Expenses } from './components/Expenses';
-import { Summary } from './components/Summary';
 import { Chatbot } from './components/Chatbot';
 import { Header } from './components/Header';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -23,13 +22,13 @@ function MainContent() {
   const { user, googleAccessToken, spreadsheetId } = useAuth();
   const t = translations[currentLang];
   
-  const { rawJobs, incentives, expenses, goals, monthlyBudgets, preferences, updatePreferences, addJob: firestoreAddJob, editJob: firestoreEditJob, deleteJob: firestoreDeleteJob, setIncentive, addExpense, updateExpense, deleteExpense, setGoal, setMonthlyBudget, clearAllData } = useUserData(user);
+  const { rawJobs, incentives, expenses, goals, preferences, updatePreferences, addJob: firestoreAddJob, editJob: firestoreEditJob, deleteJob: firestoreDeleteJob, setIncentive, addExpense, updateExpense, deleteExpense, setGoal, clearAllData, transferIncomeToExpenses } = useUserData(user);
   
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     return new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
   });
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'expenses' | 'summary'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'expenses'>('dashboard');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
@@ -65,7 +64,8 @@ function MainContent() {
         customerMustPay: j.customerActuallyPays, // The amount after discount is what they really had to pay
         upfrontCost: j.upfrontCost || 0,
         appNetIncome: j.appNetIncome || 0,
-        actualReceived: j.actualReceived || 0
+        actualReceived: j.actualReceived || 0,
+        transferred: j.transferred
       };
     }
     
@@ -77,7 +77,8 @@ function MainContent() {
         customerMustPay: j.customerMustPay || j.fullFare,
         upfrontCost: j.upfrontCost || 0,
         appNetIncome: j.appNetIncome || 0,
-        actualReceived: j.actualReceived || 0
+        actualReceived: j.actualReceived || 0,
+        transferred: j.transferred
       };
     }
     
@@ -89,7 +90,8 @@ function MainContent() {
         customerMustPay: j.baseIncome,
         upfrontCost: 0,
         appNetIncome: j.baseIncome - (j.deduction || 0),
-        actualReceived: j.baseIncome + (j.tip || 0)
+        actualReceived: j.baseIncome + (j.tip || 0),
+        transferred: j.transferred
       };
     }
     
@@ -100,7 +102,8 @@ function MainContent() {
       customerMustPay: j.billedAmount || 0,
       upfrontCost: j.upfrontCost || 0,
       appNetIncome: (j.billedAmount || 0) - (j.deduction || 0),
-      actualReceived: j.receivedAmount || 0
+      actualReceived: j.receivedAmount || 0,
+      transferred: j.transferred
     };
   });
 
@@ -201,9 +204,6 @@ function MainContent() {
           <button onClick={() => setActiveTab('expenses')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'expenses' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
             {t.expenses || 'รายจ่าย'}
           </button>
-          <button onClick={() => setActiveTab('summary')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'summary' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-            {t.summary || 'สรุป'}
-          </button>
         </div>
       </div>
 
@@ -221,6 +221,7 @@ function MainContent() {
           setGoal={setGoal}
           preferences={preferences}
           updatePreferences={updatePreferences}
+          transferIncomeToExpenses={transferIncomeToExpenses}
         />
       )}
       {activeTab === 'expenses' && (
@@ -231,19 +232,9 @@ function MainContent() {
           addExpense={addExpense}
           updateExpense={updateExpense}
           deleteExpense={deleteExpense}
-          monthlyBudgets={monthlyBudgets}
-          setMonthlyBudget={setMonthlyBudget}
           preferences={preferences}
           updatePreferences={updatePreferences}
           clearAllData={clearAllData}
-        />
-      )}
-      {activeTab === 'summary' && (
-        <Summary 
-          jobs={jobs}
-          expenses={expenses}
-          incentives={incentives}
-          monthlyBudgets={monthlyBudgets}
         />
       )}
       <Chatbot jobs={jobs} incentives={incentives} addExpense={addExpense} setIncentive={setIncentive} addJob={addJob} />
