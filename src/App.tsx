@@ -7,6 +7,9 @@ import React, { useState, useEffect } from 'react';
 import { Dashboard } from './components/Dashboard';
 import { Expenses } from './components/Expenses';
 import { Chatbot } from './components/Chatbot';
+import { FloatingNav } from './components/FloatingNav';
+import { AddIncomeModal } from './components/AddIncomeModal';
+import { AddExpenseModal } from './components/AddExpenseModal';
 import { Header } from './components/Header';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useUserData } from './hooks/useUserData';
@@ -14,7 +17,7 @@ import { SettingsProvider, useSettings } from './contexts/SettingsContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { GoogleSheetsService } from './services/googleSheets';
 import { translations } from './i18n/translations';
-import { JobEntry } from './types';
+import { JobEntry, ExpenseEntry } from './types';
 import { Toaster } from 'sonner';
 
 function MainContent() {
@@ -22,7 +25,7 @@ function MainContent() {
   const { user, googleAccessToken, spreadsheetId } = useAuth();
   const t = translations[currentLang];
   
-  const { rawJobs, incentives, expenses, goals, preferences, updatePreferences, addJob: firestoreAddJob, editJob: firestoreEditJob, deleteJob: firestoreDeleteJob, setIncentive, addExpense, updateExpense, deleteExpense, setGoal, clearAllData, transferIncomeToExpenses } = useUserData(user);
+  const { rawJobs, incentives, expenses, goals, preferences, updatePreferences, addJob: firestoreAddJob, editJob: firestoreEditJob, deleteJob: firestoreDeleteJob, setIncentive, addExpense, updateExpense, deleteExpense, setGoal, clearAllData, transferIncomeToExpenses, untransferredIncentivesAmount } = useUserData(user);
   
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
@@ -30,6 +33,11 @@ function MainContent() {
   });
   const [activeTab, setActiveTab] = useState<'dashboard' | 'expenses'>('dashboard');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [editingJob, setEditingJob] = useState<JobEntry | null>(null);
+  const [editingExpense, setEditingExpense] = useState<ExpenseEntry | null>(null);
 
   useEffect(() => {
     const handler = (e: any) => {
@@ -47,6 +55,16 @@ function MainContent() {
     if (outcome === 'accepted') {
       setDeferredPrompt(null);
     }
+  };
+
+  const handleEditJob = (job: JobEntry) => {
+    setEditingJob(job);
+    setIsIncomeModalOpen(true);
+  };
+
+  const handleEditExpense = (expense: ExpenseEntry) => {
+    setEditingExpense(expense);
+    setIsExpenseModalOpen(true);
   };
 
   // Migrate old data format to new format
@@ -188,7 +206,7 @@ function MainContent() {
   }, [jobs, user, googleAccessToken, spreadsheetId]);
 
   return (
-    <div className="min-h-screen font-sans text-slate-900 dark:text-slate-100 pb-20 transition-colors duration-200 relative">
+    <div className="min-h-screen font-sans text-slate-900 dark:text-slate-100 pb-32 transition-colors duration-200 relative">
       <div className="liquid-bg">
         <div className="blob blob-1"></div>
         <div className="blob blob-2"></div>
@@ -210,8 +228,7 @@ function MainContent() {
       {activeTab === 'dashboard' && (
         <Dashboard 
           jobs={jobs} 
-          addJob={addJob} 
-          editJob={editJob}
+          editJob={handleEditJob}
           deleteJob={deleteJob} 
           selectedDate={selectedDate}
           setSelectedDate={setSelectedDate}
@@ -222,6 +239,7 @@ function MainContent() {
           preferences={preferences}
           updatePreferences={updatePreferences}
           transferIncomeToExpenses={transferIncomeToExpenses}
+          untransferredIncentivesAmount={untransferredIncentivesAmount}
         />
       )}
       {activeTab === 'expenses' && (
@@ -229,15 +247,56 @@ function MainContent() {
           jobs={jobs}
           expenses={expenses}
           incentives={incentives}
-          addExpense={addExpense}
-          updateExpense={updateExpense}
+          updateExpense={handleEditExpense}
           deleteExpense={deleteExpense}
           preferences={preferences}
           updatePreferences={updatePreferences}
           clearAllData={clearAllData}
         />
       )}
-      <Chatbot jobs={jobs} incentives={incentives} addExpense={addExpense} setIncentive={setIncentive} addJob={addJob} />
+      <Chatbot 
+        jobs={jobs} 
+        incentives={incentives} 
+        addExpense={addExpense} 
+        setIncentive={setIncentive} 
+        addJob={addJob} 
+        isOpen={isChatOpen}
+        setIsOpen={setIsChatOpen}
+      />
+      <AddIncomeModal 
+        isOpen={isIncomeModalOpen}
+        onClose={() => {
+          setIsIncomeModalOpen(false);
+          setEditingJob(null);
+        }}
+        onAdd={addJob}
+        onEdit={editJob}
+        selectedDate={selectedDate}
+        editingJob={editingJob}
+      />
+      <AddExpenseModal 
+        isOpen={isExpenseModalOpen}
+        onClose={() => {
+          setIsExpenseModalOpen(false);
+          setEditingExpense(null);
+        }}
+        onAdd={addExpense}
+        onEdit={updateExpense}
+        customCategories={preferences.customCategories || []}
+        setCustomCategories={(cats) => updatePreferences({ customCategories: cats })}
+        editingExpense={editingExpense}
+      />
+      <FloatingNav 
+        onAddIncome={() => {
+          setEditingJob(null);
+          setIsIncomeModalOpen(true);
+        }}
+        onAddExpense={() => {
+          setEditingExpense(null);
+          setIsExpenseModalOpen(true);
+        }}
+        onOpenAI={() => setIsChatOpen(prev => !prev)}
+      />
       <Toaster position="top-center" richColors />
     </div>
   );

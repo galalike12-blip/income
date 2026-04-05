@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, ThinkingLevel, Type, FunctionDeclaration } from '@google/genai';
-import { MessageCircle, X, Send, Bot, Loader2, Camera, Image as ImageIcon } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, Loader2, Camera, Image as ImageIcon, FileJson } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { JobEntry, ExpenseEntry } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
@@ -20,19 +20,21 @@ interface ChatbotProps {
   addExpense: (expense: Omit<ExpenseEntry, 'id'>) => void;
   setIncentive: (date: string, amount: number) => void;
   addJob?: (job: Omit<JobEntry, 'id'>) => void;
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
 }
 
-export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob }: ChatbotProps) {
+export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob, isOpen, setIsOpen }: ChatbotProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
   
-  const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const jsonInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -51,6 +53,24 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob }: 
       setSelectedImage(event.target?.result as string);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleJsonSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const json = JSON.parse(content);
+        setInput(`Import this JSON data: ${JSON.stringify(json, null, 2)}`);
+        toast.info('JSON loaded into message. Press send to import.');
+      } catch (err) {
+        toast.error('Invalid JSON file');
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handleSend = async () => {
@@ -142,6 +162,7 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob }: 
       The user's preferred language code is '${currentLang}'. Please respond in this language.
       
       If the user uploads an image of a receipt or slip, extract the details and call the 'addExpense' tool.
+      If the user provides JSON data, process it by calling the appropriate tools (addExpense, addJob, setIncentive) for each entry in the JSON.
       If the user mentions adding a job or income, use the 'addJob' tool.
       If the user mentions a daily incentive, use the 'setIncentive' tool.
       Always confirm with the user before adding if the details are not 100% clear.`;
@@ -237,14 +258,6 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob }: 
 
   return (
     <>
-      {/* Floating Button */}
-      <button
-        onClick={() => setIsOpen(true)}
-        className={`fixed bottom-4 right-4 sm:bottom-6 sm:right-6 p-3 sm:p-4 glass-button rounded-full z-40 ${isOpen ? 'scale-0' : 'scale-100'}`}
-      >
-        <MessageCircle className="w-6 h-6" />
-      </button>
-
       {/* Chat Window */}
       <AnimatePresence>
         {isOpen && (
@@ -252,7 +265,7 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob }: 
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed inset-x-2 bottom-2 sm:inset-auto sm:bottom-6 sm:right-6 w-auto sm:w-full sm:max-w-sm h-[60vh] sm:h-[600px] glass-panel rounded-2xl sm:rounded-3xl flex flex-col overflow-hidden z-50 transition-colors"
+            className="fixed inset-x-2 bottom-28 sm:inset-auto sm:bottom-28 sm:right-6 w-auto sm:w-full sm:max-w-sm h-[60vh] sm:h-[600px] glass-panel rounded-2xl sm:rounded-3xl flex flex-col overflow-hidden z-50 transition-colors pb-[-14px]"
           >
             {/* Header */}
             <div className="bg-indigo-600/95 backdrop-blur-xl p-3 sm:p-5 flex justify-between items-center text-white border-b border-white/20">
@@ -260,9 +273,6 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob }: 
                 <Bot className="w-5 h-5" />
                 <h3 className="font-semibold">{t.aiAssistant}</h3>
               </div>
-              <button onClick={() => setIsOpen(false)} className="text-indigo-100 hover:text-white transition-colors bg-white/20 p-1.5 rounded-full hover:bg-white/30">
-                <X className="w-5 h-5" />
-              </button>
             </div>
 
             {/* Messages */}
@@ -322,12 +332,31 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob }: 
                   <Camera className="w-4 h-4" />
                 </button>
                 <input
-                  type="text"
+                  type="file"
+                  ref={jsonInputRef}
+                  onChange={handleJsonSelect}
+                  accept=".json,application/json"
+                  className="hidden"
+                />
+                <button
+                  onClick={() => jsonInputRef.current?.click()}
+                  className="p-3 glass-button rounded-full text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                  title="Import JSON"
+                >
+                  <FileJson className="w-4 h-4" />
+                </button>
+                <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
                   placeholder={t.askAbout}
-                  className="flex-1 px-4 py-3 glass-input rounded-full text-sm"
+                  rows={1}
+                  className="flex-1 px-4 py-3 glass-input rounded-2xl text-sm resize-none min-h-[44px] max-h-32 overflow-y-auto"
                 />
                 <button
                   onClick={handleSend}

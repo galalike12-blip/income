@@ -7,13 +7,13 @@ import { useLocalStorage } from './useLocalStorage';
 
 export function useUserData(user: User | null) {
   const [localJobs, setLocalJobs] = useLocalStorage<any[]>('income-tracker-jobs', []);
-  const [localIncentives, setLocalIncentives] = useLocalStorage<Record<string, number>>('income-tracker-incentives', {});
+  const [localIncentives, setLocalIncentives] = useLocalStorage<Record<string, { amount: number, transferred: boolean } | number>>('income-tracker-incentives', {});
   const [localExpenses, setLocalExpenses] = useLocalStorage<ExpenseEntry[]>('income-tracker-expenses', []);
   const [localGoals, setLocalGoals] = useLocalStorage<Goal[]>('income-tracker-goals', []);
   const [localPreferences, setLocalPreferences] = useLocalStorage<UserPreferences>('income-tracker-preferences', {});
   
   const [firestoreJobs, setFirestoreJobs] = useState<any[]>([]);
-  const [firestoreIncentives, setFirestoreIncentives] = useState<Record<string, number>>({});
+  const [firestoreIncentives, setFirestoreIncentives] = useState<Record<string, { amount: number, transferred: boolean }>>({});
   const [firestoreExpenses, setFirestoreExpenses] = useState<ExpenseEntry[]>([]);
   const [firestoreGoals, setFirestoreGoals] = useState<Goal[]>([]);
   const [firestorePreferences, setFirestorePreferences] = useState<UserPreferences>({});
@@ -45,11 +45,14 @@ export function useUserData(user: User | null) {
     // Listen to Incentives
     const incentivesRef = collection(db, 'users', user.uid, 'incentives');
     const unsubscribeIncentives = onSnapshot(incentivesRef, (snapshot) => {
-      const incData: Record<string, number> = {};
+      const incData: Record<string, { amount: number, transferred: boolean }> = {};
       snapshot.docs.forEach(doc => {
         const data = doc.data();
         if (data.date && data.amount !== undefined) {
-          incData[data.date] = data.amount;
+          incData[data.date] = {
+            amount: data.amount,
+            transferred: !!data.transferred
+          };
         }
       });
       setFirestoreIncentives(incData);
@@ -100,7 +103,14 @@ export function useUserData(user: User | null) {
   }, [user]);
 
   const jobs = user ? firestoreJobs : localJobs;
-  const incentives = user ? firestoreIncentives : localIncentives;
+  const rawIncentives = user ? firestoreIncentives : localIncentives;
+  
+  // Map rawIncentives to Record<string, number> for UI compatibility
+  const incentives = Object.entries(rawIncentives).reduce((acc, [date, data]) => {
+    acc[date] = typeof data === 'number' ? data : data.amount;
+    return acc;
+  }, {} as Record<string, number>);
+
   const expenses = user ? firestoreExpenses : localExpenses;
   const goals = user ? firestoreGoals : localGoals;
   const preferences = user ? firestorePreferences : localPreferences;
@@ -158,36 +168,72 @@ export function useUserData(user: User | null) {
   const setIncentive = async (date: string, amount: number) => {
     if (user) {
       const incRef = doc(db, 'users', user.uid, 'incentives', date);
+      // Preserve transferred status if it exists
+      const existing = firestoreIncentives[date];
+      const transferred = existing && typeof existing !== 'number' ? existing.transferred : false;
+      
       await setDoc(incRef, {
         userId: user.uid,
         date,
         amount,
+        transferred,
         updatedAt: serverTimestamp()
       });
     } else {
-      setLocalIncentives(prev => ({ ...prev, [date]: amount }));
+      const existing = localIncentives[date];
+      const transferred = existing && typeof existing !== 'number' ? (existing as any).transferred : false;
+      setLocalIncentives(prev => ({ ...prev, [date]: { amount, transferred } }));
     }
   };
+
+  const untransferredIncentivesAmount = Object.entries(rawIncentives)
+    .filter(([_, data]) => {
+      if (typeof data === 'number') return true;
+      return !data.transferred;
+    })
+    .reduce((sum, [_, data]) => {
+      return sum + (typeof data === 'number' ? data : data.amount);
+    }, 0);
 
   const transferIncomeToExpenses = async () => {
     // Calculate total net income from all untransferred jobs
     const untransferredJobs = (user ? firestoreJobs : localJobs).filter(j => !j.transferred);
-    const totalNet = untransferredJobs.reduce((sum, j) => {
+    const totalJobNet = untransferredJobs.reduce((sum, j) => {
       const amountToCollect = j.customerMustPay + j.upfrontCost;
       const diff = (j.actualReceived ?? amountToCollect) - amountToCollect;
       return sum + j.appNetIncome + diff;
     }, 0);
+
+    // Calculate total from untransferred incentives
+    const untransferredIncentives = Object.entries(rawIncentives)
+      .filter(([_, data]) => {
+        if (typeof data === 'number') return true;
+        return !data.transferred;
+      });
+    
+    const totalIncentiveNet = untransferredIncentives.reduce((sum, [_, data]) => {
+      return sum + (typeof data === 'number' ? data : data.amount);
+    }, 0);
+
+    const totalNet = totalJobNet + totalIncentiveNet;
 
     const currentBalance = preferences.expenseBalance || 0;
     const newBalance = currentBalance + totalNet;
 
     if (user) {
       // Mark jobs as transferred in Firestore
-      const promises = untransferredJobs.map(j => {
+      const jobPromises = untransferredJobs.map(j => {
         const jobRef = doc(db, 'users', user.uid, 'jobs', j.id);
         return setDoc(jobRef, { transferred: true }, { merge: true });
       });
-      await Promise.all(promises);
+
+      // Mark incentives as transferred in Firestore
+      const incPromises = untransferredIncentives.map(([date, data]) => {
+        const incRef = doc(db, 'users', user.uid, 'incentives', date);
+        return setDoc(incRef, { transferred: true }, { merge: true });
+      });
+
+      await Promise.all([...jobPromises, ...incPromises]);
       
       // Update balance in preferences
       const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
@@ -195,6 +241,17 @@ export function useUserData(user: User | null) {
     } else {
       // Mark jobs as transferred locally
       setLocalJobs(prev => prev.map(j => untransferredJobs.some(uj => uj.id === j.id) ? { ...j, transferred: true } : j));
+      
+      // Mark incentives as transferred locally
+      setLocalIncentives(prev => {
+        const next = { ...prev };
+        untransferredIncentives.forEach(([date, data]) => {
+          const amount = typeof data === 'number' ? data : data.amount;
+          next[date] = { amount, transferred: true };
+        });
+        return next;
+      });
+
       // Update balance locally
       setLocalPreferences(prev => ({ ...prev, expenseBalance: newBalance }));
     }
@@ -383,6 +440,7 @@ export function useUserData(user: User | null) {
     importJobs,
     updatePreferences,
     clearAllData,
-    transferIncomeToExpenses
+    transferIncomeToExpenses,
+    untransferredIncentivesAmount
   };
 }

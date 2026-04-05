@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { JobEntry, ExpenseEntry, UserPreferences } from '../types';
 import { Plus, Trash2, Calendar, DollarSign, Wallet, PieChart, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Edit2, GripVertical, ChevronDown, ChevronUp, Settings2, Check, Lock, Unlock, BarChart2, AlertCircle, ChevronRight, Camera, Loader2, X, Search } from 'lucide-react';
 import { Tooltip } from 'recharts';
@@ -6,7 +6,6 @@ import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
-import { GoogleGenAI } from '@google/genai';
 
 const COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#64748b'];
 
@@ -14,8 +13,7 @@ interface ExpensesProps {
   jobs: JobEntry[];
   expenses: ExpenseEntry[];
   incentives: Record<string, number>;
-  addExpense: (expense: Omit<ExpenseEntry, 'id'>) => void;
-  updateExpense: (id: string, updates: Partial<ExpenseEntry>) => void;
+  updateExpense: (expense: ExpenseEntry) => void;
   deleteExpense: (id: string) => void;
   preferences: UserPreferences;
   updatePreferences: (updates: Partial<UserPreferences>) => void;
@@ -36,27 +34,12 @@ const getFaviconUrl = (url?: string) => {
   }
 };
 
-export function Expenses({ jobs, expenses, incentives, addExpense, updateExpense, deleteExpense, preferences, updatePreferences, clearAllData }: ExpensesProps) {
+export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpense, preferences, updatePreferences, clearAllData }: ExpensesProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState(`${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`);
-  
-  const [expenseAmount, setExpenseAmount] = useState('');
-  const [expenseCategory, setExpenseCategory] = useState('');
-  const [expensePayee, setExpensePayee] = useState('');
-  const [expenseNote, setExpenseNote] = useState('');
-  const [expenseDate, setExpenseDate] = useState(() => {
-    const now = new Date();
-    return new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
-  });
-  const [isFixed, setIsFixed] = useState(false);
-  const [frequency, setFrequency] = useState<'monthly' | 'yearly'>('monthly');
-  const [isIndefinite, setIsIndefinite] = useState(false);
-  const [necessity, setNecessity] = useState<'necessary' | 'luxury'>('necessary');
-  const [durationMonths, setDurationMonths] = useState('1');
-  const [websiteUrl, setWebsiteUrl] = useState('');
   
   const customCategories = preferences.customCategories || [];
   const setCustomCategories = (newCategories: string[]) => updatePreferences({ customCategories: newCategories });
@@ -66,7 +49,7 @@ export function Expenses({ jobs, expenses, incentives, addExpense, updateExpense
   const [newCategoryName, setNewCategoryName] = useState('');
 
   const [isCustomizingLayout, setIsCustomizingLayout] = useState(false);
-  const widgetOrder = preferences.expensesWidgetOrder || ['summary', 'form', 'fixed', 'variable'];
+  const widgetOrder = preferences.expensesWidgetOrder || ['summary', 'fixed', 'variable'];
   const setWidgetOrder = (newOrder: string[]) => updatePreferences({ expensesWidgetOrder: newOrder });
   const fixedExpensesOrder = preferences.fixedExpensesOrder || [];
   const setFixedExpensesOrder = (newOrder: string[]) => updatePreferences({ fixedExpensesOrder: newOrder });
@@ -79,119 +62,11 @@ export function Expenses({ jobs, expenses, incentives, addExpense, updateExpense
   const [variableSearchQuery, setVariableSearchQuery] = useState('');
   const [variableCategoryFilter, setVariableCategoryFilter] = useState('all');
 
-  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [expenseToDelete, setExpenseToDelete] = useState<ExpenseEntry | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleScanReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!process.env.GEMINI_API_KEY) {
-      toast.error("API Key is missing");
-      return;
-    }
-
-    setIsScanning(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const base64Data = event.target?.result as string;
-      const base64Content = base64Data.split(',')[1];
-
-      try {
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-        
-        const prompt = `Extract expense details from this receipt image. 
-        Return ONLY a JSON object with the following fields:
-        - amount: number
-        - category: string (one of: food, fuel, rent, utilities, shopping, maintenance, other)
-        - payee: string (the store or person paid)
-        - note: string (a brief description)
-        - date: string (format: YYYY-MM-DD)
-        - time: string (format: HH:mm)
-        
-        If you cannot find a field, use an empty string or 0 for amount.
-        Respond in JSON format only.`;
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.1-flash-lite-preview',
-          contents: {
-            parts: [
-              { text: prompt },
-              {
-                inlineData: {
-                  data: base64Content,
-                  mimeType: file.type
-                }
-              }
-            ]
-          },
-          config: {
-            responseMimeType: "application/json"
-          }
-        });
-
-        const data = JSON.parse(response.text || '{}');
-
-        if (data.amount) setExpenseAmount(data.amount.toString());
-        if (data.category) setExpenseCategory(data.category);
-        if (data.payee) setExpensePayee(data.payee);
-        
-        setExpenseNote(data.note || '');
-
-        if (data.date && /^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
-          const time = data.time || "00:00";
-          setExpenseDate(`${data.date}T${time}`);
-        }
-
-        toast.success(t.synced || 'สแกนสำเร็จ');
-      } catch (error) {
-        console.error(error);
-        toast.error(t.scanError2 || 'เกิดข้อผิดพลาดในการสแกนสลิป');
-      } finally {
-        setIsScanning(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-    };
-    reader.readAsDataURL(file);
-  };
 
   const handleEditClick = (expense: ExpenseEntry) => {
-    setEditingExpenseId(expense.id);
-    setExpenseAmount(expense.amount.toString());
-    setExpenseCategory(expense.category);
-    setExpensePayee(expense.payee || '');
-    setExpenseNote(expense.note || '');
-    setExpenseDate(expense.date);
-    setNecessity(expense.necessity || 'necessary');
-    setWebsiteUrl(expense.websiteUrl || '');
-    setIsFixed(expense.isFixed || false);
-    setFrequency(expense.frequency || 'monthly');
-    setIsIndefinite(expense.isIndefinite || false);
-    setDurationMonths(expense.durationMonths?.toString() || '1');
-    
-    // Scroll to form
-    const formElement = document.getElementById('expense-form');
-    if (formElement) {
-      formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    updateExpense(expense);
   };
-
-  const cancelEdit = () => {
-    setEditingExpenseId(null);
-    setExpenseAmount('');
-    setExpenseCategory('');
-    setExpensePayee('');
-    setExpenseNote('');
-    setExpenseDate(new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 16));
-    setIsFixed(false);
-    setFrequency('monthly');
-    setIsIndefinite(false);
-    setDurationMonths('1');
-    setWebsiteUrl('');
-  };
-
 
   const handleDeleteExpense = (expense: ExpenseEntry) => {
     if (expense.groupId) {
@@ -407,218 +282,8 @@ export function Expenses({ jobs, expenses, incentives, addExpense, updateExpense
     return data;
   }, [expenses, currentLang]);
 
-  const handleExpenseSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const amount = parseFloat(expenseAmount);
-    if (amount > 0) {
-      let duration = 1;
-      if (isFixed) {
-        if (isIndefinite) {
-          duration = frequency === 'yearly' ? 10 : 120;
-        } else {
-          duration = parseInt(durationMonths) || 1;
-        }
-      }
-
-      if (editingExpenseId) {
-        const originalExpense = expenses.find(ex => ex.id === editingExpenseId);
-        if (!originalExpense) return;
-
-        if (originalExpense.groupId) {
-          // It WAS a group
-          const groupExpenses = expenses.filter(ex => ex.groupId === originalExpense.groupId);
-          groupExpenses.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-          
-          const currentIndex = groupExpenses.findIndex(ex => ex.id === originalExpense.id);
-          
-          if (isFixed && duration > 1) {
-            // Keep it as a group, update existing, add/remove as needed
-            for (let i = 0; i < duration; i++) {
-              const offset = i - currentIndex;
-              const newDate = new Date(expenseDate);
-              if (frequency === 'yearly') {
-                newDate.setFullYear(newDate.getFullYear() + offset);
-              } else {
-                newDate.setMonth(newDate.getMonth() + offset);
-              }
-              const formattedDate = new Date(newDate.getTime() - (newDate.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
-              
-              if (i < groupExpenses.length) {
-                // Update existing
-                updateExpense(groupExpenses[i].id, {
-                  amount,
-                  category: expenseCategory,
-                  payee: expensePayee,
-                  note: expenseNote,
-                  date: formattedDate,
-                  necessity,
-                  websiteUrl: websiteUrl.trim() || undefined,
-                  isFixed: true,
-                  frequency,
-                  isIndefinite,
-                  durationMonths: isIndefinite ? undefined : duration,
-                });
-              } else {
-                // Add new ones to the group
-                addExpense({
-                  amount,
-                  category: expenseCategory,
-                  payee: expensePayee,
-                  note: expenseNote,
-                  date: formattedDate,
-                  necessity,
-                  websiteUrl: websiteUrl.trim() || undefined,
-                  isFixed: true,
-                  frequency,
-                  isIndefinite,
-                  durationMonths: isIndefinite ? undefined : duration,
-                  isPaid: false,
-                  groupId: originalExpense.groupId
-                });
-              }
-            }
-            // Remove extra ones if duration decreased
-            if (groupExpenses.length > duration) {
-              for (let i = duration; i < groupExpenses.length; i++) {
-                deleteExpense(groupExpenses[i].id);
-              }
-            }
-          } else {
-            // Changed from group to single
-            groupExpenses.forEach(ex => {
-              if (ex.id === originalExpense.id) {
-                updateExpense(ex.id, {
-                  amount,
-                  category: expenseCategory,
-                  payee: expensePayee,
-                  note: expenseNote,
-                  date: expenseDate,
-                  necessity,
-                  websiteUrl: websiteUrl.trim() || undefined,
-                  isFixed,
-                  frequency,
-                  isIndefinite,
-                  durationMonths: 1,
-                  groupId: undefined
-                });
-              } else {
-                deleteExpense(ex.id);
-              }
-            });
-          }
-        } else {
-          // It WAS single
-          if (isFixed && duration > 1) {
-            // Changed from single to group
-            const newGroupId = Date.now().toString();
-            for (let i = 0; i < duration; i++) {
-              const d = new Date(expenseDate);
-              if (frequency === 'yearly') {
-                d.setFullYear(d.getFullYear() + i);
-              } else {
-                d.setMonth(d.getMonth() + i);
-              }
-              const formattedDate = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
-              
-              if (i === 0) {
-                updateExpense(originalExpense.id, {
-                  amount,
-                  category: expenseCategory,
-                  payee: expensePayee,
-                  note: expenseNote,
-                  date: formattedDate,
-                  necessity,
-                  websiteUrl: websiteUrl.trim() || undefined,
-                  isFixed: true,
-                  frequency,
-                  isIndefinite,
-                  durationMonths: isIndefinite ? undefined : duration,
-                  groupId: newGroupId
-                });
-              } else {
-                addExpense({
-                  amount,
-                  category: expenseCategory,
-                  payee: expensePayee,
-                  note: expenseNote,
-                  date: formattedDate,
-                  necessity,
-                  websiteUrl: websiteUrl.trim() || undefined,
-                  isFixed: true,
-                  frequency,
-                  isIndefinite,
-                  durationMonths: isIndefinite ? undefined : duration,
-                  isPaid: false,
-                  groupId: newGroupId
-                });
-              }
-            }
-          } else {
-            // Still single
-            updateExpense(originalExpense.id, {
-              amount,
-              category: expenseCategory,
-              payee: expensePayee,
-              note: expenseNote,
-              date: expenseDate,
-              necessity,
-              websiteUrl: websiteUrl.trim() || undefined,
-              isFixed,
-              frequency,
-              isIndefinite,
-              durationMonths: 1,
-              groupId: undefined
-            });
-          }
-        }
-        setEditingExpenseId(null);
-      } else {
-        // ADD NEW logic
-        const groupId = duration > 1 ? Date.now().toString() : undefined;
-        
-        for (let i = 0; i < duration; i++) {
-          const d = new Date(expenseDate);
-          if (frequency === 'yearly') {
-            d.setFullYear(d.getFullYear() + i);
-          } else {
-            d.setMonth(d.getMonth() + i);
-          }
-          const formattedDate = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
-          
-          addExpense({
-            date: formattedDate,
-            amount,
-            category: expenseCategory,
-            payee: expensePayee,
-            note: expenseNote,
-            isFixed,
-            frequency,
-            isIndefinite,
-            necessity,
-            durationMonths: isIndefinite ? undefined : duration,
-            websiteUrl: websiteUrl.trim() || undefined,
-            isPaid: false,
-            groupId
-          });
-        }
-      }
-      
-      // Save custom category if it's not in the default list and not already in customCategories
-      const defaultCategories = ['Food', 'Transport', 'Utilities', 'Entertainment', 'Shopping', 'Health', 'Housing', 'Other'];
-      if (expenseCategory && !defaultCategories.includes(expenseCategory) && !customCategories.includes(expenseCategory)) {
-        setCustomCategories([...customCategories, expenseCategory]);
-      }
-      
-      setExpenseAmount('');
-      setExpensePayee('');
-      setExpenseNote('');
-      setWebsiteUrl('');
-      setDurationMonths('1');
-    }
-  };
-
   return (
-    <div className="max-w-5xl mx-auto px-4 pt-2 pb-4 space-y-6">
+    <div className="max-w-5xl mx-auto px-4 pt-2 pb-0 space-y-6">
       {/* Header & Month Picker */}
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4 glass-panel p-4 rounded-3xl transition-colors overflow-hidden">
         <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white text-center sm:text-left">{t.expenseManagement || 'ระบบจัดการรายจ่าย'}</h1>
@@ -706,7 +371,6 @@ export function Expenses({ jobs, expenses, incentives, addExpense, updateExpense
               <GripVertical className="text-slate-400" />
               <span className="font-medium text-slate-700 dark:text-slate-200">
                 {id === 'summary' && (t.budgetSummary || 'สรุปงบประมาณ')}
-                {id === 'form' && (t.addExpense || 'เพิ่มรายจ่ายใหม่')}
                 {id === 'fixed' && (t.fixedCosts || 'รายจ่ายคงที่ (Fixed Costs)')}
                 {id === 'variable' && (t.variableCosts || 'รายจ่ายผันแปร (Variable Costs)')}
               </span>
@@ -785,278 +449,6 @@ export function Expenses({ jobs, expenses, incentives, addExpense, updateExpense
                 </div>
               )}
 
-              {id === 'form' && (
-                <div id="expense-form" className={`glass-panel p-6 sm:p-8 rounded-3xl space-y-6 transition-all ${editingExpenseId ? 'ring-2 ring-indigo-400/50 dark:ring-indigo-500/50' : ''}`}>
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            {editingExpenseId ? <Edit2 className="w-5 h-5 text-indigo-500" /> : <Plus className="w-5 h-5 text-indigo-500" />}
-            {editingExpenseId ? (t.editExpense || 'แก้ไขรายจ่าย') : (t.addExpense || 'เพิ่มรายจ่ายใหม่')}
-          </h2>
-          
-          <div className="flex items-center gap-2">
-            {!editingExpenseId && (
-              <>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleScanReceipt}
-                  accept="image/*"
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isScanning}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all text-sm font-medium border border-indigo-100 dark:border-indigo-800/50"
-                >
-                  {isScanning ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Camera className="w-4 h-4" />
-                  )}
-                  {isScanning ? (t.scanning || 'กำลังสแกน...') : (t.scanReceipt || 'สแกนสลิป')}
-                </button>
-              </>
-            )}
-            {editingExpenseId && (
-              <span className="text-xs font-medium px-2.5 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-full">
-                {t.edit || 'แก้ไข'} Mode
-              </span>
-            )}
-          </div>
-        </div>
-        
-        <form onSubmit={handleExpenseSubmit} className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-          <div className="sm:col-span-3">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.date || 'วันที่'}</label>
-            <input 
-              type="datetime-local" 
-              value={expenseDate} 
-              onChange={e => setExpenseDate(e.target.value)} 
-              className="w-full px-4 py-3 glass-input rounded-2xl"
-              required
-            />
-          </div>
-          <div className="sm:col-span-3">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.category || 'หมวดหมู่'}</label>
-            {isAddingCategory ? (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newCategoryName}
-                  onChange={e => setNewCategoryName(e.target.value)}
-                  placeholder={t.newCategoryPlaceholder || 'ชื่อหมวดหมู่ใหม่'}
-                  className="w-full px-4 py-3 glass-input rounded-2xl"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (newCategoryName.trim()) {
-                      if (!customCategories.includes(newCategoryName.trim())) {
-                        setCustomCategories([...customCategories, newCategoryName.trim()]);
-                      }
-                      setExpenseCategory(newCategoryName.trim());
-                    }
-                    setIsAddingCategory(false);
-                  }}
-                  className="px-4 py-3 bg-indigo-600 text-white rounded-2xl whitespace-nowrap"
-                >
-                  {t.add || 'เพิ่ม'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddingCategory(false);
-                    setExpenseCategory('');
-                  }}
-                  className="px-4 py-3 bg-slate-200 text-slate-700 rounded-2xl whitespace-nowrap"
-                >
-                  {t.cancel || 'ยกเลิก'}
-                </button>
-              </div>
-            ) : (
-              <div className="relative">
-                <select 
-                  value={expenseCategory} 
-                  onChange={e => {
-                    if (e.target.value === 'ADD_NEW') {
-                      setIsAddingCategory(true);
-                      setNewCategoryName('');
-                    } else if (e.target.value === 'MANAGE') {
-                      setIsManagingCategories(true);
-                      setExpenseCategory('');
-                    } else {
-                      setExpenseCategory(e.target.value);
-                    }
-                  }}
-                  className="w-full px-4 py-3 glass-input rounded-2xl appearance-none pr-10"
-                  required
-                >
-                  <option value="" disabled className="text-slate-500">{t.selectCategory || 'เลือกหมวดหมู่'}</option>
-                  {customCategories.map(cat => (
-                    <option key={cat} value={cat} className="text-slate-900">{cat}</option>
-                  ))}
-                  <option value="ADD_NEW" className="text-indigo-600 font-medium">+ {t.addNewCategory || 'เพิ่มหมวดหมู่ใหม่'}</option>
-                  {customCategories.length > 0 && (
-                    <option value="MANAGE" className="text-slate-600 font-medium">⚙️ {t.manageCategories || 'จัดการหมวดหมู่'}</option>
-                  )}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                  <ChevronDown className="w-5 h-5" />
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="sm:col-span-3">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.payee || 'ชื่อปลายทาง/ผู้รับโอน'}</label>
-            <input 
-              type="text" 
-              value={expensePayee} 
-              onChange={e => setExpensePayee(e.target.value)} 
-              placeholder={t.payeePlaceholder || "ชื่อปลายทาง/ผู้รับโอน"} 
-              className="w-full px-4 py-3 glass-input rounded-2xl"
-            />
-          </div>
-          <div className="sm:col-span-3">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.amount || 'จำนวนเงิน'}</label>
-            <input 
-              type="number" 
-              step="0.01" 
-              value={expenseAmount} 
-              onChange={e => setExpenseAmount(e.target.value)} 
-              placeholder={t.amountPlaceholder || "จำนวนเงิน"} 
-              className="w-full px-4 py-3 glass-input rounded-2xl"
-              required
-            />
-          </div>
-          <div className="sm:col-span-12">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.note || 'หมายเหตุ (ถ้ามี)'}</label>
-            <input 
-              type="text" 
-              value={expenseNote} 
-              onChange={e => setExpenseNote(e.target.value)} 
-              placeholder={t.notePlaceholder || "หมายเหตุ (ถ้ามี)"} 
-              className="w-full px-4 py-3 glass-input rounded-2xl"
-            />
-          </div>
-          <div className="sm:col-span-12 flex flex-col gap-4 mt-2">
-            <div className="flex flex-col gap-3">
-              <label className="flex items-center gap-2 cursor-pointer w-fit">
-                <input 
-                  type="checkbox" 
-                  checked={isFixed}
-                  onChange={e => setIsFixed(e.target.checked)}
-                  className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500"
-                />
-                <span className="text-slate-700 dark:text-slate-300">{t.isFixedCost || 'เป็นรายจ่ายคงที่ (Fixed Cost)'}</span>
-              </label>
-              {isFixed && (
-                <div className="flex flex-wrap items-center gap-4 pl-7">
-                  <div className="relative">
-                    <select
-                      value={frequency}
-                      onChange={e => setFrequency(e.target.value as 'monthly' | 'yearly')}
-                      className="px-3 py-2 glass-input rounded-xl text-sm appearance-none pr-9"
-                    >
-                      <option value="monthly">{t.monthly || 'รายเดือน'}</option>
-                      <option value="yearly">{t.yearly || 'รายปี'}</option>
-                    </select>
-                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                      <ChevronDown className="w-4 h-4" />
-                    </div>
-                  </div>
-                  
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={isIndefinite}
-                      onChange={e => setIsIndefinite(e.target.checked)}
-                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-sm text-slate-600 dark:text-slate-400">{t.indefinite || 'ไม่มีกำหนด'}</span>
-                  </label>
-
-                  {!isIndefinite && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-slate-500">{t.durationMonths || 'จำนวนงวด'}:</span>
-                      <input 
-                        type="number" 
-                        min="1"
-                        value={durationMonths} 
-                        onChange={e => setDurationMonths(e.target.value)} 
-                        className="w-20 px-3 py-2 glass-input rounded-xl text-sm"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-6 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <div className="sm:col-span-4">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">{t.necessity || 'ความจำเป็น'}</label>
-                <div className="flex items-center gap-6">
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <input 
-                      type="radio" 
-                      name="necessity"
-                      value="necessary"
-                      checked={necessity === 'necessary'}
-                      onChange={() => setNecessity('necessary')}
-                      className="w-5 h-5 text-emerald-600 focus:ring-emerald-500 border-slate-300"
-                    />
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-emerald-600 transition-colors">{t.necessary || 'รายจ่ายจำเป็น'}</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <input 
-                      type="radio" 
-                      name="necessity"
-                      value="luxury"
-                      checked={necessity === 'luxury'}
-                      onChange={() => setNecessity('luxury')}
-                      className="w-5 h-5 text-rose-600 focus:ring-rose-500 border-slate-300"
-                    />
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-rose-600 transition-colors">{t.luxury || 'รายจ่ายฟุ่มเฟือย'}</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="sm:col-span-8">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.websiteUrl || 'ลิงก์เว็บไซต์ (เพื่อแสดงไอคอน)'}</label>
-                <input 
-                  type="url" 
-                  value={websiteUrl} 
-                  onChange={e => setWebsiteUrl(e.target.value)} 
-                  placeholder={t.websitePlaceholder || "https://example.com"} 
-                  className="w-full px-4 py-3 glass-input rounded-2xl text-sm"
-                />
-              </div>
-            </div>
-          </div>
-          <div className="sm:col-span-12 flex justify-end items-center gap-3 mt-4">
-            {editingExpenseId && (
-              <button 
-                type="button"
-                onClick={cancelEdit}
-                className="px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-2xl font-medium hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
-              >
-                {t.cancel || 'ยกเลิก'}
-              </button>
-            )}
-            <button 
-              type="submit" 
-              disabled={!expenseAmount}
-              className="px-6 py-3 glass-button rounded-2xl font-medium disabled:opacity-50 flex items-center gap-2"
-            >
-              {editingExpenseId ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-              {editingExpenseId ? (t.updateExpense || 'อัปเดตรายจ่าย') : (t.saveExpense || 'บันทึกรายจ่าย')}
-            </button>
-          </div>
-        </form>
-      </div>
-
-              )}
               {id === 'fixed' && (
                 <div className="glass-panel p-6 rounded-3xl">
           <div className="flex justify-between items-center mb-4">
@@ -1284,9 +676,6 @@ export function Expenses({ jobs, expenses, incentives, addExpense, updateExpense
                             toast.error(`ไม่สามารถลบหมวดหมู่ "${cat}" ได้ เพราะยังมีรายการค่าใช้จ่ายที่ใช้หมวดหมู่นี้อยู่`);
                           } else {
                             setCustomCategories(customCategories.filter(c => c !== cat));
-                            if (expenseCategory === cat) {
-                              setExpenseCategory('');
-                            }
                           }
                         }}
                         className="p-2 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
