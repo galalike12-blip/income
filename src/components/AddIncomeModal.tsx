@@ -26,6 +26,7 @@ export function AddIncomeModal({ isOpen, onClose, onAdd, onEdit, selectedDate, e
 
   useEffect(() => {
     if (isOpen) {
+      document.body.style.overflow = 'hidden';
       if (editingJob) {
         setAppNetIncome(editingJob.appNetIncome.toString());
         setCustomerMustPay(editingJob.customerMustPay.toString());
@@ -41,7 +42,12 @@ export function AddIncomeModal({ isOpen, onClose, onAdd, onEdit, selectedDate, e
         setUpfrontCost('');
         setActualReceived('');
       }
+    } else {
+      document.body.style.overflow = 'unset';
     }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
   }, [isOpen, editingJob]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -83,7 +89,7 @@ export function AddIncomeModal({ isOpen, onClose, onAdd, onEdit, selectedDate, e
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/20 dark:border-slate-800"
+            className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-y-auto max-h-[90vh] border border-white/20 dark:border-slate-800"
           >
             <div className="p-6 sm:p-8">
               <div className="flex justify-between items-center mb-6">

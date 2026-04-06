@@ -17,7 +17,11 @@ interface ExpensesProps {
   deleteExpense: (id: string) => void;
   preferences: UserPreferences;
   updatePreferences: (updates: Partial<UserPreferences>) => void;
-  clearAllData: () => Promise<void>;
+  showResetConfirm: boolean;
+  setShowResetConfirm: (show: boolean) => void;
+  resetInput: string;
+  setResetInput: (input: string) => void;
+  handleResetData: () => Promise<void>;
 }
 
 const getFaviconUrl = (url?: string) => {
@@ -34,7 +38,7 @@ const getFaviconUrl = (url?: string) => {
   }
 };
 
-export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpense, preferences, updatePreferences, clearAllData }: ExpensesProps) {
+export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpense, preferences, updatePreferences, showResetConfirm, setShowResetConfirm, resetInput, setResetInput, handleResetData }: ExpensesProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
@@ -204,13 +208,10 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
   const totalVariable = variableExpenses.reduce((sum, e) => sum + e.amount, 0);
   const totalExpenses = totalFixed + totalVariable;
 
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [resetInput, setResetInput] = useState('');
-
-  const handleResetData = async () => {
+  const handleResetDataInternal = async () => {
     if (resetInput === 'RESET') {
       try {
-        await clearAllData();
+        await handleResetData();
         setResetInput('');
         setShowResetConfirm(false);
         toast.success(t.resetSuccess || 'ล้างข้อมูลทั้งหมดเรียบร้อยแล้ว');
@@ -929,6 +930,12 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
                 <span className="text-slate-600 dark:text-slate-300 italic bg-white/50 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-100 dark:border-slate-700">
                   {expense.note}
                 </span>
+              </div>
+            )}
+            {expense.imageUrl && (
+              <div className="flex flex-col gap-1 text-sm">
+                <span className="text-slate-400 font-medium">รูปภาพ</span>
+                <img src={expense.imageUrl} alt="Expense" className="w-full h-32 object-cover rounded-lg" referrerPolicy="no-referrer" />
               </div>
             )}
             {isFixed && progress && (

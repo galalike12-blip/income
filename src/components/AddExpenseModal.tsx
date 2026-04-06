@@ -25,6 +25,8 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
   const [expensePayee, setExpensePayee] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseNote, setExpenseNote] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [necessity, setNecessity] = useState<'necessary' | 'luxury'>('necessary');
   const [isFixed, setIsFixed] = useState(false);
   const [frequency, setFrequency] = useState<'monthly' | 'yearly'>('monthly');
   const [isIndefinite, setIsIndefinite] = useState(true);
@@ -37,12 +39,15 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
 
   useEffect(() => {
     if (isOpen) {
+      document.body.style.overflow = 'hidden';
       if (editingExpense) {
         setExpenseDate(editingExpense.date);
         setExpenseCategory(editingExpense.category);
         setExpensePayee(editingExpense.payee || '');
         setExpenseAmount(editingExpense.amount.toString());
         setExpenseNote(editingExpense.note || '');
+        setImageUrl(editingExpense.imageUrl || '');
+        setNecessity(editingExpense.necessity || 'necessary');
         setIsFixed(editingExpense.isFixed || false);
         setFrequency(editingExpense.frequency || 'monthly');
         setIsIndefinite(editingExpense.isIndefinite ?? true);
@@ -54,12 +59,19 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         setExpensePayee('');
         setExpenseAmount('');
         setExpenseNote('');
+        setImageUrl('');
+        setNecessity('necessary');
         setIsFixed(false);
         setFrequency('monthly');
         setIsIndefinite(true);
         setDurationMonths('12');
       }
+    } else {
+      document.body.style.overflow = 'unset';
     }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
   }, [isOpen, editingExpense]);
 
   const handleScanReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,7 +101,12 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         const result = JSON.parse(response.text || '{}');
         if (result.amount) setExpenseAmount(result.amount.toString());
         if (result.payee) setExpensePayee(result.payee);
-        if (result.category && customCategories.includes(result.category)) setExpenseCategory(result.category);
+        if (result.category) {
+          if (!customCategories.includes(result.category)) {
+            setCustomCategories([...customCategories, result.category]);
+          }
+          setExpenseCategory(result.category);
+        }
       };
       reader.readAsDataURL(file);
     } catch (error) {
@@ -107,6 +124,8 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
       payee: expensePayee,
       amount: parseFloat(expenseAmount) || 0,
       note: expenseNote,
+      imageUrl,
+      necessity,
       isFixed,
       frequency: isFixed ? frequency : undefined,
       durationMonths: isFixed && !isIndefinite ? parseInt(durationMonths) : undefined,
@@ -136,7 +155,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/20 dark:border-slate-800"
+            className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-y-auto max-h-[90vh] border border-white/20 dark:border-slate-800"
           >
             <div className="p-6 sm:p-8">
               <div className="flex justify-between items-center mb-6">
@@ -214,6 +233,25 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 ml-1">{t.note || 'หมายเหตุ'}</label>
                     <input type="text" value={expenseNote} onChange={e => setExpenseNote(e.target.value)} placeholder={t.notePlaceholder || "หมายเหตุ (ถ้ามี)"} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 ml-1">URL รูปภาพ</label>
+                    <input type="url" value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 ml-1">ประเภทรายจ่าย</label>
+                    <div className="flex gap-4">
+                      <label className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-2 cursor-pointer transition-all ${necessity === 'necessary' ? 'bg-indigo-50 border-indigo-500 text-indigo-700 dark:bg-indigo-900/20 dark:border-indigo-500 dark:text-indigo-300' : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-400'}`}>
+                        <input type="radio" name="necessity" value="necessary" checked={necessity === 'necessary'} onChange={() => setNecessity('necessary')} className="hidden" />
+                        {t.necessary || 'จำเป็น'}
+                      </label>
+                      <label className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-2 cursor-pointer transition-all ${necessity === 'luxury' ? 'bg-rose-50 border-rose-500 text-rose-700 dark:bg-rose-900/20 dark:border-rose-500 dark:text-rose-300' : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-400'}`}>
+                        <input type="radio" name="necessity" value="luxury" checked={necessity === 'luxury'} onChange={() => setNecessity('luxury')} className="hidden" />
+                        {t.luxury || 'ฟุ่มเฟือย'}
+                      </label>
+                    </div>
                   </div>
 
                   <div className="col-span-2 flex items-center gap-3 py-1">

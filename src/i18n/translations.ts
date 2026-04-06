@@ -186,6 +186,7 @@ export const translations = {
     confirm: "Confirm",
     installApp: "Install App",
     installAppDesc: "Install this app on your home screen for quick access.",
+    switchAccount: "Switch Account",
   },
   th: {
     appTitle: "ติดตามรายได้",
@@ -374,6 +375,7 @@ export const translations = {
     confirm: "ยืนยัน",
     installApp: "ติดตั้งแอป",
     installAppDesc: "ติดตั้งแอปบนหน้าจอหลัก",
+    switchAccount: "สลับบัญชี Google",
   },
   zh: {
     appTitle: "收入与小费追踪器",
@@ -562,5 +564,6 @@ export const translations = {
     confirm: "确认",
     installApp: "安装应用",
     installAppDesc: "将此应用安装到主屏幕以快速访问。",
+    switchAccount: "切换账户",
   }
 };

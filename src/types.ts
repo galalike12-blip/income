@@ -21,6 +21,7 @@ export interface ExpenseEntry {
   frequency?: 'monthly' | 'yearly';
   isIndefinite?: boolean;
   websiteUrl?: string;
+  imageUrl?: string;
   isPaid?: boolean;
   groupId?: string;
 }
@@ -31,6 +32,7 @@ export interface UserPreferences {
   fixedExpensesOrder?: string[];
   isFixedExpensesLocked?: boolean;
   customCategories?: string[];
+  defaultCategories?: string[];
   expenseBalance?: number;
 }
 
