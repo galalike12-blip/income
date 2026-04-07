@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dashboard } from './components/Dashboard';
 import { Expenses } from './components/Expenses';
 import { Chatbot } from './components/Chatbot';
@@ -38,6 +38,7 @@ function MainContent() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetInput, setResetInput] = useState('');
+  const chatbotRef = useRef<any>(null);
 
   const handleResetData = async () => {
     if (resetInput === 'RESET') {
@@ -289,6 +290,7 @@ function MainContent() {
         />
       )}
       <Chatbot 
+        ref={chatbotRef}
         jobs={jobs} 
         incentives={incentives} 
         addExpense={addExpense} 
@@ -330,6 +332,12 @@ function MainContent() {
           setIsExpenseModalOpen(true);
         }}
         onOpenAI={() => setIsChatOpen(prev => !prev)}
+        onLongPressAI={() => {
+          if (!isChatOpen) setIsChatOpen(true);
+          setTimeout(() => {
+            chatbotRef.current?.toggleListening();
+          }, 300);
+        }}
       />
       <Toaster position="top-center" richColors />
     </div>

@@ -108,6 +108,34 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
     return totalAppNetIncome + totalTip - totalLoss + yesterdayIncentive;
   }, [yesterdaysJobs, incentives, yesterdayStr]);
 
+  const monthlyGrossIncome = useMemo(() => {
+    const [year, month, day] = selectedDate.split('-');
+    const monthPrefix = `${year}-${month}`;
+    // Filter jobs from start of month up to selectedDate
+    const monthJobs = jobs.filter(j => j.date.startsWith(monthPrefix) && j.date.split('T')[0] <= selectedDate);
+    
+    const totalAppNetIncome = monthJobs.reduce((sum, j) => sum + j.appNetIncome, 0);
+    let totalTip = 0;
+    let totalLoss = 0;
+    monthJobs.forEach(j => {
+      const diff = j.actualReceived - (j.customerMustPay + j.upfrontCost);
+      if (diff > 0) totalTip += diff;
+      if (diff < 0) totalLoss += Math.abs(diff);
+    });
+    
+    // Sum incentives for the month up to selectedDate
+    const monthIncentives = Object.entries(incentives)
+      .filter(([date]) => date.startsWith(monthPrefix) && date <= selectedDate)
+      .reduce((sum, [, amount]) => sum + amount, 0);
+      
+    return totalAppNetIncome + totalTip - totalLoss + monthIncentives;
+  }, [jobs, incentives, selectedDate]);
+
+  const dailyAverage = useMemo(() => {
+    const day = parseInt(selectedDate.split('-')[2]);
+    return day > 0 ? monthlyGrossIncome / day : 0;
+  }, [monthlyGrossIncome, selectedDate]);
+
   const diffFromYesterday = summary.grossIncome - yesterdayGrossIncome;
   const isPositiveDiff = diffFromYesterday >= 0;
   const diffDisplay = `${isPositiveDiff ? t.moreThan : t.lessThan} ฿${Math.abs(diffFromYesterday).toFixed(2)}`;
@@ -320,11 +348,11 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
                     </div>
 
                     <SummaryCard 
-                      title={t.vsYesterday} 
-                      valueDisplay={diffDisplay}
-                      icon={isPositiveDiff ? <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /> : <TrendingDown className="w-5 h-5 text-rose-600 dark:text-rose-400" />} 
-                      bg={isPositiveDiff ? "bg-emerald-50 dark:bg-emerald-900/30" : "bg-rose-50 dark:bg-rose-900/30"} 
-                      color={isPositiveDiff ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"} 
+                      title={t.dailyAverage} 
+                      valueDisplay={`฿${dailyAverage.toFixed(2)}`}
+                      icon={<BarChart2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />} 
+                      bg="bg-indigo-50 dark:bg-indigo-900/30" 
+                      color="text-indigo-700 dark:text-indigo-400" 
                     />
                   </div>
                   

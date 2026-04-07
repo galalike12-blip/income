@@ -6,9 +6,31 @@ interface FloatingNavProps {
   onAddExpense: () => void;
   onAddIncome: () => void;
   onOpenAI: () => void;
+  onLongPressAI?: () => void;
 }
 
-export function FloatingNav({ onAddExpense, onAddIncome, onOpenAI }: FloatingNavProps) {
+export function FloatingNav({ onAddExpense, onAddIncome, onOpenAI, onLongPressAI }: FloatingNavProps) {
+  const longPressTimer = React.useRef<any>(null);
+  const [isLongPressing, setIsLongPressing] = React.useState(false);
+
+  const startLongPress = () => {
+    setIsLongPressing(false);
+    longPressTimer.current = setTimeout(() => {
+      setIsLongPressing(true);
+      if (onLongPressAI) onLongPressAI();
+    }, 500); // 500ms for long press
+  };
+
+  const endLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+    }
+    if (!isLongPressing) {
+      onOpenAI();
+    }
+    setIsLongPressing(false);
+  };
+
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 w-full max-w-xs sm:max-w-sm">
       <div className="relative flex items-center justify-between bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-full p-2 shadow-2xl shadow-indigo-500/10 h-[62px]">
@@ -41,11 +63,18 @@ export function FloatingNav({ onAddExpense, onAddIncome, onOpenAI }: FloatingNav
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.95 }}
-          onClick={onOpenAI}
-          className="flex flex-col items-center justify-center w-[65px] h-12 rounded-full text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all"
-          title="AI Chatbot"
+          onMouseDown={startLongPress}
+          onMouseUp={endLongPress}
+          onMouseLeave={() => {
+            if (longPressTimer.current) clearTimeout(longPressTimer.current);
+            setIsLongPressing(false);
+          }}
+          onTouchStart={startLongPress}
+          onTouchEnd={endLongPress}
+          className={`flex flex-col items-center justify-center w-[65px] h-12 rounded-full transition-all ${isLongPressing ? 'text-rose-500 scale-110' : 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'}`}
+          title="AI Chatbot (Long press to speak)"
         >
-          <Sparkles className="w-6 h-6" />
+          <Sparkles className={`w-6 h-6 ${isLongPressing ? 'animate-pulse' : ''}`} />
         </motion.button>
 
       </div>

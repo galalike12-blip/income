@@ -1,5 +1,5 @@
 {
   "name": "Income & Tip Tracker",
   "description": "Calculate daily income, tips, deductions, and percentages with an AI assistant.",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["microphone"]
 }

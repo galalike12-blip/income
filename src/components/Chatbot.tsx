@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, ThinkingLevel, Type, FunctionDeclaration } from '@google/genai';
-import { MessageCircle, X, Send, Bot, Loader2, Camera, Image as ImageIcon, FileJson } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, Loader2, Camera, Image as ImageIcon, FileJson, Mic, MicOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { JobEntry, ExpenseEntry } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
@@ -24,7 +24,7 @@ interface ChatbotProps {
   setIsOpen: (isOpen: boolean) => void;
 }
 
-export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob, isOpen, setIsOpen }: ChatbotProps) {
+export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, incentives, addExpense, setIncentive, addJob, isOpen, setIsOpen }, ref) => {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
   
@@ -32,6 +32,7 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob, is
   const [input, setInput] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
@@ -256,17 +257,71 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob, is
     }
   };
 
+  const toggleListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+      toast.error('Browser does not support speech recognition');
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = currentLang === 'th' ? 'th-TH' : 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInput(prev => prev + (prev ? ' ' : '') + transcript);
+      setIsListening(false);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error:', event.error);
+      setIsListening(false);
+      toast.error('Speech recognition failed: ' + event.error);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
+  };
+
+  React.useImperativeHandle(ref, () => ({
+    toggleListening
+  }));
+
   return (
     <>
       {/* Chat Window */}
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed inset-x-2 bottom-28 sm:inset-auto sm:bottom-28 sm:right-6 w-auto sm:w-full sm:max-w-sm h-[60vh] sm:h-[600px] glass-panel rounded-2xl sm:rounded-3xl flex flex-col overflow-hidden z-50 transition-colors pb-[-14px]"
-          >
+          <>
+            {/* Backdrop for clicking outside */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsOpen(false)}
+              className="fixed inset-0 z-40 bg-slate-900/5 dark:bg-slate-900/20 backdrop-blur-[1px]"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              className="fixed inset-x-2 bottom-28 sm:inset-auto sm:bottom-28 sm:right-6 w-auto sm:w-full sm:max-w-sm h-[60vh] sm:h-[600px] glass-panel rounded-2xl sm:rounded-3xl flex flex-col overflow-hidden z-50 transition-colors pb-[-14px]"
+            >
             {/* Header */}
             <div className="bg-indigo-600/95 backdrop-blur-xl p-3 sm:p-5 flex justify-between items-center text-white border-b border-white/20">
               <div className="flex items-center gap-2">
@@ -345,6 +400,13 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob, is
                 >
                   <FileJson className="w-4 h-4" />
                 </button>
+                <button
+                  onClick={toggleListening}
+                  className={`p-3 glass-button rounded-full transition-colors ${isListening ? 'text-rose-500 animate-pulse' : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
+                  title="Voice Input"
+                >
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </button>
                 <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
@@ -368,8 +430,9 @@ export function Chatbot({ jobs, incentives, addExpense, setIncentive, addJob, is
               </div>
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
+        </>
+      )}
+    </AnimatePresence>
     </>
   );
-}
+});
