@@ -56,6 +56,7 @@ function MainContent() {
       if (event.data && event.data.type === 'SHARE_TARGET_FILE') {
         const file = event.data.file;
         if (file) {
+          console.log('Received shared file from SW:', file);
           setSharedFile(file);
           setEditingExpense(null);
           setIsExpenseModalOpen(true);
@@ -63,8 +64,22 @@ function MainContent() {
       }
     };
 
-    navigator.serviceWorker.addEventListener('message', handleMessage);
-    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleMessage);
+      
+      // Request shared file if any
+      navigator.serviceWorker.ready.then((registration) => {
+        if (registration.active) {
+          registration.active.postMessage({ type: 'GET_SHARED_FILE' });
+        }
+      });
+    }
+
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleMessage);
+      }
+    };
   }, []);
 
   useEffect(() => {
