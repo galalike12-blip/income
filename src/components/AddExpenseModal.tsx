@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Plus, DollarSign, Calendar, Camera, Loader2, Tag, User, FileText, ChevronDown } from 'lucide-react';
+import { X, Plus, DollarSign, Calendar, Camera, Loader2, Tag, User, FileText, ChevronDown, UtensilsCrossed, Fuel, Zap, Car, ShoppingBag, Wrench, HelpCircle, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ExpenseEntry } from '../types';
 import { translations } from '../i18n/translations';
 import { useSettings } from '../contexts/SettingsContext';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 interface AddExpenseModalProps {
   isOpen: boolean;
@@ -14,9 +14,10 @@ interface AddExpenseModalProps {
   customCategories: string[];
   setCustomCategories: (categories: string[]) => void;
   editingExpense?: ExpenseEntry | null;
+  sharedFile?: File | null;
 }
 
-export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategories, setCustomCategories, editingExpense }: AddExpenseModalProps) {
+export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategories, setCustomCategories, editingExpense, sharedFile }: AddExpenseModalProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
@@ -35,6 +36,50 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   
+  const getCategoryName = (category: string) => {
+    switch (category) {
+      case 'food': return t.food || 'ค่าอาหาร/เครื่องดื่ม';
+      case 'fuel': return t.fuel || 'ค่าน้ำมัน/เดินทาง';
+      case 'rent': return t.rent || 'ค่าเช่า/ที่พัก';
+      case 'utilities': return t.utilities || 'ค่าน้ำ/ค่าไฟ/เน็ต';
+      case 'shopping': return t.shopping || 'ช็อปปิ้ง/ของใช้ส่วนตัว';
+      case 'maintenance': return t.maintenance || 'ค่าซ่อมบำรุง';
+      case 'other': return t.other || 'อื่นๆ';
+      default: return category;
+    }
+  };
+
+  const getCategoryIcon = (category: string) => {
+    const cat = category.toLowerCase();
+    
+    // Predefined categories
+    if (cat === 'food') return <UtensilsCrossed className="w-4 h-4" />;
+    if (cat === 'fuel') return <Fuel className="w-4 h-4" />;
+    if (cat === 'rent') return <Home className="w-4 h-4" />;
+    if (cat === 'utilities') return <Zap className="w-4 h-4" />;
+    if (cat === 'shopping') return <ShoppingBag className="w-4 h-4" />;
+    if (cat === 'maintenance') return <Wrench className="w-4 h-4" />;
+    if (cat === 'other') return <HelpCircle className="w-4 h-4" />;
+
+    // Keyword matching for custom categories
+    if (cat.includes('อาหาร') || cat.includes('กิน') || cat.includes('food') || cat.includes('eat') || cat.includes('ข้าว')) 
+      return <UtensilsCrossed className="w-4 h-4" />;
+    if (cat.includes('น้ำมัน') || cat.includes('fuel') || cat.includes('gas') || cat.includes('เชื้อเพลิง')) 
+      return <Fuel className="w-4 h-4" />;
+    if (cat.includes('ไฟ') || cat.includes('น้ำ') || cat.includes('utilities') || cat.includes('electric') || cat.includes('water')) 
+      return <Zap className="w-4 h-4" />;
+    if (cat.includes('รถ') || cat.includes('เดินทาง') || cat.includes('car') || cat.includes('travel') || cat.includes('ขนส่ง')) 
+      return <Car className="w-4 h-4" />;
+    if (cat.includes('ซื้อ') || cat.includes('ของ') || cat.includes('shopping') || cat.includes('buy') || cat.includes('ห้าง')) 
+      return <ShoppingBag className="w-4 h-4" />;
+    if (cat.includes('บ้าน') || cat.includes('เช่า') || cat.includes('rent') || cat.includes('home') || cat.includes('ที่พัก')) 
+      return <Home className="w-4 h-4" />;
+    if (cat.includes('ซ่อม') || cat.includes('maintenance') || cat.includes('repair') || cat.includes('บำรุง')) 
+      return <Wrench className="w-4 h-4" />;
+    
+    return <HelpCircle className="w-4 h-4" />;
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -74,10 +119,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
     };
   }, [isOpen, editingExpense]);
 
-  const handleScanReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const scanFile = async (file: File) => {
     setIsScanning(true);
     try {
       const reader = new FileReader();
@@ -86,25 +128,25 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         
         const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
+          model: "gemini-3.1-flash-lite-preview",
           contents: [
             {
               parts: [
-                { text: "Extract receipt details: amount (number), payee (string), and category (one of: " + customCategories.join(', ') + "). Return JSON only." },
+                { text: "Extract receipt details: amount (number), payee (string), and category. You MUST choose a category from this list: [" + customCategories.join(', ') + "]. If no category matches, you MUST use 'อื่นๆ'. Return JSON only." },
                 { inlineData: { data: base64Data, mimeType: file.type } }
               ]
             }
           ],
-          config: { responseMimeType: "application/json" }
+          config: { 
+            responseMimeType: "application/json",
+            thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL }
+          }
         });
 
         const result = JSON.parse(response.text || '{}');
         if (result.amount) setExpenseAmount(result.amount.toString());
         if (result.payee) setExpensePayee(result.payee);
         if (result.category) {
-          if (!customCategories.includes(result.category)) {
-            setCustomCategories([...customCategories, result.category]);
-          }
           setExpenseCategory(result.category);
         }
       };
@@ -115,6 +157,18 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
       setIsScanning(false);
     }
   };
+
+  const handleScanReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await scanFile(file);
+  };
+
+  useEffect(() => {
+    if (isOpen && sharedFile) {
+      scanFile(sharedFile);
+    }
+  }, [isOpen, sharedFile]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,10 +263,13 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
                         <button type="button" onClick={() => setIsAddingCategory(false)} className="px-4 py-3 bg-slate-200 text-slate-700 rounded-2xl text-sm font-bold">X</button>
                       </div>
                     ) : (
-                      <div className="relative">
-                        <select value={expenseCategory} onChange={e => e.target.value === 'ADD_NEW' ? setIsAddingCategory(true) : setExpenseCategory(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm appearance-none pr-10" required>
+                      <div className="relative flex items-center">
+                        <div className="absolute left-4 z-10 text-slate-400">
+                          {getCategoryIcon(expenseCategory)}
+                        </div>
+                        <select value={expenseCategory} onChange={e => e.target.value === 'ADD_NEW' ? setIsAddingCategory(true) : setExpenseCategory(e.target.value)} className="w-full pl-11 pr-10 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm appearance-none" required>
                           <option value="" disabled>{t.selectCategory || 'เลือกหมวดหมู่'}</option>
-                          {customCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                          {customCategories.map(cat => <option key={cat} value={cat}>{getCategoryName(cat)}</option>)}
                           <option value="ADD_NEW" className="text-indigo-600 font-bold">+ {t.addNewCategory || 'เพิ่มหมวดหมู่'}</option>
                         </select>
                         <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />

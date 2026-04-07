@@ -31,6 +31,7 @@ export interface UserPreferences {
   expensesWidgetOrder?: string[];
   fixedExpensesOrder?: string[];
   isFixedExpensesLocked?: boolean;
+  isCategoryOrderLocked?: boolean;
   customCategories?: string[];
   defaultCategories?: string[];
   expenseBalance?: number;

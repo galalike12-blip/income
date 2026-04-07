@@ -113,7 +113,14 @@ export function useUserData(user: User | null) {
 
   const expenses = user ? firestoreExpenses : localExpenses;
   const goals = user ? firestoreGoals : localGoals;
-  const preferences = user ? firestorePreferences : localPreferences;
+  const rawPreferences = user ? firestorePreferences : localPreferences;
+  
+  const preferences = {
+    ...rawPreferences,
+    customCategories: rawPreferences.customCategories && rawPreferences.customCategories.length > 0 
+      ? rawPreferences.customCategories 
+      : ['food', 'fuel', 'rent', 'utilities', 'shopping', 'maintenance', 'other']
+  };
 
   const addJob = async (job: Omit<JobEntry, 'id'>) => {
     const newId = Date.now().toString() + Math.random().toString(36).substring(2, 9);

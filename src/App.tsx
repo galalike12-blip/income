@@ -49,6 +49,23 @@ function MainContent() {
   };
   const [editingJob, setEditingJob] = useState<JobEntry | null>(null);
   const [editingExpense, setEditingExpense] = useState<ExpenseEntry | null>(null);
+  const [sharedFile, setSharedFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'SHARE_TARGET_FILE') {
+        const file = event.data.file;
+        if (file) {
+          setSharedFile(file);
+          setEditingExpense(null);
+          setIsExpenseModalOpen(true);
+        }
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+  }, []);
 
   useEffect(() => {
     const handler = (e: any) => {
@@ -296,6 +313,7 @@ function MainContent() {
         addExpense={addExpense} 
         setIncentive={setIncentive} 
         addJob={addJob} 
+        preferences={preferences}
         isOpen={isChatOpen}
         setIsOpen={setIsChatOpen}
       />
@@ -315,12 +333,14 @@ function MainContent() {
         onClose={() => {
           setIsExpenseModalOpen(false);
           setEditingExpense(null);
+          setSharedFile(null);
         }}
         onAdd={addExpense}
         onEdit={updateExpense}
         customCategories={preferences.customCategories || []}
         setCustomCategories={(cats) => updatePreferences({ customCategories: cats })}
         editingExpense={editingExpense}
+        sharedFile={sharedFile}
       />
       <FloatingNav 
         onAddIncome={() => {

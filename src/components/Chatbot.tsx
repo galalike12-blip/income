@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, ThinkingLevel, Type, FunctionDeclaration } from '@google/genai';
 import { MessageCircle, X, Send, Bot, Loader2, Camera, Image as ImageIcon, FileJson, Mic, MicOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { JobEntry, ExpenseEntry } from '../types';
+import { JobEntry, ExpenseEntry, UserPreferences } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { toast } from 'sonner';
@@ -20,11 +20,12 @@ interface ChatbotProps {
   addExpense: (expense: Omit<ExpenseEntry, 'id'>) => void;
   setIncentive: (date: string, amount: number) => void;
   addJob?: (job: Omit<JobEntry, 'id'>) => void;
+  preferences: UserPreferences;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
 }
 
-export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, incentives, addExpense, setIncentive, addJob, isOpen, setIsOpen }, ref) => {
+export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, incentives, addExpense, setIncentive, addJob, preferences, isOpen, setIsOpen }, ref) => {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
   
@@ -99,6 +100,8 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, incentives, 
 
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
+      const customCategories = preferences.customCategories || ['food', 'fuel', 'rent', 'utilities', 'shopping', 'maintenance', 'other'];
+      
       const addExpenseTool: FunctionDeclaration = {
         name: "addExpense",
         description: "Add a new expense entry with amount, category, payee, and note.",
@@ -106,7 +109,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, incentives, 
           type: Type.OBJECT,
           properties: {
             amount: { type: Type.NUMBER, description: "The expense amount" },
-            category: { type: Type.STRING, description: "Category (e.g., food, fuel, rent, utilities, shopping, maintenance, other)" },
+            category: { type: Type.STRING, description: "Category. You MUST choose from this list: [" + customCategories.join(', ') + "]. If no category matches, you MUST use 'อื่นๆ'." },
             payee: { type: Type.STRING, description: "The store or person paid" },
             note: { type: Type.STRING, description: "A brief description or note" },
             date: { type: Type.STRING, description: "Date in YYYY-MM-DD format. Use today's date if not specified." }
@@ -145,9 +148,9 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, incentives, 
       };
 
       const context = `You are an AI assistant for an income and tip tracking app. 
-      The user's current data:
-      Jobs: ${JSON.stringify(jobs, null, 2)}
-      Daily Incentives: ${JSON.stringify(incentives, null, 2)}
+      The user's current data (last 20 jobs):
+      Jobs: ${JSON.stringify(jobs.slice(-20), null, 2)}
+      Daily Incentives (last 30 days): ${JSON.stringify(Object.fromEntries(Object.entries(incentives).slice(-30)), null, 2)}
       
       Note on fields:
       - customerMustPay: The fare amount before app discount.
@@ -163,12 +166,14 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, incentives, 
       The user's preferred language code is '${currentLang}'. Please respond in this language.
       
       If the user uploads an image of a receipt or slip, extract the details and call the 'addExpense' tool.
+      When extracting the category, you MUST ONLY use categories from this list: [${customCategories.join(', ')}].
+      If the receipt's category is not in the list, you MUST use 'อื่นๆ'.
       If the user provides JSON data, process it by calling the appropriate tools (addExpense, addJob, setIncentive) for each entry in the JSON.
       If the user mentions adding a job or income, use the 'addJob' tool.
       If the user mentions a daily incentive, use the 'setIncentive' tool.
       Always confirm with the user before adding if the details are not 100% clear.`;
 
-      const history = messages.map(m => ({
+      const history = messages.slice(-10).map(m => ({
         role: m.role,
         parts: [{ text: m.text }]
       }));
@@ -385,20 +390,6 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, incentives, 
                   className="p-3 glass-button rounded-full text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                 >
                   <Camera className="w-4 h-4" />
-                </button>
-                <input
-                  type="file"
-                  ref={jsonInputRef}
-                  onChange={handleJsonSelect}
-                  accept=".json,application/json"
-                  className="hidden"
-                />
-                <button
-                  onClick={() => jsonInputRef.current?.click()}
-                  className="p-3 glass-button rounded-full text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                  title="Import JSON"
-                >
-                  <FileJson className="w-4 h-4" />
                 </button>
                 <button
                   onClick={toggleListening}

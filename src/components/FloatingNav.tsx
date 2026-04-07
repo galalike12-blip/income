@@ -12,21 +12,56 @@ interface FloatingNavProps {
 export function FloatingNav({ onAddExpense, onAddIncome, onOpenAI, onLongPressAI }: FloatingNavProps) {
   const longPressTimer = React.useRef<any>(null);
   const [isLongPressing, setIsLongPressing] = React.useState(false);
+  const pressStartTime = React.useRef<number>(0);
 
-  const startLongPress = () => {
+  const lastTriggerTime = React.useRef<number>(0);
+
+  const handlePressStart = (e: React.MouseEvent | React.TouchEvent) => {
+    // Prevent default for touch to avoid ghost mouse events
+    if (e.type === 'touchstart') {
+      // e.preventDefault(); // Careful with preventDefault on touch
+    }
+    
     setIsLongPressing(false);
+    pressStartTime.current = Date.now();
+    
     longPressTimer.current = setTimeout(() => {
+      const now = Date.now();
+      if (now - lastTriggerTime.current < 300) return;
+      
       setIsLongPressing(true);
-      if (onLongPressAI) onLongPressAI();
-    }, 500); // 500ms for long press
+      if (onLongPressAI) {
+        onLongPressAI();
+        lastTriggerTime.current = now;
+      }
+    }, 500);
   };
 
-  const endLongPress = () => {
+  const handlePressEnd = (e: React.MouseEvent | React.TouchEvent) => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
     }
-    if (!isLongPressing) {
+
+    const now = Date.now();
+    const pressDuration = now - pressStartTime.current;
+
+    if (pressDuration < 500 && now - lastTriggerTime.current > 300) {
+      // It was a short press and not a double trigger
       onOpenAI();
+      lastTriggerTime.current = now;
+    }
+    
+    // Reset state after a short delay to allow animation to finish
+    setTimeout(() => {
+      setIsLongPressing(false);
+    }, 100);
+  };
+
+  const handleMouseLeave = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
     }
     setIsLongPressing(false);
   };
@@ -63,14 +98,11 @@ export function FloatingNav({ onAddExpense, onAddIncome, onOpenAI, onLongPressAI
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.95 }}
-          onMouseDown={startLongPress}
-          onMouseUp={endLongPress}
-          onMouseLeave={() => {
-            if (longPressTimer.current) clearTimeout(longPressTimer.current);
-            setIsLongPressing(false);
-          }}
-          onTouchStart={startLongPress}
-          onTouchEnd={endLongPress}
+          onMouseDown={handlePressStart}
+          onMouseUp={handlePressEnd}
+          onMouseLeave={handleMouseLeave}
+          onTouchStart={handlePressStart}
+          onTouchEnd={handlePressEnd}
           className={`flex flex-col items-center justify-center w-[65px] h-12 rounded-full transition-all ${isLongPressing ? 'text-rose-500 scale-110' : 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'}`}
           title="AI Chatbot (Long press to speak)"
         >

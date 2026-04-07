@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { JobEntry, ExpenseEntry, UserPreferences } from '../types';
-import { Plus, Trash2, Calendar, DollarSign, Wallet, PieChart, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Edit2, GripVertical, ChevronDown, ChevronUp, Settings2, Check, Lock, Unlock, BarChart2, AlertCircle, ChevronRight, Camera, Loader2, X, Search } from 'lucide-react';
+import { Plus, Trash2, Calendar, DollarSign, Wallet, PieChart, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Edit2, GripVertical, ChevronDown, ChevronUp, Settings2, Check, Lock, Unlock, BarChart2, AlertCircle, ChevronRight, Camera, Loader2, X, Search, UtensilsCrossed, Fuel, Zap, Car, ShoppingBag, Wrench, HelpCircle, Home } from 'lucide-react';
 import { Tooltip } from 'recharts';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -38,6 +38,37 @@ const getFaviconUrl = (url?: string) => {
   }
 };
 
+const getCategoryIcon = (category: string) => {
+  const cat = category.toLowerCase();
+  
+  // Predefined categories
+  if (cat === 'food') return <UtensilsCrossed className="w-4 h-4" />;
+  if (cat === 'fuel') return <Fuel className="w-4 h-4" />;
+  if (cat === 'rent') return <Home className="w-4 h-4" />;
+  if (cat === 'utilities') return <Zap className="w-4 h-4" />;
+  if (cat === 'shopping') return <ShoppingBag className="w-4 h-4" />;
+  if (cat === 'maintenance') return <Wrench className="w-4 h-4" />;
+  if (cat === 'other') return <HelpCircle className="w-4 h-4" />;
+
+  // Keyword matching for custom categories
+  if (cat.includes('อาหาร') || cat.includes('กิน') || cat.includes('food') || cat.includes('eat') || cat.includes('ข้าว')) 
+    return <UtensilsCrossed className="w-4 h-4" />;
+  if (cat.includes('น้ำมัน') || cat.includes('fuel') || cat.includes('gas') || cat.includes('เชื้อเพลิง')) 
+    return <Fuel className="w-4 h-4" />;
+  if (cat.includes('ไฟ') || cat.includes('น้ำ') || cat.includes('utilities') || cat.includes('electric') || cat.includes('water')) 
+    return <Zap className="w-4 h-4" />;
+  if (cat.includes('รถ') || cat.includes('เดินทาง') || cat.includes('car') || cat.includes('travel') || cat.includes('ขนส่ง')) 
+    return <Car className="w-4 h-4" />;
+  if (cat.includes('ซื้อ') || cat.includes('ของ') || cat.includes('shopping') || cat.includes('buy') || cat.includes('ห้าง')) 
+    return <ShoppingBag className="w-4 h-4" />;
+  if (cat.includes('บ้าน') || cat.includes('เช่า') || cat.includes('rent') || cat.includes('home') || cat.includes('ที่พัก')) 
+    return <Home className="w-4 h-4" />;
+  if (cat.includes('ซ่อม') || cat.includes('maintenance') || cat.includes('repair') || cat.includes('บำรุง')) 
+    return <Wrench className="w-4 h-4" />;
+  
+  return <HelpCircle className="w-4 h-4" />;
+};
+
 export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpense, preferences, updatePreferences, showResetConfirm, setShowResetConfirm, resetInput, setResetInput, handleResetData }: ExpensesProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
@@ -49,8 +80,35 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
   const setCustomCategories = (newCategories: string[]) => updatePreferences({ customCategories: newCategories });
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [isManagingCategories, setIsManagingCategories] = useState(false);
-  const [isCategoryOrderLocked, setIsCategoryOrderLocked] = useState(true);
+  const [isCategoryOrderLocked, setIsCategoryOrderLocked] = useState(preferences.isCategoryOrderLocked ?? true);
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
+
+  const handleToggleCategoryLock = () => {
+    const newLocked = !isCategoryOrderLocked;
+    setIsCategoryOrderLocked(newLocked);
+    updatePreferences({ isCategoryOrderLocked: newLocked });
+  };
+
+  const handleRenameCategory = async (oldName: string, newName: string) => {
+    if (!newName.trim() || oldName === newName) {
+      setEditingCategory(null);
+      return;
+    }
+
+    const updatedCategories = customCategories.map(c => c === oldName ? newName : c);
+    setCustomCategories(updatedCategories);
+
+    // Update all expenses with this category
+    const affectedExpenses = expenses.filter(e => e.category === oldName);
+    for (const exp of affectedExpenses) {
+      await updateExpense({ ...exp, category: newName });
+    }
+
+    setEditingCategory(null);
+    toast.success(`เปลี่ยนชื่อหมวดหมู่เป็น "${newName}" เรียบร้อยแล้ว`);
+  };
 
   const [isCustomizingLayout, setIsCustomizingLayout] = useState(false);
   const widgetOrder = preferences.expensesWidgetOrder || ['summary', 'fixed', 'variable'];
@@ -338,6 +396,14 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setIsManagingCategories(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl text-sm font-medium hover:bg-indigo-100 transition-colors"
+            >
+              <Settings2 className="w-4 h-4" />
+              {t.manageCategories || 'จัดการหมวดหมู่'}
+            </button>
+
             <select
               value={variableCategoryFilter}
               onChange={(e) => setVariableCategoryFilter(e.target.value)}
@@ -630,7 +696,7 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
                 {t.manageCategories || 'จัดการหมวดหมู่'}
               </h3>
               <button
-                onClick={() => setIsCategoryOrderLocked(!isCategoryOrderLocked)}
+                onClick={handleToggleCategoryLock}
                 className={`p-2 rounded-xl transition-colors ${
                   isCategoryOrderLocked 
                     ? 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400' 
@@ -646,6 +712,27 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
                 ? (t.unlockToReorder || 'ปลดล็อกเพื่อจัดลำดับหมวดหมู่') 
                 : (t.dragToReorder || 'ลากเพื่อจัดลำดับหมวดหมู่')}
             </p>
+
+            <div className="mb-4 flex gap-2">
+              <input 
+                type="text" 
+                value={newCategoryName}
+                onChange={e => setNewCategoryName(e.target.value)}
+                placeholder={t.addNewCategory || 'เพิ่มหมวดหมู่ใหม่'}
+                className="flex-1 px-4 py-2 glass-input rounded-xl text-sm"
+              />
+              <button 
+                onClick={() => {
+                  if (newCategoryName.trim() && !customCategories.includes(newCategoryName.trim())) {
+                    setCustomCategories([...customCategories, newCategoryName.trim()]);
+                    setNewCategoryName('');
+                  }
+                }}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
             
             <div className="mb-6">
               {customCategories.length === 0 ? (
@@ -655,7 +742,7 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
                   axis="y" 
                   values={customCategories} 
                   onReorder={setCustomCategories}
-                  className="space-y-2 max-h-[60vh] overflow-y-auto pr-2"
+                  className="space-y-2 max-h-[50vh] overflow-y-auto pr-2"
                 >
                   {customCategories.map(cat => (
                     <Reorder.Item 
@@ -664,25 +751,61 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
                       dragListener={!isCategoryOrderLocked}
                       className={`flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-transparent ${!isCategoryOrderLocked ? 'active:border-indigo-500/50 active:shadow-sm' : ''}`}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-1">
                         {!isCategoryOrderLocked && (
                           <GripVertical className="w-4 h-4 text-slate-400 cursor-grab active:cursor-grabbing" />
                         )}
-                        <span className="text-slate-700 dark:text-slate-300 font-medium">{cat}</span>
+                        {editingCategory === cat ? (
+                          <div className="flex items-center gap-2 flex-1">
+                            <input 
+                              type="text"
+                              value={editCategoryName}
+                              onChange={e => setEditCategoryName(e.target.value)}
+                              className="flex-1 px-2 py-1 text-sm bg-white dark:bg-slate-800 border border-indigo-500 rounded-lg outline-none"
+                              autoFocus
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleRenameCategory(cat, editCategoryName);
+                                if (e.key === 'Escape') setEditingCategory(null);
+                              }}
+                            />
+                            <button onClick={() => handleRenameCategory(cat, editCategoryName)} className="p-1 text-emerald-500">
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => setEditingCategory(null)} className="p-1 text-slate-400">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-slate-700 dark:text-slate-300 font-medium">{getCategoryName(cat)}</span>
+                        )}
                       </div>
-                      <button 
-                        onClick={() => {
-                          const expensesInCategory = expenses.filter(e => e.category === cat);
-                          if (expensesInCategory.length > 0) {
-                            toast.error(`ไม่สามารถลบหมวดหมู่ "${cat}" ได้ เพราะยังมีรายการค่าใช้จ่ายที่ใช้หมวดหมู่นี้อยู่`);
-                          } else {
-                            setCustomCategories(customCategories.filter(c => c !== cat));
-                          }
-                        }}
-                        className="p-2 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      
+                      {editingCategory !== cat && (
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => {
+                              setEditingCategory(cat);
+                              setEditCategoryName(cat);
+                            }}
+                            className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              const expensesInCategory = expenses.filter(e => e.category === cat);
+                              if (expensesInCategory.length > 0) {
+                                toast.error(`ไม่สามารถลบหมวดหมู่ "${cat}" ได้ เพราะยังมีรายการค่าใช้จ่ายที่ใช้หมวดหมู่นี้อยู่`);
+                              } else {
+                                setCustomCategories(customCategories.filter(c => c !== cat));
+                              }
+                            }}
+                            className="p-2 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </Reorder.Item>
                   ))}
                 </Reorder.Group>
@@ -851,7 +974,8 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
               {getFaviconUrl(expense.websiteUrl) ? (
                 <img src={getFaviconUrl(expense.websiteUrl)!} alt="icon" className={`w-8 h-8 rounded-full bg-white p-1 flex-shrink-0 ${expense.isPaid ? 'opacity-70' : ''}`} referrerPolicy="no-referrer" />
               ) : (
-                <div className={`w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 ${expense.isPaid ? 'opacity-70' : ''}`}>
+                <div className={`w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 text-slate-500 dark:text-slate-400 ${expense.isPaid ? 'opacity-70' : ''}`}>
+                  {getCategoryIcon(expense.category)}
                 </div>
               )}
               <div className={`text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 ${expense.isPaid ? 'opacity-70' : ''}`}>
