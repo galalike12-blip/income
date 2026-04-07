@@ -26,7 +26,7 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
-  const widgetOrder = preferences.dashboardWidgetOrder?.filter(id => id !== 'transfer') || ['goals', 'summary', 'list'];
+  const widgetOrder = preferences?.dashboardWidgetOrder?.filter(id => id !== 'transfer') || ['goals', 'summary', 'list'];
   const setWidgetOrder = (newOrder: string[]) => updatePreferences({ dashboardWidgetOrder: newOrder });
   const [isCustomizing, setIsCustomizing] = useState(false);
 
@@ -132,8 +132,22 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
   }, [jobs, incentives, selectedDate]);
 
   const dailyAverage = useMemo(() => {
-    const day = parseInt(selectedDate.split('-')[2]);
-    return day > 0 ? monthlyGrossIncome / day : 0;
+    const [selYear, selMonth, selDay] = selectedDate.split('-').map(Number);
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    const currentDay = today.getDate();
+
+    let divisor = selDay;
+    if (selYear === currentYear && selMonth === currentMonth) {
+      // If current month, divide by the current day (or the selected day if it's in the past)
+      divisor = Math.min(selDay, currentDay);
+    } else if (selYear > currentYear || (selYear === currentYear && selMonth > currentMonth)) {
+      // If future month, average doesn't make sense yet, but let's use 1 to avoid division by zero
+      return 0;
+    }
+
+    return divisor > 0 ? monthlyGrossIncome / divisor : 0;
   }, [monthlyGrossIncome, selectedDate]);
 
   const diffFromYesterday = summary.grossIncome - yesterdayGrossIncome;
@@ -219,6 +233,7 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
             <input
               type="date"
               value={selectedDate}
+              max={new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().split('T')[0]}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="bg-transparent border-none outline-none text-slate-700 dark:text-slate-200 font-medium text-[14px] color-scheme-light dark:color-scheme-dark w-full"
               style={{ colorScheme: 'light dark' }}

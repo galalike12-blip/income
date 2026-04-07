@@ -11,6 +11,7 @@ import { FloatingNav } from './components/FloatingNav';
 import { AddIncomeModal } from './components/AddIncomeModal';
 import { AddExpenseModal } from './components/AddExpenseModal';
 import { Header } from './components/Header';
+import { ActivityLogModal } from './components/ActivityLogModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useUserData } from './hooks/useUserData';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext';
@@ -25,7 +26,7 @@ function MainContent() {
   const { user, googleAccessToken, spreadsheetId } = useAuth();
   const t = translations[currentLang];
   
-  const { rawJobs, incentives, expenses, goals, preferences, updatePreferences, addJob: firestoreAddJob, editJob: firestoreEditJob, deleteJob: firestoreDeleteJob, setIncentive, addExpense, updateExpense, deleteExpense, setGoal, clearAllData, transferIncomeToExpenses, untransferredIncentivesAmount } = useUserData(user);
+  const { rawJobs, incentives, expenses, goals, preferences, updatePreferences, addJob: firestoreAddJob, editJob: firestoreEditJob, deleteJob: firestoreDeleteJob, setIncentive, addExpense, updateExpense, deleteExpense, setGoal, clearAllData, transferIncomeToExpenses, untransferredIncentivesAmount, logs } = useUserData(user);
   
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
@@ -36,6 +37,7 @@ function MainContent() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [isActivityLogOpen, setIsActivityLogOpen] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetInput, setResetInput] = useState('');
   const chatbotRef = useRef<any>(null);
@@ -179,22 +181,22 @@ function MainContent() {
     if (user && googleAccessToken && spreadsheetId) {
       try {
         const sheetsService = new GoogleSheetsService(googleAccessToken);
-        const amountToCollect = newJob.customerMustPay + newJob.upfrontCost;
+        const amountToCollect = (newJob.customerMustPay ?? 0) + (newJob.upfrontCost ?? 0);
         const diff = (newJob.actualReceived ?? amountToCollect) - amountToCollect;
         const tip = diff > 0 ? diff : 0;
         const loss = diff < 0 ? Math.abs(diff) : 0;
-        const totalNet = newJob.appNetIncome + diff;
+        const totalNet = (newJob.appNetIncome ?? 0) + diff;
         
         await sheetsService.appendRow(spreadsheetId, 'Jobs', [
           newJob.id,
           newJob.date,
-          newJob.customerMustPay.toString(),
-          newJob.upfrontCost.toString(),
-          newJob.appNetIncome.toString(),
-          newJob.actualReceived.toString(),
-          tip.toString(),
-          loss.toString(),
-          totalNet.toString()
+          (newJob.customerMustPay ?? 0).toString(),
+          (newJob.upfrontCost ?? 0).toString(),
+          (newJob.appNetIncome ?? 0).toString(),
+          (newJob.actualReceived ?? 0).toString(),
+          (tip ?? 0).toString(),
+          (loss ?? 0).toString(),
+          (totalNet ?? 0).toString()
         ]);
       } catch (error) {
         console.error("Failed to sync to Google Sheets:", error);
@@ -218,21 +220,21 @@ function MainContent() {
         const headers = ['ID', 'Date', 'Customer Must Pay', 'Upfront Cost', 'App Net Income', 'Actual Received', 'Tip', 'Loss', 'Total Net Income'];
         
         const allValues = jobs.map(j => {
-          const amountToCollect = j.customerMustPay + j.upfrontCost;
+          const amountToCollect = (j.customerMustPay ?? 0) + (j.upfrontCost ?? 0);
           const diff = (j.actualReceived ?? amountToCollect) - amountToCollect;
           const tip = diff > 0 ? diff : 0;
           const loss = diff < 0 ? Math.abs(diff) : 0;
-          const totalNet = j.appNetIncome + diff;
+          const totalNet = (j.appNetIncome ?? 0) + diff;
           return [
             j.id,
             j.date,
-            j.customerMustPay.toString(),
-            j.upfrontCost.toString(),
-            j.appNetIncome.toString(),
-            j.actualReceived.toString(),
-            tip.toString(),
-            loss.toString(),
-            totalNet.toString()
+            (j.customerMustPay ?? 0).toString(),
+            (j.upfrontCost ?? 0).toString(),
+            (j.appNetIncome ?? 0).toString(),
+            (j.actualReceived ?? 0).toString(),
+            (tip ?? 0).toString(),
+            (loss ?? 0).toString(),
+            (totalNet ?? 0).toString()
           ];
         });
 
@@ -255,7 +257,11 @@ function MainContent() {
         <div className="blob blob-2"></div>
         <div className="blob blob-3"></div>
       </div>
-      <Header onInstall={deferredPrompt ? handleInstallApp : undefined} setShowResetConfirm={setShowResetConfirm} />
+      <Header 
+        onInstall={deferredPrompt ? handleInstallApp : undefined} 
+        setShowResetConfirm={setShowResetConfirm} 
+        setShowActivityLog={setIsActivityLogOpen}
+      />
       
       {showResetConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -310,7 +316,8 @@ function MainContent() {
           jobs={jobs}
           expenses={expenses}
           incentives={incentives}
-          updateExpense={handleEditExpense}
+          onEditExpense={handleEditExpense}
+          updateExpense={updateExpense}
           deleteExpense={deleteExpense}
           preferences={preferences}
           updatePreferences={updatePreferences}
@@ -374,6 +381,12 @@ function MainContent() {
           }, 300);
         }}
       />
+      <ActivityLogModal 
+        isOpen={isActivityLogOpen} 
+        onClose={() => setIsActivityLogOpen(false)} 
+        logs={logs} 
+      />
+
       <Toaster position="top-center" richColors />
     </div>
   );

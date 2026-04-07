@@ -28,10 +28,10 @@ export function AddIncomeModal({ isOpen, onClose, onAdd, onEdit, selectedDate, e
     if (isOpen) {
       document.body.style.overflow = 'hidden';
       if (editingJob) {
-        setAppNetIncome(editingJob.appNetIncome.toString());
-        setCustomerMustPay(editingJob.customerMustPay.toString());
-        setUpfrontCost(editingJob.upfrontCost.toString());
-        setActualReceived(editingJob.actualReceived.toString());
+        setAppNetIncome((editingJob.appNetIncome ?? 0).toString());
+        setCustomerMustPay((editingJob.customerMustPay ?? 0).toString());
+        setUpfrontCost((editingJob.upfrontCost ?? 0).toString());
+        setActualReceived((editingJob.actualReceived ?? 0).toString());
         const date = new Date(editingJob.date);
         setJobTime(`${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`);
       } else {

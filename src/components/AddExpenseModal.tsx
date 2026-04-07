@@ -32,6 +32,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
   const [frequency, setFrequency] = useState<'monthly' | 'yearly'>('monthly');
   const [isIndefinite, setIsIndefinite] = useState(true);
   const [durationMonths, setDurationMonths] = useState('12');
+  const [isPaid, setIsPaid] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -86,10 +87,10 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
     if (isOpen) {
       document.body.style.overflow = 'hidden';
       if (editingExpense) {
-        setExpenseDate(editingExpense.date);
-        setExpenseCategory(editingExpense.category);
+        setExpenseDate(editingExpense.date || '');
+        setExpenseCategory(editingExpense.category || '');
         setExpensePayee(editingExpense.payee || '');
-        setExpenseAmount(editingExpense.amount.toString());
+        setExpenseAmount((editingExpense.amount ?? 0).toString());
         setExpenseNote(editingExpense.note || '');
         setImageUrl(editingExpense.imageUrl || '');
         setNecessity(editingExpense.necessity || 'necessary');
@@ -97,6 +98,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         setFrequency(editingExpense.frequency || 'monthly');
         setIsIndefinite(editingExpense.isIndefinite ?? true);
         setDurationMonths(editingExpense.durationMonths?.toString() || '12');
+        setIsPaid(editingExpense.isPaid ?? true);
       } else {
         const now = new Date();
         setExpenseDate(new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16));
@@ -110,6 +112,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         setFrequency('monthly');
         setIsIndefinite(true);
         setDurationMonths('12');
+        setIsPaid(true);
       }
     } else {
       document.body.style.overflow = 'unset';
@@ -181,6 +184,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
       imageUrl,
       necessity,
       isFixed,
+      isPaid: isFixed ? isPaid : true,
       frequency: isFixed ? frequency : undefined,
       durationMonths: isFixed && !isIndefinite ? parseInt(durationMonths) : undefined,
       isIndefinite: isFixed ? isIndefinite : undefined
@@ -284,7 +288,14 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
 
                   <div>
                     <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 ml-1">{t.date || 'วันที่'}</label>
-                    <input type="datetime-local" value={expenseDate} onChange={e => setExpenseDate(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" required />
+                    <input 
+                      type="datetime-local" 
+                      value={expenseDate} 
+                      max={new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 16)}
+                      onChange={e => setExpenseDate(e.target.value)} 
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" 
+                      required 
+                    />
                   </div>
 
                   <div className="col-span-2">
@@ -311,9 +322,9 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
                     </div>
                   </div>
 
-                  <div className="col-span-2 flex items-center gap-3 py-1">
+                  <div className="col-span-2 flex flex-col gap-3 py-1">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={isFixed} onChange={e => setIsFixed(e.target.checked)} className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500" />
+                      <input type="checkbox" checked={isFixed} onChange={e => { setIsFixed(e.target.checked); if (e.target.checked) setIsPaid(false); else setIsPaid(true); }} className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500" />
                       <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.isFixedCost || 'รายจ่ายคงที่'}</span>
                     </label>
                   </div>

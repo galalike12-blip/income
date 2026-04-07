@@ -26,6 +26,14 @@ export interface ExpenseEntry {
   groupId?: string;
 }
 
+export interface ActivityLog {
+  id: string;
+  type: 'add_job' | 'edit_job' | 'delete_job' | 'add_expense' | 'edit_expense' | 'delete_expense' | 'reset_data' | 'transfer_income';
+  timestamp: string; // ISO string
+  details: string;
+  amount?: number;
+}
+
 export interface UserPreferences {
   dashboardWidgetOrder?: string[];
   expensesWidgetOrder?: string[];

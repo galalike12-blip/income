@@ -13,7 +13,8 @@ interface ExpensesProps {
   jobs: JobEntry[];
   expenses: ExpenseEntry[];
   incentives: Record<string, number>;
-  updateExpense: (expense: ExpenseEntry) => void;
+  onEditExpense: (expense: ExpenseEntry) => void;
+  updateExpense: (id: string, updates: Partial<ExpenseEntry>) => void;
   deleteExpense: (id: string) => void;
   preferences: UserPreferences;
   updatePreferences: (updates: Partial<UserPreferences>) => void;
@@ -69,18 +70,18 @@ const getCategoryIcon = (category: string) => {
   return <HelpCircle className="w-4 h-4" />;
 };
 
-export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpense, preferences, updatePreferences, showResetConfirm, setShowResetConfirm, resetInput, setResetInput, handleResetData }: ExpensesProps) {
+export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpense, deleteExpense, preferences, updatePreferences, showResetConfirm, setShowResetConfirm, resetInput, setResetInput, handleResetData }: ExpensesProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState(`${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`);
   
-  const customCategories = preferences.customCategories || [];
+  const customCategories = (preferences?.customCategories) || [];
   const setCustomCategories = (newCategories: string[]) => updatePreferences({ customCategories: newCategories });
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [isManagingCategories, setIsManagingCategories] = useState(false);
-  const [isCategoryOrderLocked, setIsCategoryOrderLocked] = useState(preferences.isCategoryOrderLocked ?? true);
+  const [isCategoryOrderLocked, setIsCategoryOrderLocked] = useState(preferences?.isCategoryOrderLocked ?? true);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editCategoryName, setEditCategoryName] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -103,7 +104,7 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
     // Update all expenses with this category
     const affectedExpenses = expenses.filter(e => e.category === oldName);
     for (const exp of affectedExpenses) {
-      await updateExpense({ ...exp, category: newName });
+      await updateExpense(exp.id, { category: newName });
     }
 
     setEditingCategory(null);
@@ -111,11 +112,11 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
   };
 
   const [isCustomizingLayout, setIsCustomizingLayout] = useState(false);
-  const widgetOrder = preferences.expensesWidgetOrder || ['summary', 'fixed', 'variable'];
+  const widgetOrder = (preferences?.expensesWidgetOrder) || ['summary', 'fixed', 'variable'];
   const setWidgetOrder = (newOrder: string[]) => updatePreferences({ expensesWidgetOrder: newOrder });
-  const fixedExpensesOrder = preferences.fixedExpensesOrder || [];
+  const fixedExpensesOrder = (preferences?.fixedExpensesOrder) || [];
   const setFixedExpensesOrder = (newOrder: string[]) => updatePreferences({ fixedExpensesOrder: newOrder });
-  const [isFixedExpensesLocked, setIsFixedExpensesLocked] = useState(preferences.isFixedExpensesLocked ?? true);
+  const [isFixedExpensesLocked, setIsFixedExpensesLocked] = useState(preferences?.isFixedExpensesLocked ?? true);
   const [variableExpenseDateFilter, setVariableExpenseDateFilter] = useState(() => {
     const d = new Date();
     return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
@@ -127,7 +128,7 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
   const [expenseToDelete, setExpenseToDelete] = useState<ExpenseEntry | null>(null);
 
   const handleEditClick = (expense: ExpenseEntry) => {
-    updateExpense(expense);
+    onEditExpense(expense);
   };
 
   const handleDeleteExpense = (expense: ExpenseEntry) => {
@@ -163,7 +164,7 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
     setExpenseToDelete(null);
   };
 
-  const expenseBalance = preferences.expenseBalance || 0;
+  const expenseBalance = (preferences?.expenseBalance) || 0;
   const [isEditingBalance, setIsEditingBalance] = useState(false);
   const [balanceInput, setBalanceInput] = useState(expenseBalance.toString());
 
@@ -263,6 +264,8 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
   }, [expenses, variableSearchQuery, variableCategoryFilter, t]);
 
   const totalFixed = fixedExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalFixedPaid = fixedExpenses.filter(e => e.isPaid).reduce((sum, e) => sum + e.amount, 0);
+  const totalFixedUnpaid = fixedExpenses.filter(e => !e.isPaid).reduce((sum, e) => sum + e.amount, 0);
   const totalVariable = variableExpenses.reduce((sum, e) => sum + e.amount, 0);
   const totalExpenses = totalFixed + totalVariable;
 
@@ -368,6 +371,7 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
             <input 
               type="month" 
               value={selectedMonth}
+              max={new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 7)}
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="bg-transparent text-[14px] font-medium text-slate-900 dark:text-white outline-none cursor-pointer w-full"
             />
@@ -489,9 +493,23 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
                     <div className="text-3xl font-bold text-rose-600 dark:text-rose-400">
                       ฿{totalExpenses.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
-                    <div className="flex gap-4 mt-2 text-sm">
-                      <span className="text-slate-500">{t.fixed || 'คงที่'}: ฿{totalFixed.toLocaleString()}</span>
-                      <span className="text-slate-500">{t.variable || 'ผันแปร'}: ฿{totalVariable.toLocaleString()}</span>
+                    <div className="flex flex-col gap-1 mt-2 text-sm">
+                      <div className="flex justify-between text-slate-500">
+                        <span>{t.fixed || 'คงที่'}:</span>
+                        <span>฿{totalFixed.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-xs pl-2 border-l-2 border-slate-200 dark:border-slate-700">
+                        <span className="text-emerald-500">{t.paid || 'จ่ายแล้ว'}:</span>
+                        <span className="text-emerald-600 dark:text-emerald-400">฿{totalFixedPaid.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-xs pl-2 border-l-2 border-slate-200 dark:border-slate-700">
+                        <span className="text-rose-400">{t.unpaid || 'ยังไม่จ่าย'}:</span>
+                        <span className="text-rose-500 dark:text-rose-400 font-bold">฿{totalFixedUnpaid.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-500 mt-1">
+                        <span>{t.variable || 'ผันแปร'}:</span>
+                        <span>฿{totalVariable.toLocaleString()}</span>
+                      </div>
                     </div>
                   </div>
 
@@ -537,35 +555,21 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
                 : (t.noFixedExpenses || 'ไม่มีรายจ่ายคงที่ในเดือนนี้')}
             </p>
           ) : (
-            <Reorder.Group 
-              axis="y" 
-              values={fixedExpenses} 
-              onReorder={(newOrder) => setFixedExpensesOrder(newOrder.map(e => e.payee || e.category))} 
-              className="grid grid-cols-1 sm:grid-cols-2 gap-2"
-            >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {fixedExpenses.map(expense => (
-                <Reorder.Item 
-                  key={expense.id} 
-                  value={expense} 
-                  dragListener={!isFixedExpensesLocked}
-                  className={`relative ${isFixedExpensesLocked ? '' : 'cursor-grab active:cursor-grabbing'}`}
-                >
-                  <div className="h-full">
-                    <ExpenseItem
-                      expense={expense}
-                      updateExpense={updateExpense}
-                      handleEditClick={handleEditClick}
-                      handleDeleteExpense={handleDeleteExpense}
-                      getFaviconUrl={getFaviconUrl}
-                      t={t}
-                      isFixed={true}
-                      progress={getGroupProgress(expense.groupId)}
-                      showDragHandle={!isFixedExpensesLocked}
-                    />
-                  </div>
-                </Reorder.Item>
+                <ExpenseItem
+                  key={expense.id}
+                  expense={expense}
+                  updateExpense={updateExpense}
+                  handleEditClick={handleEditClick}
+                  handleDeleteExpense={handleDeleteExpense}
+                  getFaviconUrl={getFaviconUrl}
+                  t={t}
+                  isFixed={true}
+                  progress={getGroupProgress(expense.groupId)}
+                />
               ))}
-            </Reorder.Group>
+            </div>
           )}
         </div>
 
@@ -596,6 +600,7 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
                         <input 
                           type="date" 
                           value={variableExpenseDateFilter}
+                          max={new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().split('T')[0]}
                           onChange={(e) => setVariableExpenseDateFilter(e.target.value)}
                           className="px-3 py-1.5 glass-input rounded-xl text-sm w-full sm:w-auto"
                         />
@@ -934,51 +939,36 @@ export function Expenses({ jobs, expenses, incentives, updateExpense, deleteExpe
   );
 }
 
-function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpense, getFaviconUrl, t, isFixed, progress, showDragHandle }: any) {
+function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpense, getFaviconUrl, t, isFixed, progress }: any) {
   const [isExpanded, setIsExpanded] = useState(false);
   
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`rounded-2xl border transition-all duration-200 overflow-hidden h-full flex flex-col ${
+      className={`rounded-2xl border transition-all duration-200 overflow-hidden h-full flex flex-col shadow-md hover:shadow-lg ${
         expense.isPaid 
-          ? 'bg-emerald-50/40 dark:bg-emerald-900/10 border-emerald-200/50 dark:border-emerald-800/30 shadow-sm' 
-          : 'bg-white/60 dark:bg-slate-800/60 border-white/40 dark:border-slate-700/50 shadow-md hover:shadow-lg'
+          ? 'bg-emerald-50/20 dark:bg-emerald-900/5 border-emerald-100 dark:border-emerald-800/20' 
+          : 'bg-white/60 dark:bg-slate-800/60 border-white/40 dark:border-slate-700/50'
       }`}
     >
       <div 
-        className="flex flex-col p-4 cursor-pointer hover:bg-white/40 dark:hover:bg-slate-800/40 transition-colors flex-1"
+        className="p-4 flex justify-between items-center cursor-pointer hover:bg-white/40 dark:hover:bg-slate-800/40 transition-colors flex-1"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3 min-w-0">
-            {showDragHandle && (
-              <div className="flex-shrink-0 text-slate-400 cursor-grab active:cursor-grabbing">
-                <GripVertical className="w-5 h-5" />
+        <div className="flex items-center gap-4 min-w-0">
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${expense.isPaid ? 'bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-indigo-100/50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'}`}>
+            {getFaviconUrl(expense.websiteUrl) ? (
+              <img src={getFaviconUrl(expense.websiteUrl)!} alt="icon" className="w-6 h-6 rounded-full bg-white p-0.5" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="text-current">
+                {getCategoryIcon(expense.category)}
               </div>
             )}
-            {isFixed && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); updateExpense(expense.id, { isPaid: !expense.isPaid }); }}
-                className="flex-shrink-0 focus:outline-none"
-              >
-                {expense.isPaid ? (
-                  <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-                ) : (
-                  <Circle className="w-6 h-6 text-slate-300 dark:text-slate-600 hover:text-indigo-400 transition-colors" />
-                )}
-              </button>
-            )}
-            <div className="flex items-center gap-2">
-              {getFaviconUrl(expense.websiteUrl) ? (
-                <img src={getFaviconUrl(expense.websiteUrl)!} alt="icon" className={`w-8 h-8 rounded-full bg-white p-1 flex-shrink-0 ${expense.isPaid ? 'opacity-70' : ''}`} referrerPolicy="no-referrer" />
-              ) : (
-                <div className={`w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 text-slate-500 dark:text-slate-400 ${expense.isPaid ? 'opacity-70' : ''}`}>
-                  {getCategoryIcon(expense.category)}
-                </div>
-              )}
-              <div className={`text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 ${expense.isPaid ? 'opacity-70' : ''}`}>
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5 flex items-center gap-2">
+              <span>
                 {expense.category === 'food' ? t.food || 'Food' : 
                  expense.category === 'fuel' ? t.fuel || 'Fuel' : 
                  expense.category === 'rent' ? t.rent || 'Rent' : 
@@ -986,115 +976,117 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
                  expense.category === 'shopping' ? t.shopping || 'Shopping' : 
                  expense.category === 'maintenance' ? t.maintenance || 'Maintenance' : 
                  expense.category === 'other' ? t.other || 'Other' : expense.category}
-              </div>
+              </span>
+              {expense.date.includes('T') && (
+                <span className="text-[10px]">{expense.date.split('T')[1]}</span>
+              )}
             </div>
-          </div>
-          <div className="flex items-center gap-1">
-            {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
-          </div>
-        </div>
-
-        <div className={`flex flex-col gap-1 mb-2 ${expense.isPaid ? 'opacity-70' : ''}`}>
-          <div className="text-lg font-bold text-slate-800 dark:text-slate-100 truncate">
-            {expense.payee || (expense.category === 'food' ? t.food || 'Food' : 
+            <div className="text-lg font-bold text-slate-800 dark:text-slate-100 truncate flex items-center gap-2">
+              {expense.payee || (expense.category === 'food' ? t.food || 'Food' : 
                  expense.category === 'fuel' ? t.fuel || 'Fuel' : 
                  expense.category === 'rent' ? t.rent || 'Rent' : 
                  expense.category === 'utilities' ? t.utilities || 'Utilities' : 
                  expense.category === 'shopping' ? t.shopping || 'Shopping' : 
                  expense.category === 'maintenance' ? t.maintenance || 'Maintenance' : 
                  expense.category === 'other' ? t.other || 'Other' : expense.category)}
+              {expense.isPaid && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-md font-bold uppercase tracking-tighter">
+                  {t.paid || 'จ่ายแล้ว'}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`text-xl font-black ${expense.isPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-              ฿{expense.amount.toLocaleString()}
-            </span>
-            {expense.necessity === 'luxury' && (
-              <span className="text-[10px] px-2 py-0.5 bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 rounded-full font-bold uppercase tracking-tighter">
-                {t.luxury || 'Luxury'}
-              </span>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <div className="text-right hidden sm:block">
+            <div className="text-[10px] font-bold uppercase tracking-tighter text-slate-400 mb-0.5">{t.amount || 'จำนวน'}</div>
+            <div className={`font-black ${expense.isPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+              ฿{(expense.amount ?? 0).toLocaleString()}
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            {isFixed && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); updateExpense(expense.id, { isPaid: !expense.isPaid }); }}
+                className="flex-shrink-0 focus:outline-none mr-1"
+              >
+                {expense.isPaid ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                ) : (
+                  <Circle className="w-5 h-5 text-slate-300 dark:text-slate-600 hover:text-indigo-400 transition-colors" />
+                )}
+              </button>
             )}
-            {expense.isIndefinite && (
-              <span className="text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-full font-bold uppercase tracking-tighter">
-                {t.indefinite || 'Indefinite'}
-              </span>
-            )}
-            {expense.isPaid && (
-              <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full font-bold uppercase tracking-tighter">
-                {t.paid || 'Paid'}
-              </span>
-            )}
+            {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
           </div>
         </div>
       </div>
 
       {isExpanded && (
         <div className="p-4 bg-slate-50/80 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-700">
-          <div className="grid grid-cols-1 gap-3 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 mb-4">
+            <div className="flex items-center justify-between text-sm sm:hidden">
+              <span className="text-slate-400 font-medium">{t.amount || 'จำนวน'}</span>
+              <span className={`font-semibold ${expense.isPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                ฿{(expense.amount ?? 0).toLocaleString()}
+              </span>
+            </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-400 font-medium">{t.date || 'Date'}</span>
+              <span className="text-slate-400 font-medium">{t.date || 'วันที่'}</span>
               <span className="text-slate-700 dark:text-slate-200 font-semibold">
                 {new Date(expense.date.length === 10 ? expense.date + 'T00:00:00' : expense.date).toLocaleString(t.locale || 'th-TH', {
                   day: 'numeric',
                   month: 'short',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
+                  year: 'numeric'
                 })}
               </span>
             </div>
-            {expense.payee && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400 font-medium">{t.payee || 'Payee'}</span>
-                <span className="text-slate-700 dark:text-slate-200 font-semibold truncate ml-4">{expense.payee}</span>
-              </div>
-            )}
-            {expense.note && (
-              <div className="flex flex-col gap-1 text-sm">
-                <span className="text-slate-400 font-medium">{t.note || 'Note'}</span>
-                <span className="text-slate-600 dark:text-slate-300 italic bg-white/50 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-100 dark:border-slate-700">
-                  {expense.note}
-                </span>
-              </div>
-            )}
-            {expense.imageUrl && (
-              <div className="flex flex-col gap-1 text-sm">
-                <span className="text-slate-400 font-medium">รูปภาพ</span>
-                <img src={expense.imageUrl} alt="Expense" className="w-full h-32 object-cover rounded-lg" referrerPolicy="no-referrer" />
-              </div>
-            )}
-            {isFixed && progress && (
-              <div className="p-2 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100/50 dark:border-indigo-800/30">
-                <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-1">
-                  <span>{t.paymentProgress || 'Payment Progress'}</span>
-                  <span>{Math.round((progress.paidCount / (progress.paidCount + progress.remainingCount)) * 100)}%</span>
-                </div>
-                <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                  <div 
-                    className="bg-indigo-500 h-full transition-all duration-500" 
-                    style={{ width: `${(progress.paidCount / (progress.paidCount + progress.remainingCount)) * 100}%` }}
-                  />
-                </div>
-                <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-                  <span>{t.paid || 'Paid'}: {progress.paidCount}</span>
-                  <span>{t.remaining || 'Remaining'}: {progress.remainingCount}</span>
-                </div>
-              </div>
-            )}
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-400 font-medium">{t.payee || 'ผู้รับ'}</span>
+              <span className="text-slate-700 dark:text-slate-200 font-semibold">{expense.payee || '-'}</span>
+            </div>
           </div>
+
+          {isFixed && progress && (
+            <div className="p-4 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-xl border border-indigo-100/50 dark:border-indigo-800/20 mb-4">
+              <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 mb-2">
+                <span>{t.paymentProgress || 'PAYMENT PROGRESS'}</span>
+                <span>{Math.round((progress.paidCount / progress.totalCount) * 100)}%</span>
+              </div>
+              <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div 
+                  className="bg-indigo-500 h-full transition-all duration-500" 
+                  style={{ width: `${(progress.paidCount / progress.totalCount) * 100}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-2">
+                <span>{t.paidMonths || 'จ่ายแล้ว'}: {progress.paidCount} {t.months || 'เดือน'}</span>
+                <span>{t.remainingMonths || 'เหลือ'}: {progress.remainingCount} {t.months || 'เดือน'}</span>
+              </div>
+            </div>
+          )}
+
+          {expense.note && (
+            <div className="p-3 bg-white dark:bg-slate-800 rounded-xl text-xs text-slate-500 italic mb-4 border border-slate-100 dark:border-slate-700">
+              {expense.note}
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button 
               onClick={(e) => { e.stopPropagation(); handleEditClick(expense); }} 
               className="flex-1 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
             >
               <Edit2 className="w-3.5 h-3.5" />
-              {t.edit || 'Edit'}
+              {t.edit || 'แก้'}
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); handleDeleteExpense(expense); }} 
               className="flex-1 py-2 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800/30 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-bold hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors flex items-center justify-center gap-2"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              {t.delete || 'Delete'}
+              {t.delete || 'ลบ'}
             </button>
           </div>
         </div>

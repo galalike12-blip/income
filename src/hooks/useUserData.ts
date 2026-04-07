@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, query, orderBy, getDoc, getDocs, where } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, query, orderBy, getDoc, getDocs, where, limit } from 'firebase/firestore';
 import { db } from '../firebase';
-import { JobEntry, ExpenseEntry, Goal, UserPreferences } from '../types';
+import { JobEntry, ExpenseEntry, Goal, UserPreferences, ActivityLog } from '../types';
 import { User } from 'firebase/auth';
 import { useLocalStorage } from './useLocalStorage';
 
@@ -11,12 +11,14 @@ export function useUserData(user: User | null) {
   const [localExpenses, setLocalExpenses] = useLocalStorage<ExpenseEntry[]>('income-tracker-expenses', []);
   const [localGoals, setLocalGoals] = useLocalStorage<Goal[]>('income-tracker-goals', []);
   const [localPreferences, setLocalPreferences] = useLocalStorage<UserPreferences>('income-tracker-preferences', {});
+  const [localLogs, setLocalLogs] = useLocalStorage<ActivityLog[]>('income-tracker-logs', []);
   
   const [firestoreJobs, setFirestoreJobs] = useState<any[]>([]);
   const [firestoreIncentives, setFirestoreIncentives] = useState<Record<string, { amount: number, transferred: boolean }>>({});
   const [firestoreExpenses, setFirestoreExpenses] = useState<ExpenseEntry[]>([]);
   const [firestoreGoals, setFirestoreGoals] = useState<Goal[]>([]);
   const [firestorePreferences, setFirestorePreferences] = useState<UserPreferences>({});
+  const [firestoreLogs, setFirestoreLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,12 +28,23 @@ export function useUserData(user: User | null) {
       setFirestoreExpenses([]);
       setFirestoreGoals([]);
       setFirestorePreferences({});
+      setFirestoreLogs([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
     
+    // Listen to Logs
+    const logsRef = collection(db, 'users', user.uid, 'logs');
+    const qLogs = query(logsRef, orderBy('timestamp', 'desc'), limit(50));
+    const unsubscribeLogs = onSnapshot(qLogs, (snapshot) => {
+      const logsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ActivityLog[];
+      setFirestoreLogs(logsData);
+    }, (error) => {
+      console.error("Error fetching logs:", error);
+    });
+
     // Listen to Jobs
     const jobsRef = collection(db, 'users', user.uid, 'jobs');
     const qJobs = query(jobsRef, orderBy('createdAt', 'asc'));
@@ -99,8 +112,36 @@ export function useUserData(user: User | null) {
       unsubscribeExpenses();
       unsubscribeGoals();
       unsubscribePreferences();
+      unsubscribeLogs();
     };
   }, [user]);
+
+  const addLog = async (type: ActivityLog['type'], details: string, amount?: number) => {
+    const newId = Date.now().toString() + Math.random().toString(36).substring(2, 9);
+    const log: ActivityLog = {
+      id: newId,
+      type,
+      details,
+      amount,
+      timestamp: new Date().toISOString()
+    };
+
+    if (user) {
+      const logRef = doc(db, 'users', user.uid, 'logs', newId);
+      
+      const cleanLog = Object.fromEntries(
+        Object.entries(log).filter(([_, v]) => v !== undefined)
+      );
+      
+      await setDoc(logRef, {
+        ...cleanLog,
+        userId: user.uid,
+        createdAt: serverTimestamp()
+      });
+    } else {
+      setLocalLogs(prev => [log, ...prev].slice(0, 100));
+    }
+  };
 
   const jobs = user ? firestoreJobs : localJobs;
   const rawIncentives = user ? firestoreIncentives : localIncentives;
@@ -138,8 +179,10 @@ export function useUserData(user: User | null) {
         userId: user.uid,
         createdAt: serverTimestamp()
       });
+      await addLog('add_job', `เพิ่มงาน: ${job.customerMustPay} บาท`, job.customerMustPay);
     } else {
       setLocalJobs(prev => [...prev, { ...job, id: newId }]);
+      await addLog('add_job', `เพิ่มงาน: ${job.customerMustPay} บาท`, job.customerMustPay);
     }
     return newId;
   };
@@ -158,17 +201,26 @@ export function useUserData(user: User | null) {
         userId: user.uid,
         // We don't update createdAt here to preserve the original time, but we could add updatedAt
       }, { merge: true });
+      await addLog('edit_job', `แก้ไขงาน: ${updatedJob.customerMustPay} บาท`, updatedJob.customerMustPay);
     } else {
       setLocalJobs(prev => prev.map(j => j.id === id ? { ...updatedJob, id } : j));
+      await addLog('edit_job', `แก้ไขงาน: ${updatedJob.customerMustPay} บาท`, updatedJob.customerMustPay);
     }
   };
 
   const deleteJob = async (id: string) => {
+    const jobToDelete = (user ? firestoreJobs : localJobs).find(j => j.id === id);
     if (user) {
       const jobRef = doc(db, 'users', user.uid, 'jobs', id);
       await deleteDoc(jobRef);
+      if (jobToDelete) {
+        await addLog('delete_job', `ลบงาน: ${jobToDelete.customerMustPay} บาท`, jobToDelete.customerMustPay);
+      }
     } else {
       setLocalJobs(prev => prev.filter(j => j.id !== id));
+      if (jobToDelete) {
+        await addLog('delete_job', `ลบงาน: ${jobToDelete.customerMustPay} บาท`, jobToDelete.customerMustPay);
+      }
     }
   };
 
@@ -245,6 +297,7 @@ export function useUserData(user: User | null) {
       // Update balance in preferences
       const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
       await setDoc(prefRef, { expenseBalance: newBalance }, { merge: true });
+      await addLog('transfer_income', `โอนรายได้เข้าบัญชีรายจ่าย: ${totalNet} บาท`, totalNet);
     } else {
       // Mark jobs as transferred locally
       setLocalJobs(prev => prev.map(j => untransferredJobs.some(uj => uj.id === j.id) ? { ...j, transferred: true } : j));
@@ -261,50 +314,98 @@ export function useUserData(user: User | null) {
 
       // Update balance locally
       setLocalPreferences(prev => ({ ...prev, expenseBalance: newBalance }));
+      await addLog('transfer_income', `โอนรายได้เข้าบัญชีรายจ่าย: ${totalNet} บาท`, totalNet);
     }
   };
 
   const addExpense = async (expense: Omit<ExpenseEntry, 'id'>) => {
-    const newId = Date.now().toString() + Math.random().toString(36).substring(2, 9);
-    const currentBalance = preferences.expenseBalance || 0;
-    const newBalance = currentBalance - expense.amount;
+    const duration = expense.durationMonths || 1;
+    const isMultiMonth = expense.isFixed && duration > 1 && !expense.isIndefinite;
+    const groupId = isMultiMonth ? Date.now().toString() + Math.random().toString(36).substring(2, 9) : undefined;
+    
+    const entries: ExpenseEntry[] = [];
+    let currentBalance = preferences.expenseBalance || 0;
+    
+    for (let i = 0; i < duration; i++) {
+      const newId = Date.now().toString() + Math.random().toString(36).substring(2, 9) + i;
+      
+      // Only the first one is paid if requested
+      const isPaid = i === 0 ? !!expense.isPaid : false;
+      if (isPaid) {
+        currentBalance -= expense.amount;
+      }
+
+      const baseDate = new Date(expense.date);
+      baseDate.setMonth(baseDate.getMonth() + i);
+      const dateString = baseDate.toISOString().slice(0, 16);
+
+      entries.push({
+        ...expense,
+        id: newId,
+        date: dateString,
+        isPaid,
+        groupId
+      });
+    }
 
     if (user) {
-      const expenseRef = doc(db, 'users', user.uid, 'expenses', newId);
-      
-      // Filter out undefined values
-      const cleanExpense = Object.fromEntries(
-        Object.entries(expense).filter(([_, v]) => v !== undefined)
-      );
-      
-      await setDoc(expenseRef, {
-        ...cleanExpense,
-        userId: user.uid,
-        createdAt: serverTimestamp()
+      const promises = entries.map(entry => {
+        const expenseRef = doc(db, 'users', user.uid, 'expenses', entry.id);
+        const cleanExpense = Object.fromEntries(
+          Object.entries(entry).filter(([_, v]) => v !== undefined)
+        );
+        return setDoc(expenseRef, {
+          ...cleanExpense,
+          userId: user.uid,
+          createdAt: serverTimestamp()
+        });
       });
 
-      // Update balance in preferences
-      const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
-      await setDoc(prefRef, { expenseBalance: newBalance }, { merge: true });
+      if (expense.isPaid) {
+        const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
+        promises.push(setDoc(prefRef, { expenseBalance: currentBalance }, { merge: true }));
+      }
+
+      await Promise.all(promises);
+      await addLog('add_expense', `เพิ่มรายจ่าย: ${expense.payee || expense.category} (${expense.amount} บาท)${isMultiMonth ? ` จำนวน ${duration} เดือน` : ''}`, expense.amount * duration);
     } else {
-      setLocalExpenses(prev => [...prev, { ...expense, id: newId }]);
-      setLocalPreferences(prev => ({ ...prev, expenseBalance: newBalance }));
+      setLocalExpenses(prev => [...prev, ...entries]);
+      if (expense.isPaid) {
+        setLocalPreferences(prev => ({ ...prev, expenseBalance: currentBalance }));
+      }
+      await addLog('add_expense', `เพิ่มรายจ่าย: ${expense.payee || expense.category} (${expense.amount} บาท)${isMultiMonth ? ` จำนวน ${duration} เดือน` : ''}`, expense.amount * duration);
     }
-    return newId;
+    
+    return entries[0].id;
   };
 
   const updateExpense = async (id: string, updates: Partial<ExpenseEntry>) => {
     if (user) {
       const expenseRef = doc(db, 'users', user.uid, 'expenses', id);
+      const oldExpense = firestoreExpenses.find(e => e.id === id);
       
-      // If amount is updated, we need to adjust the balance
-      if (updates.amount !== undefined) {
-        const oldExpense = firestoreExpenses.find(e => e.id === id);
-        if (oldExpense) {
-          const diff = updates.amount - oldExpense.amount;
-          const currentBalance = preferences.expenseBalance || 0;
-          const newBalance = currentBalance - diff;
-          
+      if (oldExpense) {
+        const currentBalance = preferences.expenseBalance || 0;
+        let newBalance = currentBalance;
+
+        const wasPaid = oldExpense.isPaid;
+        const isPaid = updates.isPaid !== undefined ? updates.isPaid : wasPaid;
+        const oldAmount = oldExpense.amount;
+        const newAmount = updates.amount !== undefined ? updates.amount : oldAmount;
+
+        if (!wasPaid && isPaid) {
+          // Just paid: deduct full new amount
+          newBalance = currentBalance - newAmount;
+        } else if (wasPaid && !isPaid) {
+          // Unpaid: add back old amount
+          newBalance = currentBalance + oldAmount;
+        } else if (wasPaid && isPaid && updates.amount !== undefined) {
+          // Still paid but amount changed: adjust by difference
+          const diff = newAmount - oldAmount;
+          newBalance = currentBalance - diff;
+        }
+
+        if (newBalance !== currentBalance) {
           const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
           await setDoc(prefRef, { expenseBalance: newBalance }, { merge: true });
         }
@@ -316,17 +417,33 @@ export function useUserData(user: User | null) {
       );
       
       await setDoc(expenseRef, cleanUpdates, { merge: true });
+      await addLog('edit_expense', `แก้ไขรายจ่าย: ${updates.payee || oldExpense?.payee || updates.category || oldExpense?.category}`, updates.amount);
     } else {
-      if (updates.amount !== undefined) {
-        const oldExpense = localExpenses.find(e => e.id === id);
-        if (oldExpense) {
-          const diff = updates.amount - oldExpense.amount;
-          const currentBalance = preferences.expenseBalance || 0;
-          const newBalance = currentBalance - diff;
+      const oldExpense = localExpenses.find(e => e.id === id);
+      if (oldExpense) {
+        const currentBalance = preferences.expenseBalance || 0;
+        let newBalance = currentBalance;
+
+        const wasPaid = oldExpense.isPaid;
+        const isPaid = updates.isPaid !== undefined ? updates.isPaid : wasPaid;
+        const oldAmount = oldExpense.amount;
+        const newAmount = updates.amount !== undefined ? updates.amount : oldAmount;
+
+        if (!wasPaid && isPaid) {
+          newBalance = currentBalance - newAmount;
+        } else if (wasPaid && !isPaid) {
+          newBalance = currentBalance + oldAmount;
+        } else if (wasPaid && isPaid && updates.amount !== undefined) {
+          const diff = newAmount - oldAmount;
+          newBalance = currentBalance - diff;
+        }
+
+        if (newBalance !== currentBalance) {
           setLocalPreferences(prev => ({ ...prev, expenseBalance: newBalance }));
         }
       }
       setLocalExpenses(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+      await addLog('edit_expense', `แก้ไขรายจ่าย: ${updates.payee || oldExpense?.payee || updates.category || oldExpense?.category}`, updates.amount);
     }
   };
 
@@ -334,17 +451,25 @@ export function useUserData(user: User | null) {
     const expenseToDelete = (user ? firestoreExpenses : localExpenses).find(e => e.id === id);
     if (expenseToDelete) {
       const currentBalance = preferences.expenseBalance || 0;
-      const newBalance = currentBalance + expenseToDelete.amount;
+      
+      // Only add back if it was paid
+      const newBalance = expenseToDelete.isPaid ? currentBalance + expenseToDelete.amount : currentBalance;
 
       if (user) {
         const expenseRef = doc(db, 'users', user.uid, 'expenses', id);
         await deleteDoc(expenseRef);
         
-        const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
-        await setDoc(prefRef, { expenseBalance: newBalance }, { merge: true });
+        if (expenseToDelete.isPaid) {
+          const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
+          await setDoc(prefRef, { expenseBalance: newBalance }, { merge: true });
+        }
+        await addLog('delete_expense', `ลบรายจ่าย: ${expenseToDelete.payee || expenseToDelete.category}`, expenseToDelete.amount);
       } else {
         setLocalExpenses(prev => prev.filter(e => e.id !== id));
-        setLocalPreferences(prev => ({ ...prev, expenseBalance: newBalance }));
+        if (expenseToDelete.isPaid) {
+          setLocalPreferences(prev => ({ ...prev, expenseBalance: newBalance }));
+        }
+        await addLog('delete_expense', `ลบรายจ่าย: ${expenseToDelete.payee || expenseToDelete.category}`, expenseToDelete.amount);
       }
     }
   };
@@ -362,6 +487,7 @@ export function useUserData(user: User | null) {
         // Also reset balance
         const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
         await setDoc(prefRef, { expenseBalance: 0 }, { merge: true });
+        await addLog('reset_data', 'ล้างข้อมูลทั้งหมด');
       } catch (error) {
         console.error("Error clearing all data:", error);
         throw error;
@@ -372,11 +498,14 @@ export function useUserData(user: User | null) {
       localStorage.removeItem('income-tracker-incentives');
       localStorage.removeItem('income-tracker-goals');
       localStorage.removeItem('income-tracker-budgets');
+      localStorage.removeItem('income-tracker-logs');
       setLocalJobs([]);
       setLocalExpenses([]);
       setLocalIncentives({});
       setLocalGoals([]);
+      setLocalLogs([]);
       setLocalPreferences(prev => ({ ...prev, expenseBalance: 0 }));
+      await addLog('reset_data', 'ล้างข้อมูลทั้งหมด');
     }
   };
 
@@ -404,8 +533,11 @@ export function useUserData(user: User | null) {
       // or just sequential writes if there aren't too many
       const promises = importedJobs.map(job => {
         const jobRef = doc(db, 'users', user.uid, 'jobs', job.id);
+        const cleanJob = Object.fromEntries(
+          Object.entries(job).filter(([_, v]) => v !== undefined)
+        );
         return setDoc(jobRef, {
-          ...job,
+          ...cleanJob,
           userId: user.uid,
           createdAt: serverTimestamp() // Or parse from CSV if we had it
         }, { merge: true });
@@ -423,7 +555,10 @@ export function useUserData(user: User | null) {
   const updatePreferences = async (updates: Partial<UserPreferences>) => {
     if (user) {
       const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
-      await setDoc(prefRef, updates, { merge: true });
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, v]) => v !== undefined)
+      );
+      await setDoc(prefRef, cleanUpdates, { merge: true });
     } else {
       setLocalPreferences(prev => ({ ...prev, ...updates }));
     }
@@ -448,6 +583,7 @@ export function useUserData(user: User | null) {
     updatePreferences,
     clearAllData,
     transferIncomeToExpenses,
-    untransferredIncentivesAmount
+    untransferredIncentivesAmount,
+    logs: user ? firestoreLogs : localLogs
   };
 }
