@@ -331,6 +331,7 @@ function MainContent() {
       <Chatbot 
         ref={chatbotRef}
         jobs={jobs} 
+        expenses={expenses}
         incentives={incentives} 
         addExpense={addExpense} 
         setIncentive={setIncentive} 

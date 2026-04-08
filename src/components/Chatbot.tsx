@@ -16,6 +16,7 @@ interface ChatMessage {
 
 interface ChatbotProps {
   jobs: JobEntry[];
+  expenses: ExpenseEntry[];
   incentives: Record<string, number>;
   addExpense: (expense: Omit<ExpenseEntry, 'id'>) => void;
   setIncentive: (date: string, amount: number) => void;
@@ -25,7 +26,7 @@ interface ChatbotProps {
   setIsOpen: (isOpen: boolean) => void;
 }
 
-export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, incentives, addExpense, setIncentive, addJob, preferences, isOpen, setIsOpen }, ref) => {
+export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, incentives, addExpense, setIncentive, addJob, preferences, isOpen, setIsOpen }, ref) => {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
   
@@ -148,9 +149,11 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, incentives, 
       };
 
       const context = `You are an AI assistant for an income and tip tracking app. 
-      The user's current data (last 20 jobs):
-      Jobs: ${JSON.stringify(jobs.slice(-20), null, 2)}
-      Daily Incentives (last 30 days): ${JSON.stringify(Object.fromEntries(Object.entries(incentives).slice(-30)), null, 2)}
+      Respond concisely and briefly.
+      The user's current data:
+      Jobs: ${JSON.stringify(jobs, null, 2)}
+      Expenses: ${JSON.stringify(expenses, null, 2)}
+      Daily Incentives: ${JSON.stringify(incentives, null, 2)}
       
       Note on fields:
       - customerMustPay: The fare amount before app discount.

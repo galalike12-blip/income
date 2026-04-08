@@ -108,13 +108,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error("Error signing in with Google", error);
       
       if (error.code === 'auth/popup-blocked') {
-        toast.error('เบราว์เซอร์บล็อกหน้าต่าง Pop-up กรุณากดอนุญาตที่แถบ URL ด้านบนแล้วลองใหม่อีกครั้ง');
+        toast.error('เบราว์เซอร์บล็อก Pop-up กรุณาอนุญาต Pop-up หรือเปิดแอปในแท็บใหม่ (New Tab)');
       } else if (error.code === 'auth/unauthorized-domain') {
-        toast.error('โดเมนนี้ยังไม่ได้รับอนุญาตใน Firebase Console กรุณาแจ้งผู้ดูแลระบบ');
+        toast.error('โดเมนนี้ยังไม่ได้รับอนุญาต กรุณาเพิ่มโดเมนใน Firebase Console -> Authentication -> Settings -> Authorized domains');
       } else if (error.code === 'auth/popup-closed-by-user') {
         // User closed the popup, no need for a loud error
       } else {
-        toast.error('เกิดข้อผิดพลาดในการเข้าสู่ระบบ: ' + (error.message || 'Unknown error'));
+        toast.error('เกิดข้อผิดพลาดในการเข้าสู่ระบบ: ' + (error.message || 'Unknown error') + ' แนะนำให้เปิดแอปในแท็บใหม่');
       }
       throw error;
     }
