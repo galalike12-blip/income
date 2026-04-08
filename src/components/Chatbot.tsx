@@ -192,7 +192,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       }
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite-preview',
+        model: 'gemini-3-flash-preview',
         contents: [...history, { role: 'user', parts }],
         config: {
           systemInstruction: context,
