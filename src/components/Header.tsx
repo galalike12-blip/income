@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Moon, Sun, Monitor, Globe, LogIn, LogOut, Menu, X, Download, Trash2, History } from 'lucide-react';
+import { Moon, Sun, Monitor, Globe, LogIn, LogOut, Menu, X, Download, Trash2, History, Wallet } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { useAuth } from '../contexts/AuthContext';
@@ -23,7 +23,35 @@ export function Header({ onInstall, setShowResetConfirm, setShowActivityLog }: {
 
   return (
     <header className="glass-panel mx-4 mt-3 rounded-3xl px-6 py-4 flex justify-between items-center transition-colors relative z-50">
-      <h1 className="text-xl font-bold text-slate-800 dark:text-white">{t.appTitle}</h1>
+      <div className="flex items-center gap-3">
+        <div className="relative group">
+          {/* 3D Liquid Glass Logo Container */}
+          <div className="relative w-10 h-10 flex items-center justify-center">
+            {/* Background Liquid Layer */}
+            <div className={`absolute inset-0 bg-gradient-to-br rounded-2xl blur-[2px] opacity-80 group-hover:scale-110 transition-all duration-500 animate-pulse ${
+              theme === 'dark' 
+                ? 'from-cyan-500 via-blue-600 to-indigo-700' 
+                : 'from-indigo-500 via-purple-500 to-pink-500'
+            }`}></div>
+            
+            {/* Glass Layer */}
+            <div className="absolute inset-0 bg-white/20 dark:bg-slate-900/20 backdrop-blur-md rounded-2xl border border-white/40 dark:border-slate-700/40 shadow-xl transform -rotate-3 group-hover:rotate-0 transition-transform duration-500"></div>
+            
+            {/* Icon Layer */}
+            <Wallet className="w-6 h-6 text-white relative z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] transform group-hover:scale-110 transition-transform duration-300" />
+            
+            {/* Shine Effect */}
+            <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/40 to-transparent rounded-t-2xl pointer-events-none"></div>
+          </div>
+          
+          {/* Day/Night Indicator Dot */}
+          <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 shadow-sm transition-colors duration-500 ${theme === 'dark' ? 'bg-amber-400' : 'bg-indigo-600'}`}></div>
+        </div>
+        
+        <h1 className="text-xl font-black tracking-tight bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 dark:from-white dark:via-indigo-200 dark:to-white bg-clip-text text-transparent">
+          {t.appTitle}
+        </h1>
+      </div>
       
       <div ref={menuRef}>
         <button 
