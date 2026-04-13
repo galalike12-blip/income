@@ -152,22 +152,32 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
       const cutoffStr = sixtyDaysAgo.toISOString().split('T')[0];
 
-      const filteredJobs = jobs.filter(j => j.date >= cutoffStr);
-      const filteredExpenses = expenses.filter(e => e.date >= cutoffStr);
+      const filteredJobs = jobs
+        .filter(j => j.date >= cutoffStr)
+        .map(j => ({ d: j.date, inc: j.appNetIncome, rec: j.actualReceived }))
+        .slice(-100); // Limit to last 100 jobs in the period
+        
+      const filteredExpenses = expenses
+        .filter(e => e.date >= cutoffStr)
+        .map(e => ({ d: e.date, amt: e.amount, cat: e.category }))
+        .slice(-100);
+
       const filteredIncentives = Object.fromEntries(
-        Object.entries(incentives).filter(([date]) => date >= cutoffStr)
+        Object.entries(incentives)
+          .filter(([date]) => date >= cutoffStr)
+          .slice(-60)
       );
 
       const jobsSummary = {
-        totalCount: jobs.length,
-        totalIncome: jobs.reduce((sum, j) => sum + (j.appNetIncome || 0), 0),
-        periodJobs: filteredJobs
+        total: jobs.length,
+        totalInc: jobs.reduce((sum, j) => sum + (j.appNetIncome || 0), 0),
+        list: filteredJobs
       };
       
       const expensesSummary = {
-        totalCount: expenses.length,
-        totalAmount: expenses.reduce((sum, e) => sum + (e.amount || 0), 0),
-        periodExpenses: filteredExpenses
+        total: expenses.length,
+        totalAmt: expenses.reduce((sum, e) => sum + (e.amount || 0), 0),
+        list: filteredExpenses
       };
 
       const context = `You are an AI assistant for an income and tip tracking app. 
@@ -218,7 +228,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       }
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-latest',
+        model: 'gemini-flash-latest',
         contents: [...history, { role: 'user', parts }],
         config: {
           systemInstruction: context,
