@@ -148,12 +148,34 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         }
       };
 
+      const sixtyDaysAgo = new Date();
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+      const cutoffStr = sixtyDaysAgo.toISOString().split('T')[0];
+
+      const filteredJobs = jobs.filter(j => j.date >= cutoffStr);
+      const filteredExpenses = expenses.filter(e => e.date >= cutoffStr);
+      const filteredIncentives = Object.fromEntries(
+        Object.entries(incentives).filter(([date]) => date >= cutoffStr)
+      );
+
+      const jobsSummary = {
+        totalCount: jobs.length,
+        totalIncome: jobs.reduce((sum, j) => sum + (j.appNetIncome || 0), 0),
+        periodJobs: filteredJobs
+      };
+      
+      const expensesSummary = {
+        totalCount: expenses.length,
+        totalAmount: expenses.reduce((sum, e) => sum + (e.amount || 0), 0),
+        periodExpenses: filteredExpenses
+      };
+
       const context = `You are an AI assistant for an income and tip tracking app. 
       Respond concisely and briefly.
-      The user's current data:
-      Jobs: ${JSON.stringify(jobs, null, 2)}
-      Expenses: ${JSON.stringify(expenses, null, 2)}
-      Daily Incentives: ${JSON.stringify(incentives, null, 2)}
+      The user's current data summary (Last 60 days):
+      Jobs Summary: ${JSON.stringify(jobsSummary)}
+      Expenses Summary: ${JSON.stringify(expensesSummary)}
+      Daily Incentives: ${JSON.stringify(filteredIncentives)}
       
       Note on fields:
       - customerMustPay: The fare amount before app discount.
@@ -192,7 +214,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       }
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.1-flash-lite-preview',
         contents: [...history, { role: 'user', parts }],
         config: {
           systemInstruction: context,
