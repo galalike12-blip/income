@@ -172,6 +172,10 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
 
       const context = `You are an AI assistant for an income and tip tracking app. 
       Respond concisely and briefly.
+      
+      CRITICAL: When performing calculations, you MUST use the provided data exactly. Do not hallucinate or estimate numbers.
+      Always double-check your math before responding.
+      
       The user's current data summary (Last 60 days):
       Jobs Summary: ${JSON.stringify(jobsSummary)}
       Expenses Summary: ${JSON.stringify(expensesSummary)}
@@ -214,7 +218,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       }
 
       const response = await ai.models.generateContent({
-        model: 'gemini-flash-latest',
+        model: 'gemini-3.1-flash-latest',
         contents: [...history, { role: 'user', parts }],
         config: {
           systemInstruction: context,
