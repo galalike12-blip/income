@@ -131,24 +131,53 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
     return totalAppNetIncome + totalTip - totalLoss + monthIncentives;
   }, [jobs, incentives, selectedDate]);
 
+  const monthlyGoal = useMemo(() => goals.find(g => g.type === 'monthly'), [goals]);
+
   const dailyAverage = useMemo(() => {
-    const [selYear, selMonth, selDay] = selectedDate.split('-').map(Number);
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth() + 1;
-    const currentDay = today.getDate();
+    const [selYear, selMonth] = selectedDate.split('-').map(Number);
+    const monthPrefix = `${selYear}-${String(selMonth).padStart(2, '0')}`;
+    
+    // Get unique days with jobs in this month up to selectedDate
+    const workDays = new Set(
+      jobs
+        .filter(j => j.date.startsWith(monthPrefix) && j.date.split('T')[0] <= selectedDate)
+        .map(j => j.date.split('T')[0])
+    );
 
-    let divisor = selDay;
-    if (selYear === currentYear && selMonth === currentMonth) {
-      // If current month, divide by the current day (or the selected day if it's in the past)
-      divisor = Math.min(selDay, currentDay);
-    } else if (selYear > currentYear || (selYear === currentYear && selMonth > currentMonth)) {
-      // If future month, average doesn't make sense yet, but let's use 1 to avoid division by zero
-      return 0;
-    }
+    return workDays.size > 0 ? monthlyGrossIncome / workDays.size : 0;
+  }, [monthlyGrossIncome, selectedDate, jobs]);
 
-    return divisor > 0 ? monthlyGrossIncome / divisor : 0;
-  }, [monthlyGrossIncome, selectedDate]);
+  const remainingGoalMessage = useMemo(() => {
+    if (!monthlyGoal) return null;
+    
+    const [selYear, selMonth] = selectedDate.split('-').map(Number);
+    const lastDayOfMonth = new Date(selYear, selMonth, 0).getDate();
+    
+    // Days including today
+    const currentDate = new Date(selectedDate);
+    const dayOfMonth = currentDate.getDate();
+    const daysLeft = (lastDayOfMonth - dayOfMonth) + 1;
+    
+    // Income BEFORE today
+    const incomeBeforeToday = monthlyGrossIncome - summary.grossIncome;
+    const amountNeeded = monthlyGoal.targetAmount - incomeBeforeToday;
+    
+    const dailyRequired = amountNeeded / daysLeft;
+    
+    if (daysLeft < 0) return null;
+    
+    return {
+      dailyRequired: Math.max(0, dailyRequired),
+      daysRemaining: daysLeft,
+      totalRemaining: Math.max(0, monthlyGoal.targetAmount - monthlyGrossIncome)
+    };
+  }, [monthlyGoal, monthlyGrossIncome, summary.grossIncome, selectedDate]);
+
+  // The actual daily target to show in the progress bar
+  const effectiveDailyTarget = useMemo(() => {
+    if (remainingGoalMessage) return remainingGoalMessage.dailyRequired;
+    return dailyGoal?.targetAmount || 0;
+  }, [remainingGoalMessage, dailyGoal]);
 
   const diffFromYesterday = summary.grossIncome - yesterdayGrossIncome;
   const isPositiveDiff = diffFromYesterday >= 0;
@@ -267,48 +296,58 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="font-medium text-slate-800 dark:text-white flex items-center gap-2">
                       <Target className="w-5 h-5 text-indigo-500" />
-                      เป้าหมายรายได้วันนี้
+                      ความคืบหน้าเป้าหมาย
                     </h3>
-                    {!isEditingGoal && (
-                      <button onClick={() => { setDailyGoalAmount(dailyGoal?.targetAmount?.toString() || ''); setIsEditingGoal(true); }} className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
-                        {dailyGoal ? 'แก้ไขเป้าหมาย' : 'ตั้งเป้าหมาย'}
-                      </button>
-                    )}
                   </div>
                   
-                  {isEditingGoal ? (
-                    <form onSubmit={handleGoalSubmit} className="flex gap-2">
-                      <input 
-                        type="number" 
-                        value={dailyGoalAmount} 
-                        onChange={e => setDailyGoalAmount(e.target.value)} 
-                        placeholder="ระบุเป้าหมาย (บาท)" 
-                        className="flex-1 px-4 py-2 rounded-2xl glass-input"
-                        required
-                      />
-                      <button type="submit" className="px-6 py-2 glass-button rounded-2xl font-medium">บันทึก</button>
-                      <button type="button" onClick={() => setIsEditingGoal(false)} className="px-6 py-2 glass-button-secondary rounded-2xl font-medium">ยกเลิก</button>
-                    </form>
-                  ) : dailyGoal ? (
+                  {effectiveDailyTarget > 0 ? (
                     <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-slate-500 dark:text-slate-400">ทำได้แล้ว ฿{summary.grossIncome.toFixed(2)}</span>
-                        <span className="font-medium text-slate-700 dark:text-slate-200">เป้าหมาย ฿{dailyGoal.targetAmount.toFixed(2)}</span>
+                      <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-1 items-end">
+                        <span className="text-slate-500 dark:text-slate-400">
+                          {monthlyGoal ? 'เป้าหมายที่ควรทำวันนี้' : 'เป้าหมายรายวัน'}
+                        </span>
+                        <div className="text-right">
+                           <span className="text-slate-400">ทำได้แล้ว </span>
+                           <span className="text-indigo-600 dark:text-indigo-400 font-black">฿{summary.grossIncome.toLocaleString()}</span>
+                           <span className="text-slate-400"> / ฿{effectiveDailyTarget.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        </div>
                       </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
-                        <div 
-                          className={`h-3 rounded-full transition-all duration-500 ${summary.grossIncome >= dailyGoal.targetAmount ? 'bg-emerald-500' : 'bg-indigo-500'}`}
-                          style={{ width: `${Math.min(100, (summary.grossIncome / dailyGoal.targetAmount) * 100)}%` }}
-                        ></div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-700/50 rounded-full h-4 overflow-hidden shadow-inner border border-slate-200/50 dark:border-slate-700/50 p-0.5">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min(100, (summary.grossIncome / effectiveDailyTarget) * 100)}%` }}
+                          className={`h-full rounded-full transition-all duration-1000 relative overflow-hidden ${summary.grossIncome >= effectiveDailyTarget ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-gradient-to-r from-indigo-500 to-violet-500 shadow-[0_0_15px_rgba(79,70,229,0.3)]'}`}
+                        >
+                          <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                        </motion.div>
                       </div>
-                      <div className="text-right text-xs mt-1 text-slate-500 dark:text-slate-400">
-                        {summary.grossIncome >= dailyGoal.targetAmount 
-                          ? "🎉 ยินดีด้วย! คุณทำได้ตามเป้าแล้ว" 
-                          : `ขาดอีก ฿${(dailyGoal.targetAmount - summary.grossIncome).toFixed(2)}`}
+                      <div className="text-right text-[10px] mt-2 font-black uppercase tracking-widest">
+                        {summary.grossIncome >= effectiveDailyTarget 
+                          ? <span className="text-emerald-600 dark:text-emerald-400">🎉 สำเร็จตามเป้าแล้ว!</span>
+                          : <span className="text-slate-400">ขาดอีก <span className="text-rose-500">฿{Math.max(0, effectiveDailyTarget - summary.grossIncome).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></span>}
                       </div>
+
+                      {remainingGoalMessage && (
+                        <div className="mt-4 p-4 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-[1.5rem] border border-indigo-100/50 dark:border-indigo-800/30">
+                          <div className="flex items-start gap-3">
+                             <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center flex-shrink-0 animate-bounce">
+                                <Target className="w-4 h-4 text-indigo-500" />
+                             </div>
+                             <div>
+                                <p className="text-[10px] font-black text-indigo-600/60 dark:text-indigo-400/60 uppercase tracking-widest mb-1">สถานะเป้าหมายรายเดือน</p>
+                                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-relaxed">
+                                   เหลืออีก <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{remainingGoalMessage.totalRemaining.toLocaleString()} บาท</span> จะถึงเป้าหมายรายเดือน <br/>
+                                   (<span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{remainingGoalMessage.daysRemaining} วันสุดท้าย</span> ของเดือน)
+                                </p>
+                             </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
-                    <div className="text-sm text-slate-500 dark:text-slate-400">ยังไม่ได้ตั้งเป้าหมายรายได้สำหรับวันนี้</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center glass-panel-subtle rounded-2xl border-dashed">
+                      ไปตั้งเป้าหมายได้ที่เมนู "เป้าหมายรายได้" ด้านขวาบน
+                    </div>
                   )}
                 </div>
               )}

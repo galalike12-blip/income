@@ -3,32 +3,28 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   TrendingUp, 
   TrendingDown, 
-  PieChart as PieChartIcon, 
-  BarChart3, 
   Calendar, 
-  ArrowUpRight, 
-  ArrowDownRight, 
   Wallet,
   CalendarDays,
   CalendarRange,
   ChevronDown,
   Filter,
-  Landmark
+  CheckCircle2,
+  XCircle,
+  Coins,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  ResponsiveContainer, 
-  Tooltip, 
   BarChart, 
   Bar, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Legend,
-  AreaChart,
-  Area
+  Tooltip, 
+  ResponsiveContainer,
+  Cell,
+  Legend
 } from 'recharts';
 import { JobEntry, ExpenseEntry } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
@@ -40,606 +36,422 @@ interface SummaryProps {
   incentives: Record<string, number>;
 }
 
-type RangeType = 'custom' | 'monthly' | 'ytd';
+type SubTab = 'daily' | 'weekly' | 'monthly' | 'custom';
 
 export function Summary({ jobs, expenses, incentives }: SummaryProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
-  const [rangeType, setRangeType] = useState<RangeType>('monthly');
+  const [activeTab, setActiveTab] = useState<SubTab>('monthly');
+  
+  // Helper to get local date string YYYY-MM-DD
+  const getLocalDateStr = (d: Date) => {
+    return [
+      d.getFullYear(),
+      String(d.getMonth() + 1).padStart(2, '0'),
+      String(d.getDate()).padStart(2, '0')
+    ].join('-');
+  };
+
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setDate(1);
-    return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+    return getLocalDateStr(d);
   });
-  const [endDate, setEndDate] = useState(() => {
-    const d = new Date();
-    return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-  });
+  const [endDate, setEndDate] = useState(() => getLocalDateStr(new Date()));
+  const [selectedDay, setSelectedDay] = useState(() => getLocalDateStr(new Date()));
+  // Need a state to track weekly offset from 'now'
+  const [weekOffset, setWeekOffset] = useState(0); 
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const d = new Date();
-    return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 7);
-  }); // YYYY-MM
-  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear().toString());
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
 
-  const filteredData = useMemo(() => {
-    let start: Date;
-    let end: Date;
+  const navigateDate = (direction: number) => {
+    const now = new Date();
+    if (activeTab === 'daily') {
+      const d = new Date(selectedDay);
+      d.setDate(d.getDate() + direction);
+      if (d <= now) {
+        setSelectedDay(getLocalDateStr(d));
+      }
+    } else if (activeTab === 'monthly') {
+      const [y, m] = selectedMonth.split('-').map(Number);
+      const d = new Date(y, m - 1 + direction);
+      if (d <= now) {
+        setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      }
+    } else if (activeTab === 'weekly') {
+      if (direction === -1) {
+        setWeekOffset(prev => prev + direction);
+      } else {
+        const d = new Date();
+        d.setDate(d.getDate() + ((weekOffset + direction) * 7));
+        if (d <= now) {
+          setWeekOffset(prev => prev + direction);
+        }
+      }
+    }
+  };
 
-    const isValidDate = (d: Date) => d instanceof Date && !isNaN(d.getTime());
+  const getDisplayLabel = () => {
+    if (activeTab === 'daily') {
+      const d = new Date(selectedDay);
+      return d.toLocaleDateString(currentLang === 'th' ? 'th-TH' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+    if (activeTab === 'monthly') {
+      const [y, m] = selectedMonth.split('-').map(Number);
+      const d = new Date(y, m - 1);
+      return d.toLocaleDateString(currentLang === 'th' ? 'th-TH' : 'en-US', { month: 'long', year: 'numeric' });
+    }
+    if (activeTab === 'weekly') {
+      const d = new Date();
+      d.setDate(d.getDate() + (weekOffset * 7));
+      const day = d.getDay();
+      const diffToMonday = d.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(d.setDate(diffToMonday));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      return `${monday.toLocaleDateString(currentLang === 'th' ? 'th-TH' : 'en-US', { day: 'numeric', month: 'short' })} - ${sunday.toLocaleDateString(currentLang === 'th' ? 'th-TH' : 'en-US', { day: 'numeric', month: 'short' })}`;
+    }
+    return '';
+  };
 
-    if (rangeType === 'monthly') {
-      start = new Date(`${selectedMonth || new Date().toISOString().slice(0, 7)}-01T00:00:00`);
-      if (!isValidDate(start)) start = new Date();
-      end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-    } else if (rangeType === 'ytd') {
-      const now = new Date();
-      start = new Date(now.getFullYear(), 0, 1); // Jan 1st of current year
-      end = now;
+  const rangeData = useMemo(() => {
+    let startStr: string;
+    let endStr: string;
+    const now = new Date();
+
+    const todayStr = getLocalDateStr(new Date());
+
+    if (activeTab === 'daily') {
+      startStr = selectedDay;
+      endStr = selectedDay;
+    } else if (activeTab === 'weekly') {
+      // Week-to-Date: Start Monday of current week, End Today
+      const d = new Date();
+      d.setDate(d.getDate() + (weekOffset * 7));
+      const day = d.getDay();
+      const diffToMonday = d.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(d);
+      monday.setDate(diffToMonday);
+      
+      startStr = getLocalDateStr(monday);
+      endStr = weekOffset === 0 ? todayStr : getLocalDateStr(new Date(monday.getTime() + 6 * 86400000));
+    } else if (activeTab === 'monthly') {
+      // Month-to-Date: Start 1st, End Today (if current month)
+      const [y, m] = selectedMonth.split('-').map(Number);
+      startStr = `${y}-${String(m).padStart(2, '0')}-01`;
+      
+      const currentMonthStr = todayStr.substring(0, 7);
+      if (selectedMonth === currentMonthStr) {
+        endStr = todayStr;
+      } else {
+        const lastDayDate = new Date(y, m, 0);
+        endStr = getLocalDateStr(lastDayDate);
+      }
     } else {
-      start = new Date(`${startDate || new Date().toISOString().split('T')[0]}T00:00:00`);
-      end = new Date(`${endDate || new Date().toISOString().split('T')[0]}T00:00:00`);
+      startStr = startDate;
+      endStr = endDate;
     }
 
-    if (!isValidDate(start)) start = new Date();
-    if (!isValidDate(end)) end = new Date();
+    // Month-to-Month support: Ensure endStr doesn't come before startStr accidentally
+    if (endStr < startStr) {
+      endStr = startStr;
+    }
 
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
-
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    const effectiveEnd = end > today ? today : end;
-
-    const startStr = start.toISOString().split('T')[0];
-    const endStr = effectiveEnd.toISOString().split('T')[0];
-
+    // Precise data filtering
     const filteredJobs = jobs.filter(j => {
-      const d = j.date.split('T')[0];
-      return d >= startStr && d <= endStr;
+      const dStr = j.date.split('T')[0];
+      return dStr >= startStr && dStr <= endStr;
     });
+    const filteredExpenses = expenses.filter(e => e.date >= startStr && e.date <= endStr);
 
-    const filteredExpenses = expenses.filter(e => {
-      const d = e.date.split('T')[0];
-      return d >= startStr && d <= endStr;
-    });
-
-    return { filteredJobs, filteredExpenses, start, end: effectiveEnd, startStr, endStr };
-  }, [jobs, expenses, rangeType, startDate, endDate, selectedMonth, selectedYear]);
-
-  const carryOverBalance = useMemo(() => {
-    const { startStr } = filteredData;
-    if (!startStr) return 0;
-    const monthStr = startStr.slice(0, 7); // YYYY-MM
+    // Day-by-day calculation using string keys for robustness
+    const dailyStats: Record<string, { income: number, jobs: number, tips: number, incentive: number }> = {};
     
-    const [year, month] = monthStr.split('-').map(Number);
-    if (isNaN(year) || isNaN(month)) return 0;
-
-    const prevDate = new Date(year, month - 2, 1);
-    if (isNaN(prevDate.getTime())) return 0;
-
-    const prevMonthStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+    // Iterate from start to end day
+    const [sy, sm, sd] = startStr.split('-').map(Number);
+    const [ey, em, ed] = endStr.split('-').map(Number);
     
-    const prevBudget = 0;
-    const prevMonthJobs = jobs.filter(j => j.date.startsWith(prevMonthStr));
-    const prevMonthExpenses = expenses.filter(e => e.date.startsWith(prevMonthStr));
+    // Create UTC-like boundary to avoid DST issues during iteration
+    const current = new Date(sy, sm - 1, sd, 12, 0, 0);
+    const stopAt = new Date(ey, em - 1, ed, 12, 0, 0);
     
-    let prevIncome = prevMonthJobs.reduce((sum, j) => sum + (j.actualReceived || 0), 0);
-    
-    const pStart = new Date(year, month - 2, 1);
-    const pEnd = new Date(year, month - 1, 0);
-    if (isNaN(pStart.getTime()) || isNaN(pEnd.getTime())) return 0;
-
-    const curr = new Date(pStart);
-    while (curr <= pEnd) {
-      const dateStr = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`;
-      prevIncome += incentives[dateStr] || 0;
-      curr.setDate(curr.getDate() + 1);
-    }
-
-    const prevExpenseTotal = prevMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
-    
-    return (prevBudget + prevIncome) - prevExpenseTotal;
-  }, [filteredData, jobs, expenses, incentives]);
-
-  const currentBudget = useMemo(() => {
-    return 0;
-  }, []);
-
-  const effectiveBudget = useMemo(() => {
-    return currentBudget > 0 ? currentBudget : (carryOverBalance > 0 ? carryOverBalance : 0);
-  }, [currentBudget, carryOverBalance]);
-
-  const stats = useMemo(() => {
-    const { filteredJobs, filteredExpenses } = filteredData;
-
-    let totalIncome = 0;
-    let totalTips = 0;
-    let totalAppNet = 0;
-
-    filteredJobs.forEach(j => {
-      const amountToCollect = j.customerMustPay + j.upfrontCost;
-      const diff = (j.actualReceived ?? amountToCollect) - amountToCollect;
-      const tip = diff > 0 ? diff : 0;
-      totalIncome += j.appNetIncome + diff;
-      totalTips += tip;
-      totalAppNet += j.appNetIncome;
-    });
-
-    // Add incentives in the range
-    const { start, end } = filteredData;
-    const current = new Date(start);
-    while (current <= end) {
-      const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
-      const dailyIncentive = incentives[dateStr] || 0;
-      totalIncome += dailyIncentive;
+    while (current <= stopAt) {
+      const d = getLocalDateStr(current);
+      dailyStats[d] = { income: 0, jobs: 0, tips: 0, incentive: incentives[d] || 0 };
       current.setDate(current.getDate() + 1);
     }
 
-    const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
-    
-    // User requested: Total Income in Summary comes from Carry Over (or manual budget)
-    // New Earnings from Jobs are separate
-    const displayIncome = effectiveBudget;
-    const netBalance = displayIncome - totalExpenses;
-    const savingsRate = displayIncome > 0 ? (netBalance / displayIncome) * 100 : 0;
-
-    // Expense by category
-    const expenseByCategory: Record<string, number> = {};
-    filteredExpenses.forEach(e => {
-      const cat = e.category;
-      expenseByCategory[cat] = (expenseByCategory[cat] || 0) + e.amount;
-    });
-
-    const expensePieData = Object.entries(expenseByCategory).map(([name, value]) => ({
-      name: t[name as keyof typeof t] || name,
-      value
-    })).sort((a, b) => b.value - a.value);
-
-    // Income breakdown
-    const incomePieData = [
-      { name: t.appNetIncome || 'App Net', value: totalAppNet },
-      { name: t.tipCalculated || 'Tips', value: totalTips }
-    ].filter(d => d.value > 0);
-
-    // Group by time for bar chart
-    const timeGroups: Record<string, { income: number, expense: number }> = {};
-    
-    // Determine grouping key based on range
-    const isCustomLong = rangeType === 'custom' && (filteredData.end.getTime() - filteredData.start.getTime() > 40 * 24 * 60 * 60 * 1000);
-
-    const getGroupKey = (dateStr: string) => {
-      const datePart = dateStr.split('T')[0];
-      if (rangeType === 'ytd' || isCustomLong) return datePart.slice(0, 7); // YYYY-MM
-      return datePart; // YYYY-MM-DD
-    };
-
     filteredJobs.forEach(j => {
-      const key = getGroupKey(j.date);
-      if (!timeGroups[key]) timeGroups[key] = { income: 0, expense: 0 };
-      const amountToCollect = j.customerMustPay + j.upfrontCost;
-      const diff = (j.actualReceived ?? amountToCollect) - amountToCollect;
-      timeGroups[key].income += j.appNetIncome + diff;
-    });
-
-    // Add incentives to timeGroups
-    const curr = new Date(start);
-    while (curr <= end) {
-      const dateStr = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`;
-      const dailyIncentive = incentives[dateStr] || 0;
-      if (dailyIncentive > 0) {
-        const key = getGroupKey(dateStr);
-        if (!timeGroups[key]) timeGroups[key] = { income: 0, expense: 0 };
-        timeGroups[key].income += dailyIncentive;
+      const d = j.date.split('T')[0];
+      if (dailyStats[d]) {
+        const amountToCollect = j.customerMustPay + j.upfrontCost;
+        const actual = j.actualReceived ?? amountToCollect;
+        const diff = actual - amountToCollect;
+        const tip = diff > 0 ? diff : 0;
+        const loss = diff < 0 ? Math.abs(diff) : 0;
+        dailyStats[d].jobs += j.appNetIncome - loss;
+        dailyStats[d].tips += tip;
       }
-      curr.setDate(curr.getDate() + 1);
-    }
-
-    filteredExpenses.forEach(e => {
-      const key = getGroupKey(e.date);
-      if (!timeGroups[key]) timeGroups[key] = { income: 0, expense: 0 };
-      timeGroups[key].expense += e.amount;
     });
 
-    const chartData = Object.entries(timeGroups).map(([date, vals]) => ({
-      date,
-      ...vals
-    })).sort((a, b) => a.date.localeCompare(b.date));
+    let totalTips = 0;
+    let workDays = 0;
+    let offDays = 0;
+
+    Object.keys(dailyStats).forEach(d => {
+      const s = dailyStats[d];
+      s.income = Math.max(0, s.jobs + s.tips + s.incentive);
+      totalTips += s.tips;
+      
+      // Since endStr is already capped at today for MTD, we count all dates in dailyStats
+      if (s.income > 800) {
+        workDays++;
+      } else {
+        offDays++;
+      }
+    });
+
+    const totalIncome = Object.values(dailyStats).reduce((sum, s) => sum + s.income, 0);
+    const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
 
     return {
-      totalIncome: displayIncome,
-      monthEarnings: totalIncome,
+      totalTips,
+      workDays,
+      offDays,
+      totalIncome,
       totalExpenses,
-      netBalance,
-      savingsRate,
-      expensePieData,
-      incomePieData,
-      chartData,
-      topExpenses: [...filteredExpenses].sort((a, b) => b.amount - a.amount).slice(0, 5),
-      topIncomeDays: [...filteredJobs].sort((a, b) => b.appNetIncome - a.appNetIncome).slice(0, 5)
+      dailyStatsList: Object.entries(dailyStats).map(([date, val]) => ({ date, ...val })).sort((a, b) => a.date.localeCompare(b.date)),
+      startStr,
+      endStr,
+      todayStr
     };
-  }, [filteredData, t, rangeType, effectiveBudget]);
+  }, [activeTab, jobs, expenses, incentives, selectedDay, selectedMonth, startDate, endDate, weekOffset]);
 
-  const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4'];
+  const subTabs: { id: SubTab, label: string }[] = [
+    { id: 'daily', label: currentLang === 'th' ? 'รายวัน' : 'Daily' },
+    { id: 'weekly', label: currentLang === 'th' ? 'รายสัปดาห์' : 'Weekly' },
+    { id: 'monthly', label: currentLang === 'th' ? 'รายเดือน' : 'Monthly' },
+    { id: 'custom', label: currentLang === 'th' ? 'กำหนดเอง' : 'Custom' },
+  ];
 
   return (
-    <div className="max-w-5xl mx-auto px-4 pt-2 pb-4 space-y-6">
-      {/* Range Selector */}
-      <div className="glass-panel p-4 rounded-3xl space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl">
-              <Filter className="w-5 h-5" />
-            </div>
-            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">{t.selectRange || 'Select Range'}</h2>
-          </div>
-          
-          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-            <button 
-              onClick={() => setRangeType('monthly')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${rangeType === 'monthly' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-            >
-              {t.monthly || 'Monthly'}
-            </button>
-            <button 
-              onClick={() => setRangeType('ytd')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${rangeType === 'ytd' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-            >
-              {t.yearToDate || 'YTD'}
-            </button>
-            <button 
-              onClick={() => setRangeType('custom')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${rangeType === 'custom' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-            >
-              {t.customRange || 'Custom'}
-            </button>
-          </div>
-        </div>
+    <div className="max-w-4xl mx-auto px-4 pt-2 pb-24 space-y-6">
+      {/* Sub-tabs Selection */}
+      <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl sticky top-2 z-10 shadow-sm border border-slate-200 dark:border-slate-700">
+        {subTabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === tab.id 
+                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm scale-[0.98]' 
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-        <div className="flex flex-wrap gap-4 items-end">
-          {rangeType === 'monthly' && (
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 ml-1">{t.customMonth || 'Month'}</label>
-              <input 
-                type="month" 
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-              />
+      {/* Inputs based on sub-tab */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="glass-panel p-4 rounded-3xl"
+        >
+          {activeTab === 'daily' && (
+            <div className="flex items-center justify-between">
+              <button onClick={() => navigateDate(-1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><ChevronLeft className="w-5 h-5 text-slate-500" /></button>
+              <span className="text-sm font-black text-slate-800 dark:text-white">{getDisplayLabel()}</span>
+              <button disabled={new Date(selectedDay).toDateString() === new Date().toDateString()} onClick={() => navigateDate(1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-full"><ChevronRight className="w-5 h-5 text-slate-500" /></button>
             </div>
           )}
-          {rangeType === 'custom' && (
-            <>
-              <div className="flex-1 min-w-[140px]">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 ml-1">{t.startDate || 'Start Date'}</label>
+          {activeTab === 'monthly' && (
+            <div className="flex items-center justify-between">
+              <button onClick={() => navigateDate(-1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><ChevronLeft className="w-5 h-5 text-slate-500" /></button>
+              <span className="text-sm font-black text-slate-800 dark:text-white">{getDisplayLabel()}</span>
+              <button disabled={selectedMonth === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`} onClick={() => navigateDate(1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-full"><ChevronRight className="w-5 h-5 text-slate-500" /></button>
+            </div>
+          )}
+          {activeTab === 'custom' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">เริ่มต้น</label>
                 <input 
-                  type="date" 
+                  type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                  className="w-full bg-white dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-indigo-500/20"
                 />
               </div>
-              <div className="flex-1 min-w-[140px]">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 ml-1">{t.endDate || 'End Date'}</label>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">สิ้นสุด</label>
                 <input 
-                  type="date" 
+                  type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                  className="w-full bg-white dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-indigo-500/20"
                 />
               </div>
-            </>
+            </div>
           )}
-        </div>
-      </div>
+          {activeTab === 'weekly' && (
+            <div className="flex items-center justify-between">
+              <button onClick={() => navigateDate(-1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><ChevronLeft className="w-5 h-5 text-slate-500" /></button>
+              <span className="text-sm font-black text-slate-800 dark:text-white">{getDisplayLabel()}</span>
+              <button disabled={weekOffset === 0} onClick={() => navigateDate(1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-full"><ChevronRight className="w-5 h-5 text-slate-500" /></button>
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+      {/* Main Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="glass-panel p-4 rounded-3xl border-l-4 border-emerald-500"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="glass-panel p-6 rounded-[2rem] border-b-4 border-amber-500 relative overflow-hidden group col-span-2 lg:col-span-1"
         >
-          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-1">
-            <Wallet className="w-4 h-4" />
-            <span className="text-sm font-bold uppercase tracking-wider">
-              {rangeType === 'monthly' ? (t.carryOver || 'Carry Over') : (t.totalIncome || 'Total Income')}
-            </span>
+          <div className="absolute -right-4 -top-4 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-colors" />
+          <div className="relative flex flex-col items-center text-center space-y-3">
+            <div className="p-3 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-2xl">
+              <Coins className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">ทิปที่ได้</p>
+              <h3 className="text-3xl font-black text-slate-800 dark:text-white mt-1">
+                ฿{rangeData.totalTips.toLocaleString()}
+              </h3>
+            </div>
           </div>
-          <div className="text-xl font-black text-slate-800 dark:text-slate-100">฿{stats.totalIncome.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
         </motion.div>
 
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1 }}
-          className="glass-panel p-4 rounded-3xl border-l-4 border-rose-500"
+          className="glass-panel p-6 rounded-[2rem] border-b-4 border-rose-500 relative overflow-hidden group"
         >
-          <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 mb-1">
-            <TrendingDown className="w-4 h-4" />
-            <span className="text-sm font-bold uppercase tracking-wider">{t.totalExpensesSummary || 'Total Expenses'}</span>
+          <div className="absolute -right-4 -top-4 w-24 h-24 bg-rose-500/5 rounded-full blur-2xl group-hover:bg-rose-500/10 transition-colors" />
+          <div className="relative flex flex-col items-center text-center space-y-3">
+            <div className="p-3 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-2xl">
+              <XCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">หยุดไปกี่วัน</p>
+              <h3 className="text-3xl font-black text-slate-800 dark:text-white mt-1">
+                {rangeData.offDays} <span className="text-sm font-bold text-slate-400 ml-1">วัน</span>
+              </h3>
+              <p className="text-[10px] text-slate-400 mt-1 font-bold">(รายได้ {'<='} 800)</p>
+            </div>
           </div>
-          <div className="text-xl font-black text-slate-800 dark:text-slate-100">฿{stats.totalExpenses.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
         </motion.div>
 
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2 }}
-          className="glass-panel p-4 rounded-3xl border-l-4 border-indigo-500"
+          className="glass-panel p-6 rounded-[2rem] border-b-4 border-emerald-500 relative overflow-hidden group"
         >
-          <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 mb-1">
-            <Wallet className="w-4 h-4" />
-            <span className="text-sm font-bold uppercase tracking-wider">{t.netBalance || 'Net Balance'}</span>
-          </div>
-          <div className={`text-xl font-black ${stats.netBalance >= 0 ? 'text-slate-800 dark:text-slate-100' : 'text-rose-600'}`}>
-            ฿{stats.netBalance.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-        </motion.div>
-
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.05 }}
-          className="glass-panel p-4 rounded-3xl border-l-4 border-blue-500"
-        >
-          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 mb-1">
-            <TrendingUp className="w-4 h-4" />
-            <span className="text-sm font-bold uppercase tracking-wider">{t.monthEarnings || 'Month Earnings'}</span>
-          </div>
-          <div className="text-xl font-black text-slate-800 dark:text-slate-100">฿{stats.monthEarnings.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-        </motion.div>
-
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.15 }}
-          className="glass-panel p-4 rounded-3xl border-l-4 border-teal-500"
-        >
-          <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400 mb-1">
-            <Landmark className="w-4 h-4" />
-            <span className="text-sm font-bold uppercase tracking-wider">{t.totalCash || 'Total Cash (Both Accounts)'}</span>
-          </div>
-          <div className="text-xl font-black text-slate-800 dark:text-slate-100">฿{(stats.netBalance + stats.monthEarnings).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-        </motion.div>
-
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.3 }}
-          className="glass-panel p-4 rounded-3xl border-l-4 border-amber-500"
-        >
-          <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-1">
-            <PieChartIcon className="w-4 h-4" />
-            <span className="text-sm font-bold uppercase tracking-wider">{t.savingsRate || 'Savings Rate'}</span>
-          </div>
-          <div className="text-xl font-black text-slate-800 dark:text-slate-100">{stats.savingsRate.toFixed(1)}%</div>
-        </motion.div>
-      </div>
-
-      {/* Main Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Income vs Expenses Bar Chart */}
-        <div className="glass-panel p-6 rounded-3xl">
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-indigo-500" />
-            {t.incomeVsExpenses || 'Income vs Expenses'}
-          </h3>
-          <div className="h-[300px] w-full min-w-0 relative">
-            {stats.chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.chartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis 
-                    dataKey="date" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#94a3b8' }}
-                    tickFormatter={(val) => {
-                      if (val.length > 7) return val.slice(8, 10); // Just day
-                      return val;
-                    }}
-                  />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                    itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
-                  />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }} />
-                  <Bar dataKey="income" name={t.income || 'Income'} fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="expense" name={t.expenses || 'Expenses'} fill="#f43f5e" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
-                {t.noDataForRange || 'No data for this range'}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Expense Breakdown Pie Chart */}
-        <div className="glass-panel p-6 rounded-3xl">
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2">
-            <PieChartIcon className="w-4 h-4 text-indigo-500" />
-            {t.expenseBreakdown || 'Expense Breakdown'}
-          </h3>
-          <div className="h-[350px] w-full min-w-0 relative">
-            {stats.expensePieData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={stats.expensePieData}
-                    cx="50%"
-                    cy="45%"
-                    innerRadius="60%"
-                    outerRadius="80%"
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {stats.expensePieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                    formatter={(value: number) => `฿${value.toLocaleString()}`}
-                  />
-                  <Legend 
-                    layout="horizontal" 
-                    align="center" 
-                    verticalAlign="bottom" 
-                    iconType="circle" 
-                    wrapperStyle={{ fontSize: '10px', paddingTop: '10px', paddingBottom: '10px' }}
-                    formatter={(value, entry: any) => {
-                      const percent = stats.totalExpenses > 0 ? ((entry.payload.value / stats.totalExpenses) * 100).toFixed(1) : 0;
-                      return <span className="text-slate-700 dark:text-slate-300 font-medium">{value} ({percent}%)</span>;
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
-                {t.noDataForRange || 'No data for this range'}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
-        {/* Top Expenses List */}
-        <div className="glass-panel p-6 rounded-3xl">
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
-            <TrendingDown className="w-4 h-4 text-rose-500" />
-            {t.topExpenses || 'Top Expenses'}
-          </h3>
-          <div className="space-y-2">
-            {stats.topExpenses.length > 0 ? (
-              stats.topExpenses.map((e, i) => (
-                <div key={e.id} className="flex items-center justify-between p-3 bg-white/50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-500">
-                      {i + 1}
-                    </div>
-                    <div>
-                      <div className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate max-w-[100px]">{e.payee || t[e.category as keyof typeof t] || e.category}</div>
-                      <div className="text-[10px] text-slate-400 font-medium">{e.date}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-black text-rose-600 dark:text-rose-400">฿{e.amount.toLocaleString()}</div>
-                    <div className="text-[10px] text-slate-400 font-medium">{stats.totalExpenses > 0 ? ((e.amount / stats.totalExpenses) * 100).toFixed(1) : 0}%</div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-slate-400 text-sm italic">
-                {t.noDataForRange || 'No data for this range'}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Top Income Days */}
-        <div className="glass-panel p-6 rounded-3xl">
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-emerald-500" />
-            {t.topIncomeSources || 'Top Income Days'}
-          </h3>
-          <div className="space-y-2">
-            {stats.topIncomeDays.length > 0 ? (
-              stats.topIncomeDays.map((j, i) => (
-                <div key={j.id} className="flex items-center justify-between p-3 bg-white/50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-500">
-                      {i + 1}
-                    </div>
-                    <div>
-                      <div className="text-sm font-bold text-slate-700 dark:text-slate-200">{j.date}</div>
-                      <div className="text-[10px] text-slate-400 font-medium">{t.income || 'Income'}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">฿{j.appNetIncome.toLocaleString()}</div>
-                    <div className="text-[10px] text-slate-400 font-medium">{stats.totalIncome > 0 ? ((j.appNetIncome / stats.totalIncome) * 100).toFixed(1) : 0}%</div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-slate-400 text-sm italic">
-                {t.noDataForRange || 'No data for this range'}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Financial Health / Insights */}
-        <div className="glass-panel p-6 rounded-3xl">
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-indigo-500" />
-            {t.financialHealth || 'Financial Health'}
-          </h3>
-          <div className="space-y-4">
-            <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800/30">
-              <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">{t.insights || 'Insights'}</div>
-              <ul className="space-y-2">
-                <li className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
-                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
-                  <span>
-                    {currentLang === 'th' 
-                      ? (rangeType === 'monthly' 
-                          ? `คุณมียอดยกมา ฿${stats.totalIncome.toLocaleString()} และรายจ่าย ฿${stats.totalExpenses.toLocaleString()}`
-                          : `คุณมีรายรับทั้งหมด ฿${stats.totalIncome.toLocaleString()} และรายจ่าย ฿${stats.totalExpenses.toLocaleString()}`)
-                      : (rangeType === 'monthly'
-                          ? `You have a carry over of ฿${stats.totalIncome.toLocaleString()} and expenses of ฿${stats.totalExpenses.toLocaleString()}.`
-                          : `You have a total income of ฿${stats.totalIncome.toLocaleString()} and expenses of ฿${stats.totalExpenses.toLocaleString()}.`)}
-                  </span>
-                </li>
-                {rangeType === 'monthly' && (
-                  <li className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
-                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
-                    <span>
-                      {currentLang === 'th'
-                        ? `รายได้ใหม่ในเดือนนี้คือ ฿${stats.monthEarnings.toLocaleString()}`
-                        : `New earnings this month: ฿${stats.monthEarnings.toLocaleString()}`}
-                    </span>
-                  </li>
-                )}
-                <li className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
-                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
-                  <span>
-                    {stats.savingsRate > 20 
-                      ? (currentLang === 'th' ? 'อัตราการออมของคุณดีมาก! รักษามาตรฐานนี้ไว้' : 'Your savings rate is excellent! Keep it up.')
-                      : (currentLang === 'th' ? 'ลองพิจารณาลดรายจ่ายฟุ่มเฟือยเพื่อเพิ่มอัตราการออม' : 'Consider reducing luxury expenses to increase your savings rate.')}
-                  </span>
-                </li>
-                {stats.totalExpenses > stats.totalIncome && (
-                  <li className="flex items-start gap-2 text-sm text-rose-600 dark:text-rose-400 font-medium">
-                    <div className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0" />
-                    <span>
-                      {currentLang === 'th' 
-                        ? 'คำเตือน: รายจ่ายของคุณสูงกว่ารายรับในช่วงเวลานี้'
-                        : 'Warning: Your expenses are higher than your income in this period.'}
-                    </span>
-                  </li>
-                )}
-              </ul>
+          <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors" />
+          <div className="relative flex flex-col items-center text-center space-y-3">
+            <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl">
+              <CheckCircle2 className="w-6 h-6" />
             </div>
-
-            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800/30">
-              <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">{t.balance || 'Balance'}</div>
-              <div className="text-lg font-black text-slate-700 dark:text-slate-200">฿{stats.netBalance.toLocaleString()}</div>
+            <div>
+              <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">ทำงานกี่วัน</p>
+              <h3 className="text-3xl font-black text-slate-800 dark:text-white mt-1">
+                {rangeData.workDays} <span className="text-sm font-bold text-slate-400 ml-1">วัน</span>
+              </h3>
+              <p className="text-[10px] text-slate-400 mt-1 font-bold">(รายได้ {'>'} 800)</p>
             </div>
           </div>
+        </motion.div>
+      </div>
+
+      {/* Secondary Stats Group */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="glass-panel p-4 rounded-3xl flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">รายรับรวม</p>
+            <p className="text-lg font-black text-emerald-600">฿{rangeData.totalIncome.toLocaleString()}</p>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
+            <TrendingUp className="w-5 h-5 text-emerald-500" />
+          </div>
+        </div>
+        <div className="glass-panel p-4 rounded-3xl flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">รายจ่ายรวม</p>
+            <p className="text-lg font-black text-rose-600">฿{rangeData.totalExpenses.toLocaleString()}</p>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center">
+            <TrendingDown className="w-5 h-5 text-rose-500" />
+          </div>
         </div>
       </div>
+
+      {/* Daily Income Chart */}
+      {activeTab !== 'daily' && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-panel p-6 rounded-[2rem]"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h4 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2 uppercase tracking-widest">
+              <Calendar className="w-4 h-4 text-indigo-500" />
+              แนวโน้มรายได้รายวัน
+            </h4>
+            <div className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/40 rounded-full">
+              <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">เป้าหมาย 800+</span>
+            </div>
+          </div>
+          <div className="h-[250px] w-full mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={rangeData.dailyStatsList}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis 
+                  dataKey="date" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 'bold' }}
+                  tickFormatter={(val) => val.split('-')[2]} // Day number
+                />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 'bold' }} />
+                <Tooltip 
+                  cursor={{ fill: 'transparent' }}
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                />
+                <Bar dataKey="income" name="รายได้รวม" radius={[4, 4, 0, 0]}>
+                  {rangeData.dailyStatsList.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.income > 800 ? '#10b981' : '#f43f5e'} 
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex items-center justify-center gap-6 mt-4">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#10b981' }} />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">ทำงาน ({'>'}800)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#f43f5e' }} />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">หยุด ({'<='}800)</span>
+            </div>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

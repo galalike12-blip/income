@@ -6,11 +6,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Dashboard } from './components/Dashboard';
 import { Expenses } from './components/Expenses';
+import { Summary } from './components/Summary';
 import { Chatbot } from './components/Chatbot';
 import { FloatingNav } from './components/FloatingNav';
 import { AddIncomeModal } from './components/AddIncomeModal';
 import { AddExpenseModal } from './components/AddExpenseModal';
 import { Header } from './components/Header';
+import { GoalModal } from './components/GoalModal';
 import { ActivityLogModal } from './components/ActivityLogModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useUserData } from './hooks/useUserData';
@@ -32,12 +34,13 @@ function MainContent() {
     const today = new Date();
     return new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
   });
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'expenses'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'expenses' | 'summary'>('dashboard');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isActivityLogOpen, setIsActivityLogOpen] = useState(false);
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetInput, setResetInput] = useState('');
   const chatbotRef = useRef<any>(null);
@@ -261,6 +264,7 @@ function MainContent() {
         onInstall={deferredPrompt ? handleInstallApp : undefined} 
         setShowResetConfirm={setShowResetConfirm} 
         setShowActivityLog={setIsActivityLogOpen}
+        setShowGoalModal={setIsGoalModalOpen}
       />
       
       {showResetConfirm && (
@@ -290,6 +294,9 @@ function MainContent() {
           </button>
           <button onClick={() => setActiveTab('expenses')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'expenses' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
             {t.expenses || 'รายจ่าย'}
+          </button>
+          <button onClick={() => setActiveTab('summary')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'summary' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+            {t.summary || 'สรุป'}
           </button>
         </div>
       </div>
@@ -326,6 +333,13 @@ function MainContent() {
           resetInput={resetInput}
           setResetInput={setResetInput}
           handleResetData={handleResetData}
+        />
+      )}
+      {activeTab === 'summary' && (
+        <Summary 
+          jobs={jobs}
+          expenses={expenses}
+          incentives={incentives} 
         />
       )}
       <Chatbot 
@@ -386,6 +400,12 @@ function MainContent() {
         isOpen={isActivityLogOpen} 
         onClose={() => setIsActivityLogOpen(false)} 
         logs={logs} 
+      />
+      <GoalModal
+        isOpen={isGoalModalOpen}
+        onClose={() => setIsGoalModalOpen(false)}
+        goals={goals}
+        onSetGoal={setGoal}
       />
 
       <Toaster position="top-center" richColors />
