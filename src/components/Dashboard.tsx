@@ -296,7 +296,7 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="font-medium text-slate-800 dark:text-white flex items-center gap-2">
                       <Target className="w-5 h-5 text-indigo-500" />
-                      ความคืบหน้าเป้าหมาย
+                      {t.goalProgress}
                     </h3>
                   </div>
                   
@@ -304,10 +304,10 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
                     <div>
                       <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-1 items-end">
                         <span className="text-slate-500 dark:text-slate-400">
-                          {monthlyGoal ? 'เป้าหมายที่ควรทำวันนี้' : 'เป้าหมายรายวัน'}
+                          {monthlyGoal ? t.dailyGoalNeeded : (t.daily || 'รายวัน')}
                         </span>
                         <div className="text-right">
-                           <span className="text-slate-400">ทำได้แล้ว </span>
+                           <span className="text-slate-400">{t.done || 'ทำได้แล้ว'} </span>
                            <span className="text-indigo-600 dark:text-indigo-400 font-black">฿{summary.grossIncome.toLocaleString()}</span>
                            <span className="text-slate-400"> / ฿{effectiveDailyTarget.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                         </div>
@@ -323,8 +323,10 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
                       </div>
                       <div className="text-right text-[10px] mt-2 font-black uppercase tracking-widest">
                         {summary.grossIncome >= effectiveDailyTarget 
-                          ? <span className="text-emerald-600 dark:text-emerald-400">🎉 สำเร็จตามเป้าแล้ว!</span>
-                          : <span className="text-slate-400">ขาดอีก <span className="text-rose-500">฿{Math.max(0, effectiveDailyTarget - summary.grossIncome).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></span>}
+                          ? <span className="text-emerald-600 dark:text-emerald-400">{t.goalReached}</span>
+                          : <span className="text-slate-400">
+                              {t.shortBy} <span className="text-rose-500">฿{Math.max(0, effectiveDailyTarget - summary.grossIncome).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            </span>}
                       </div>
 
                       {remainingGoalMessage && (
@@ -334,10 +336,10 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
                                 <Target className="w-4 h-4 text-indigo-500" />
                              </div>
                              <div>
-                                <p className="text-[10px] font-black text-indigo-600/60 dark:text-indigo-400/60 uppercase tracking-widest mb-1">สถานะเป้าหมายรายเดือน</p>
+                                <p className="text-[10px] font-black text-indigo-600/60 dark:text-indigo-400/60 uppercase tracking-widest mb-1">{t.monthlyGoalStatus}</p>
                                 <p className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-relaxed">
-                                   เหลืออีก <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{remainingGoalMessage.totalRemaining.toLocaleString()} บาท</span> จะถึงเป้าหมายรายเดือน <br/>
-                                   (<span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{remainingGoalMessage.daysRemaining} วันสุดท้าย</span> ของเดือน)
+                                   {t.remaining || 'เหลือเีก'} <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{remainingGoalMessage.totalRemaining.toLocaleString()} ฿</span> {t.remainingToGoal} <br/>
+                                   (<span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{remainingGoalMessage.daysRemaining} {t.lastDaysOfMonth || 'วันสุดท้าย'}</span>)
                                 </p>
                              </div>
                           </div>
@@ -346,7 +348,7 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
                     </div>
                   ) : (
                     <div className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center glass-panel-subtle rounded-2xl border-dashed">
-                      ไปตั้งเป้าหมายได้ที่เมนู "เป้าหมายรายได้" ด้านขวาบน
+                      {t.setGoalsInMenu}
                     </div>
                   )}
                 </div>

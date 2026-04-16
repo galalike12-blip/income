@@ -100,7 +100,7 @@ export function GoalModal({ isOpen, onClose, goals, onSetGoal }: GoalModalProps)
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-2">
-                  {activeType === 'daily' ? 'เป้าหมายรายรับต่อวัน' : 'เป้าหมายรายรับต่อเดือน'}
+                  {activeType === 'daily' ? (t.dailyGoalNeeded || 'เป้าหมายรายรับต่อวัน') : (t.monthlyGoalStatus || 'เป้าหมายรายรับต่อเดือน')}
                 </label>
                 <div className="relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-slate-300">฿</div>
@@ -115,12 +115,12 @@ export function GoalModal({ isOpen, onClose, goals, onSetGoal }: GoalModalProps)
                 </div>
                 {activeType === 'monthly' && amount && parseFloat(amount) > 0 && (
                   <p className="text-[10px] text-slate-400 px-3 font-medium">
-                    เฉลี่ยประมาณวันละ ฿{(parseFloat(amount) / 30).toLocaleString(undefined, { maximumFractionDigits: 0 })} (คิดที่ 30 วัน)
+                    {t.avgPerDay30} ฿{(parseFloat(amount) / 30).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </p>
                 )}
                 {activeType === 'daily' && monthlyGoal && (
                   <p className="text-[10px] text-amber-500 px-3 font-bold">
-                    * มีการตั้งเป้าหมายรายเดือนไว้ ระบบจะข้ามค่านี้และคำนวณเป้าหมายรายวันให้คุณอัตโนมัติ
+                    {t.monthlyGoalActiveNote}
                   </p>
                 )}
               </div>
@@ -130,24 +130,24 @@ export function GoalModal({ isOpen, onClose, goals, onSetGoal }: GoalModalProps)
                 className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[1.8rem] font-black text-lg shadow-xl shadow-indigo-200 dark:shadow-none transition-all active:scale-[0.98] flex items-center justify-center gap-2"
               >
                 <Check className="w-6 h-6" />
-                <span>บันทึกเป้าหมาย</span>
+                <span>{t.saveGoal}</span>
               </button>
             </form>
 
             {/* Current Stats Overview */}
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
                <div className="flex justify-between items-center px-2">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">สรุปปัจจุบัน</span>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t.statsSummary}</span>
                   <TrendingUp className="w-4 h-4 text-emerald-500" />
                </div>
                
                <div className="grid grid-cols-2 gap-3">
                   <div className="p-4 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100/50 dark:border-emerald-800/20">
-                     <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1">เป้าหมายรายวันเดิม</p>
+                     <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1">{t.previousDailyGoal}</p>
                      <p className="text-lg font-black text-emerald-700 dark:text-emerald-400">฿{dailyGoal?.targetAmount?.toLocaleString() || '0'}</p>
                   </div>
                   <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100/50 dark:border-indigo-800/20">
-                     <p className="text-[9px] font-black text-indigo-600/60 uppercase mb-1">เป้าหมายรายเดือนเดิม</p>
+                     <p className="text-[9px] font-black text-indigo-600/60 uppercase mb-1">{t.previousMonthlyGoal}</p>
                      <p className="text-lg font-black text-indigo-700 dark:text-indigo-400">฿{monthlyGoal?.targetAmount?.toLocaleString() || '0'}</p>
                   </div>
                </div>

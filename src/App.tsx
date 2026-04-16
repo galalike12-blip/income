@@ -254,12 +254,15 @@ function MainContent() {
   }, [jobs, user, googleAccessToken, spreadsheetId]);
 
   return (
-    <div className="h-[1551px] font-sans text-slate-900 dark:text-slate-100 pb-32 transition-colors duration-200 relative">
-      <div className="liquid-bg">
+    <div className="h-screen flex flex-col font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200 relative overflow-hidden">
+      {/* Fixed Background */}
+      <div className="liquid-bg fixed inset-0 pointer-events-none">
         <div className="blob blob-1"></div>
         <div className="blob blob-2"></div>
         <div className="blob blob-3"></div>
       </div>
+
+      {/* Header (Top) */}
       <Header 
         onInstall={deferredPrompt ? handleInstallApp : undefined} 
         setShowResetConfirm={setShowResetConfirm} 
@@ -267,81 +270,87 @@ function MainContent() {
         setShowGoalModal={setIsGoalModalOpen}
       />
       
-      {showResetConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-xl">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">ล้างข้อมูลทั้งหมด?</h3>
-            <p className="text-slate-600 dark:text-slate-400 mb-4">การดำเนินการนี้ไม่สามารถย้อนกลับได้ พิมพ์ "RESET" เพื่อยืนยัน</p>
-            <input 
-              type="text" 
-              value={resetInput} 
-              onChange={(e) => setResetInput(e.target.value)}
-              className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg mb-4 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-              placeholder="RESET"
-            />
-            <div className="flex gap-2">
-              <button onClick={() => setShowResetConfirm(false)} className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg">ยกเลิก</button>
-              <button onClick={handleResetData} className="flex-1 px-4 py-2 bg-rose-600 text-white rounded-lg">ล้างข้อมูล</button>
+      {/* Main Content Area (Scrollable) */}
+      <main className="flex-1 overflow-y-auto relative custom-scrollbar pb-32">
+        {showResetConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-xl">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">ล้างข้อมูลทั้งหมด?</h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-4">การดำเนินการนี้ไม่สามารถย้อนกลับได้ พิมพ์ "RESET" เพื่อยืนยัน</p>
+              <input 
+                type="text" 
+                value={resetInput} 
+                onChange={(e) => setResetInput(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg mb-4 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                placeholder="RESET"
+              />
+              <div className="flex gap-2">
+                <button onClick={() => setShowResetConfirm(false)} className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg">ยกเลิก</button>
+                <button onClick={handleResetData} className="flex-1 px-4 py-2 bg-rose-600 text-white rounded-lg">ล้างข้อมูล</button>
+              </div>
             </div>
           </div>
+        )}
+        
+        <div className="max-w-5xl mx-auto px-4 mt-3 mb-2 flex justify-center sticky top-0 z-20">
+          <div className="flex w-full max-w-md glass-panel-subtle p-1 rounded-full overflow-hidden shadow-lg">
+            <button onClick={() => setActiveTab('dashboard')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+              {t.income || 'รายรับ'}
+            </button>
+            <button onClick={() => setActiveTab('expenses')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'expenses' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+              {t.expenses || 'รายจ่าย'}
+            </button>
+            <button onClick={() => setActiveTab('summary')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'summary' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+              {t.summary || 'สรุป'}
+            </button>
+          </div>
         </div>
-      )}
-      
-      <div className="max-w-5xl mx-auto px-4 mt-3 mb-2 flex justify-center">
-        <div className="flex w-full max-w-md glass-panel-subtle p-1 rounded-full overflow-hidden">
-          <button onClick={() => setActiveTab('dashboard')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-            {t.income || 'รายรับ'}
-          </button>
-          <button onClick={() => setActiveTab('expenses')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'expenses' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-            {t.expenses || 'รายจ่าย'}
-          </button>
-          <button onClick={() => setActiveTab('summary')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'summary' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-            {t.summary || 'สรุป'}
-          </button>
-        </div>
-      </div>
 
-      {activeTab === 'dashboard' && (
-        <Dashboard 
-          jobs={jobs} 
-          editJob={handleEditJob}
-          deleteJob={deleteJob} 
-          selectedDate={selectedDate}
-          setSelectedDate={setSelectedDate}
-          incentives={incentives}
-          setIncentive={setIncentive}
-          goals={goals}
-          setGoal={setGoal}
-          preferences={preferences}
-          updatePreferences={updatePreferences}
-          transferIncomeToExpenses={transferIncomeToExpenses}
-          untransferredIncentivesAmount={untransferredIncentivesAmount}
-        />
-      )}
-      {activeTab === 'expenses' && (
-        <Expenses 
-          jobs={jobs}
-          expenses={expenses}
-          incentives={incentives}
-          onEditExpense={handleEditExpense}
-          updateExpense={updateExpense}
-          deleteExpense={deleteExpense}
-          preferences={preferences}
-          updatePreferences={updatePreferences}
-          showResetConfirm={showResetConfirm}
-          setShowResetConfirm={setShowResetConfirm}
-          resetInput={resetInput}
-          setResetInput={setResetInput}
-          handleResetData={handleResetData}
-        />
-      )}
-      {activeTab === 'summary' && (
-        <Summary 
-          jobs={jobs}
-          expenses={expenses}
-          incentives={incentives} 
-        />
-      )}
+        <div className="max-w-5xl mx-auto">
+          {activeTab === 'dashboard' && (
+            <Dashboard 
+              jobs={jobs} 
+              editJob={handleEditJob}
+              deleteJob={deleteJob} 
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              incentives={incentives}
+              setIncentive={setIncentive}
+              goals={goals}
+              setGoal={setGoal}
+              preferences={preferences}
+              updatePreferences={updatePreferences}
+              transferIncomeToExpenses={transferIncomeToExpenses}
+              untransferredIncentivesAmount={untransferredIncentivesAmount}
+            />
+          )}
+          {activeTab === 'expenses' && (
+            <Expenses 
+              jobs={jobs}
+              expenses={expenses}
+              incentives={incentives}
+              onEditExpense={handleEditExpense}
+              updateExpense={updateExpense}
+              deleteExpense={deleteExpense}
+              preferences={preferences}
+              updatePreferences={updatePreferences}
+              showResetConfirm={showResetConfirm}
+              setShowResetConfirm={setShowResetConfirm}
+              resetInput={resetInput}
+              setResetInput={setResetInput}
+              handleResetData={handleResetData}
+            />
+          )}
+          {activeTab === 'summary' && (
+            <Summary 
+              jobs={jobs}
+              expenses={expenses}
+              incentives={incentives} 
+            />
+          )}
+        </div>
+      </main>
+
       <Chatbot 
         ref={chatbotRef}
         jobs={jobs} 
