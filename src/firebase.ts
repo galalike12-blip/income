@@ -1,20 +1,11 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { 
-  initializeFirestore, 
-  memoryLocalCache,
-  persistentLocalCache,
-  persistentMultipleTabManager
-} from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// Using memoryLocalCache and long polling to avoid periodic integrity checks 
-// and WebSocket issues that cause "INTERNAL ASSERTION FAILED" in iFrames.
-export const db = initializeFirestore(app, {
-  localCache: memoryLocalCache(),
-  experimentalForceLongPolling: true,
-}, firebaseConfig.firestoreDatabaseId);
-
+// Standard initialization to ensure core features work first.
+// If assertion errors persist, we'll re-add memory cache via initializeFirestore.
+export const db = getFirestore(app);
 export const auth = getAuth(app);
