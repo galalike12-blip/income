@@ -83,86 +83,120 @@ service cloud.firestore {
     }
 
     function isValidDateString(dateStr) {
-      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}$");
+      // Adjusted to support both YYYY-MM-DD and YYYY-MM-DDTHH:mm formats
+      return dateStr is string && (dateStr.matches("^\\d{4}-\\d{2}-\\d{2}$") || dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$") || dateStr.size() < 100);
     }
 
     // Domain Validators
     function isValidUser(data) {
-      return hasRequiredFields(['uid', 'email', 'createdAt']) &&
-             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+             data.uid is string && data.uid == request.auth.uid &&
              isValidEmail(data.email) &&
-             data.createdAt is timestamp &&
+             data.createdAt == request.time &&
              (!('spreadsheetId' in data) || (data.spreadsheetId is string && data.spreadsheetId.size() < 200));
     }
 
     function isValidJob(data) {
-      return hasRequiredFields(['userId', 'date', 'customerMustPay', 'appNetIncome', 'upfrontCost', 'actualReceived', 'createdAt']) &&
+      return data.keys().hasAll(['userId', 'date', 'customerMustPay', 'appNetIncome', 'upfrontCost', 'actualReceived', 'createdAt']) &&
              data.userId is string && data.userId == request.auth.uid &&
              isValidDateString(data.date) &&
              data.customerMustPay is number &&
              data.appNetIncome is number &&
              data.upfrontCost is number &&
              data.actualReceived is number &&
-             data.createdAt is timestamp;
+             data.createdAt == request.time;
     }
 
     function isValidIncentive(data) {
-      return hasRequiredFields(['userId', 'date', 'amount', 'updatedAt']) &&
+      return data.keys().hasAll(['userId', 'date', 'amount', 'updatedAt']) &&
              data.userId is string && data.userId == request.auth.uid &&
              isValidDateString(data.date) &&
              data.amount is number &&
-             data.updatedAt is timestamp;
+             data.updatedAt == request.time;
     }
 
     function isValidExpense(data) {
-      return hasRequiredFields(['userId', 'date', 'amount', 'category', 'createdAt']) &&
+      return data.keys().hasAll(['userId', 'date', 'amount', 'category', 'createdAt']) &&
              data.userId is string && data.userId == request.auth.uid &&
              isValidDateString(data.date) &&
              data.amount is number &&
              data.category is string && data.category.size() < 100 &&
-             data.createdAt is timestamp &&
+             data.createdAt == request.time &&
              (!('note' in data) || (data.note is string && data.note.size() < 500));
     }
 
     function isValidGoal(data) {
-      return hasRequiredFields(['userId', 'type', 'targetAmount', 'updatedAt']) &&
+      return data.keys().hasAll(['userId', 'type', 'targetAmount', 'updatedAt']) &&
              data.userId is string && data.userId == request.auth.uid &&
              data.type in ['daily', 'monthly'] &&
              data.targetAmount is number &&
-             data.updatedAt is timestamp;
+             data.updatedAt == request.time;
+    }
+
+    function isValidLog(data) {
+      return data.keys().hasAll(['id', 'type', 'timestamp', 'details', 'userId', 'createdAt']) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.type is string &&
+             data.timestamp is string &&
+             data.details is string &&
+             data.createdAt == request.time;
+    }
+
+    function isValidPreference(data) {
+      return (!('expenseBalance' in data) || data.expenseBalance is number) &&
+             (!('customCategories' in data) || (data.customCategories is list && data.customCategories.size() < 50));
     }
 
     match /users/{userId} {
       allow read: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidUser(request.resource.data) && uidUnchanged();
-      allow update: if isOwner(userId) && isValidUser(request.resource.data) && uidNotModified() && areImmutableFieldsUnchanged(['createdAt', 'email']);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['spreadsheetId', 'email']) &&
+                      (!('email' in request.resource.data) || isValidEmail(request.resource.data.email));
       allow delete: if isOwner(userId);
 
       match /jobs/{jobId} {
         allow read: if isOwner(userId);
         allow create: if isOwner(userId) && isValidJob(request.resource.data);
-        allow update: if isOwner(userId) && isValidJob(request.resource.data) && areImmutableFieldsUnchanged(['createdAt', 'userId']);
+        allow update: if isOwner(userId) && 
+                        (isValidJob(request.resource.data) || 
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['transferred']));
         allow delete: if isOwner(userId);
       }
 
       match /incentives/{incentiveId} {
         allow read: if isOwner(userId);
         allow create: if isOwner(userId) && isValidIncentive(request.resource.data);
-        allow update: if isOwner(userId) && isValidIncentive(request.resource.data) && areImmutableFieldsUnchanged(['userId']);
+        allow update: if isOwner(userId) && 
+                        (isValidIncentive(request.resource.data) || 
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['transferred']));
         allow delete: if isOwner(userId);
       }
 
       match /expenses/{expenseId} {
         allow read: if isOwner(userId);
         allow create: if isOwner(userId) && isValidExpense(request.resource.data);
-        allow update: if isOwner(userId) && isValidExpense(request.resource.data) && areImmutableFieldsUnchanged(['createdAt', 'userId']);
+        allow update: if isOwner(userId) && isValidExpense(request.resource.data);
         allow delete: if isOwner(userId);
       }
 
       match /goals/{goalId} {
         allow read: if isOwner(userId);
         allow create: if isOwner(userId) && isValidGoal(request.resource.data);
-        allow update: if isOwner(userId) && isValidGoal(request.resource.data) && areImmutableFieldsUnchanged(['userId']);
+        allow update: if isOwner(userId) && isValidGoal(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+
+      match /logs/{logId} {
+        allow read, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidLog(request.resource.data);
+        allow update: if false; // Logs are immutable
+        allow delete: if isOwner(userId);
+      }
+
+      match /preferences/{prefId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidPreference(request.resource.data);
         allow delete: if isOwner(userId);
       }
     }

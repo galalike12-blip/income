@@ -120,6 +120,32 @@
         }
       },
       "required": ["userId", "type", "targetAmount", "updatedAt"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Stores a history of user actions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "details": { "type": "string" },
+        "amount": { "type": "number" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["id", "type", "timestamp", "details", "userId", "createdAt"]
+    },
+    "UserPreferences": {
+      "title": "UserPreferences",
+      "description": "User UI and calculation preferences.",
+      "type": "object",
+      "properties": {
+        "dashboardWidgetOrder": { "type": "array", "items": { "type": "string" } },
+        "expensesWidgetOrder": { "type": "array", "items": { "type": "string" } },
+        "expenseBalance": { "type": "number" },
+        "customCategories": { "type": "array", "items": { "type": "string" } }
+      }
     }
   },
   "firestore": {
@@ -152,6 +178,18 @@
         "$ref": "#/entities/Goal"
       },
       "description": "Income goals for a specific user."
+    },
+    "/users/{userId}/logs/{logId}": {
+      "schema": {
+        "$ref": "#/entities/ActivityLog"
+      },
+      "description": "Activity history."
+    },
+    "/users/{userId}/preferences/{prefId}": {
+      "schema": {
+        "$ref": "#/entities/UserPreferences"
+      },
+      "description": "User UI preferences."
     }
   }
 }
