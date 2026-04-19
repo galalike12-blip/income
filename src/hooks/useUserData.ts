@@ -340,7 +340,7 @@ export function useUserData(user: User | null) {
 
       const baseDate = new Date(expense.date);
       baseDate.setMonth(baseDate.getMonth() + i);
-      const dateString = baseDate.toISOString().slice(0, 16);
+      const dateString = new Date(baseDate.getTime() - (baseDate.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
 
       entries.push({
         ...expense,
