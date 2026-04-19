@@ -42,19 +42,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       
-      // DIAGNOSTIC: Try writing to debug collection to check if basic connectivity works
-      try {
-        await setDoc(doc(db, 'debug', 'connectivity_test'), {
-          lastCheck: serverTimestamp(),
-          clientTime: new Date().toISOString()
-        });
-        console.log("Firestore Diagnostic: Basic connectivity SUCCESS");
-      } catch (e: any) {
-        console.error("Firestore Diagnostic: Basic connectivity FAILED", e);
-        toast.error(`Diagnostic Fail: ${e?.message || "Unknown"}`);
-      }
-
       if (currentUser) {
+        // DIAGNOSTIC: Try writing to debug collection to check if basic connectivity works
+        try {
+          await setDoc(doc(db, 'debug', 'connectivity_test'), {
+            lastCheck: serverTimestamp(),
+            clientTime: new Date().toISOString()
+          });
+          console.log("Firestore Diagnostic: Basic connectivity SUCCESS");
+        } catch (e: any) {
+          console.error("Firestore Diagnostic: Basic connectivity FAILED", e);
+        }
+
         // Fetch user profile from Firestore with retry logic
         const docRef = doc(db, 'users', currentUser.uid);
         
@@ -126,8 +125,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ]);
             await setDoc(docRef, { spreadsheetId: newSpreadsheetId }, { merge: true });
             setSpreadsheetIdState(newSpreadsheetId);
-          } catch (e) {
-            console.error("Failed to create spreadsheet automatically", e);
+          } catch (e: any) {
+            console.warn("Skipped automatic Google Sheets creation (API might be disabled for this new project). You can still use the app normally.", e);
+            // Don't show loud error to user to avoid confusion, they can still use the app.
           }
         }
       }

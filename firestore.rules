@@ -2,21 +2,14 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Catch-all deny
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Diagnostic collection to test connectivity independent of Auth
     match /debug/{docId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
 
-    // User data block: users can only read/write their own records
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
       
-      match /{allSubcollections=**} {
+      match /{document=**} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }

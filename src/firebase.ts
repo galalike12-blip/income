@@ -5,7 +5,6 @@ import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// Using standard getFirestore. 
-// We are reverting to the most basic setup to isolate the "Permission Denied" issue.
-export const db = getFirestore(app);
+// Using standard getFirestore with required databaseId from config
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
