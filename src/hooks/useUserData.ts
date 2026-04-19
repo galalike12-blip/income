@@ -35,84 +35,87 @@ export function useUserData(user: User | null) {
 
     setLoading(true);
     
-    // Listen to Logs
-    const logsRef = collection(db, 'users', user.uid, 'logs');
-    const qLogs = query(logsRef, orderBy('timestamp', 'desc'), limit(50));
-    const unsubscribeLogs = onSnapshot(qLogs, (snapshot) => {
-      const logsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ActivityLog[];
-      setFirestoreLogs(logsData);
-    }, (error) => {
-      console.error("Error fetching logs:", error);
-    });
+    let unsubscribes: (() => void)[] = [];
+    
+    // Small delay to allow Firebase Auth state to propagate
+    const initTimer = setTimeout(() => {
+      try {
+        // Listen to Logs
+        const logsRef = collection(db, 'users', user.uid, 'logs');
+        const qLogs = query(logsRef, orderBy('timestamp', 'desc'), limit(50));
+        unsubscribes.push(onSnapshot(qLogs, (snapshot) => {
+          const logsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ActivityLog[];
+          setFirestoreLogs(logsData);
+        }, (error) => {
+          console.error("Error fetching logs:", error);
+        }));
 
-    // Listen to Jobs
-    const jobsRef = collection(db, 'users', user.uid, 'jobs');
-    const qJobs = query(jobsRef, orderBy('createdAt', 'asc'));
-    const unsubscribeJobs = onSnapshot(qJobs, (snapshot) => {
-      const jobsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setFirestoreJobs(jobsData);
-    }, (error) => {
-      console.error("Error fetching jobs:", error);
-    });
+        // Listen to Jobs
+        const jobsRef = collection(db, 'users', user.uid, 'jobs');
+        const qJobs = query(jobsRef, orderBy('createdAt', 'asc'));
+        unsubscribes.push(onSnapshot(qJobs, (snapshot) => {
+          const jobsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setFirestoreJobs(jobsData);
+        }, (error) => {
+          console.error("Error fetching jobs:", error);
+        }));
 
-    // Listen to Incentives
-    const incentivesRef = collection(db, 'users', user.uid, 'incentives');
-    const unsubscribeIncentives = onSnapshot(incentivesRef, (snapshot) => {
-      const incData: Record<string, { amount: number, transferred: boolean }> = {};
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.date && data.amount !== undefined) {
-          incData[data.date] = {
-            amount: data.amount,
-            transferred: !!data.transferred
-          };
-        }
-      });
-      setFirestoreIncentives(incData);
-    }, (error) => {
-      console.error("Error fetching incentives:", error);
-    });
+        // Listen to Incentives
+        const incentivesRef = collection(db, 'users', user.uid, 'incentives');
+        unsubscribes.push(onSnapshot(incentivesRef, (snapshot) => {
+          const incData: Record<string, { amount: number, transferred: boolean }> = {};
+          snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.date && data.amount !== undefined) {
+              incData[data.date] = { amount: data.amount, transferred: !!data.transferred };
+            }
+          });
+          setFirestoreIncentives(incData);
+        }, (error) => {
+          console.error("Error fetching incentives:", error);
+        }));
 
-    // Listen to Expenses
-    const expensesRef = collection(db, 'users', user.uid, 'expenses');
-    const qExpenses = query(expensesRef, orderBy('createdAt', 'asc'));
-    const unsubscribeExpenses = onSnapshot(qExpenses, (snapshot) => {
-      const expensesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ExpenseEntry[];
-      setFirestoreExpenses(expensesData);
-    }, (error) => {
-      console.error("Error fetching expenses:", error);
-    });
+        // Listen to Expenses
+        const expensesRef = collection(db, 'users', user.uid, 'expenses');
+        const qExpenses = query(expensesRef, orderBy('createdAt', 'asc'));
+        unsubscribes.push(onSnapshot(qExpenses, (snapshot) => {
+          const expensesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ExpenseEntry[];
+          setFirestoreExpenses(expensesData);
+        }, (error) => {
+          console.error("Error fetching expenses:", error);
+        }));
 
-    // Listen to Goals
-    const goalsRef = collection(db, 'users', user.uid, 'goals');
-    const unsubscribeGoals = onSnapshot(goalsRef, (snapshot) => {
-      const goalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Goal[];
-      setFirestoreGoals(goalsData);
-    }, (error) => {
-      console.error("Error fetching goals:", error);
-    });
+        // Listen to Goals
+        const goalsRef = collection(db, 'users', user.uid, 'goals');
+        unsubscribes.push(onSnapshot(goalsRef, (snapshot) => {
+          const goalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Goal[];
+          setFirestoreGoals(goalsData);
+        }, (error) => {
+          console.error("Error fetching goals:", error);
+        }));
 
-    // Listen to Preferences
-    const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
-    const unsubscribePreferences = onSnapshot(prefRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setFirestorePreferences(docSnap.data() as UserPreferences);
-      } else {
-        setFirestorePreferences({});
+        // Listen to Preferences
+        const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
+        unsubscribes.push(onSnapshot(prefRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setFirestorePreferences(docSnap.data() as UserPreferences);
+          } else {
+            setFirestorePreferences({});
+          }
+          setLoading(false);
+        }, (error) => {
+          console.error("Error fetching preferences:", error);
+          setLoading(false);
+        }));
+      } catch (e) {
+        console.error("Error initializing listeners:", e);
+        setLoading(false);
       }
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching preferences:", error);
-      setLoading(false);
-    });
+    }, 1200);
 
     return () => {
-      unsubscribeJobs();
-      unsubscribeIncentives();
-      unsubscribeExpenses();
-      unsubscribeGoals();
-      unsubscribePreferences();
-      unsubscribeLogs();
+      clearTimeout(initTimer);
+      unsubscribes.forEach(unsub => unsub());
     };
   }, [user]);
 

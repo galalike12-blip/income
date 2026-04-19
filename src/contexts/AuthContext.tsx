@@ -42,23 +42,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        // Fetch user profile from Firestore
+        // Fetch user profile from Firestore with retry logic
         const docRef = doc(db, 'users', currentUser.uid);
-        try {
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setSpreadsheetIdState(docSnap.data().spreadsheetId || null);
-          } else {
-            // Create user profile
-            await setDoc(docRef, {
-              uid: currentUser.uid,
-              email: currentUser.email,
-              createdAt: serverTimestamp()
-            });
+        
+        const fetchProfile = async (retries = 3, delay = 1000) => {
+          try {
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              setSpreadsheetIdState(docSnap.data().spreadsheetId || null);
+            } else {
+              // Create user profile
+              await setDoc(docRef, {
+                uid: currentUser.uid,
+                email: currentUser.email,
+                createdAt: serverTimestamp()
+              });
+            }
+          } catch (error: any) {
+            if (retries > 0 && (error.code === 'permission-denied' || error.message?.includes('insufficient permissions'))) {
+              console.log(`Auth retry: ${retries} attempts left...`);
+              setTimeout(() => fetchProfile(retries - 1, delay * 1.5), delay);
+            } else {
+              console.error("Error fetching user profile after retries:", error);
+              // Only toast if it's the final failure
+              if (error.code === 'permission-denied') {
+                toast.error("Permission error: Please try refreshing for proper sync.");
+              }
+            }
           }
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
-        }
+        };
+
+        fetchProfile();
       } else {
         setSpreadsheetIdState(null);
         setGoogleAccessToken(null);
