@@ -1,10 +1,10 @@
 {
-  "projectId": "gen-lang-client-0933051832",
-  "appId": "1:452619738370:web:1e9b675272863813b9b61b",
-  "apiKey": "AIzaSyDzG5R6g7wjv-Y_Q_dJwaG_No6vHPvLxC4",
-  "authDomain": "gen-lang-client-0933051832.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-be892618-adad-499d-bbb9-0733260b6130",
-  "storageBucket": "gen-lang-client-0933051832.firebasestorage.app",
-  "messagingSenderId": "452619738370",
+  "projectId": "my-income-tracker-6a372",
+  "appId": "1:247555007845:web:8d6c6297d08264c364ad8c",
+  "apiKey": "AIzaSyALcCfEx2yDczV-n0u8p1C5HTZcqlbPkU8",
+  "authDomain": "my-income-tracker-6a372.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "my-income-tracker-6a372.firebasestorage.app",
+  "messagingSenderId": "247555007845",
   "measurementId": ""
 }
