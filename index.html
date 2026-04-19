@@ -12,6 +12,28 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Force unregister all service workers and clear caches for this origin
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            registration.unregister();
+            console.log('SW unregistered during force-cleanup');
+          }
+        });
+      }
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          for (let name of names) caches.delete(name);
+          console.log('Caches cleared during force-cleanup');
+        });
+      }
+      // Also clear Firestore IndexedDB if any remains (though we use memory cache now)
+      try {
+        window.indexedDB.deleteDatabase('firestore/[DEFAULT]/my-income-tracker-6a372/main');
+        window.indexedDB.deleteDatabase('firebase-messaging-database');
+      } catch (e) {}
+    </script>
   </body>
 </html>
 

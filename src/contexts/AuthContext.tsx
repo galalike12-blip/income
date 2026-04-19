@@ -41,6 +41,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      
+      // DIAGNOSTIC: Try writing to debug collection to check if basic connectivity works
+      try {
+        await setDoc(doc(db, 'debug', 'connectivity_test'), {
+          lastCheck: serverTimestamp(),
+          clientTime: new Date().toISOString()
+        });
+        console.log("Firestore Diagnostic: Basic connectivity SUCCESS");
+      } catch (e: any) {
+        console.error("Firestore Diagnostic: Basic connectivity FAILED", e);
+        toast.error(`Diagnostic Fail: ${e?.message || "Unknown"}`);
+      }
+
       if (currentUser) {
         // Fetch user profile from Firestore with retry logic
         const docRef = doc(db, 'users', currentUser.uid);
@@ -64,10 +77,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setTimeout(() => fetchProfile(retries - 1, delay * 1.5), delay);
             } else {
               console.error("Error fetching user profile after retries:", error);
-              // Only toast if it's the final failure
-              if (error.code === 'permission-denied') {
-                toast.error("Permission error: Please try refreshing for proper sync.");
-              }
+              // Show detailed error for troubleshooting
+              const errorMsg = error?.message || "Unknown error";
+              const errorCode = error?.code || "no-code";
+              toast.error(`Firebase Error [${errorCode}]: ${errorMsg}`);
             }
           }
         };

@@ -5,7 +5,7 @@ import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// Standard initialization to ensure core features work first.
-// If assertion errors persist, we'll re-add memory cache via initializeFirestore.
+// Using standard getFirestore. 
+// We are reverting to the most basic setup to isolate the "Permission Denied" issue.
 export const db = getFirestore(app);
 export const auth = getAuth(app);
