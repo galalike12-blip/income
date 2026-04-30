@@ -57,6 +57,13 @@ function MainContent() {
   const [sharedFile, setSharedFile] = useState<File | null>(null);
 
   useEffect(() => {
+    // Hide the CSS splash screen once React has mounted
+    const loader = document.getElementById('app-loader');
+    if (loader) {
+      loader.style.opacity = '0';
+      setTimeout(() => loader.remove(), 500); // Wait for transition
+    }
+
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === 'SHARE_TARGET_FILE') {
         const file = event.data.file;

@@ -122,38 +122,77 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
     };
   }, [isOpen, editingExpense]);
 
+  const compressImage = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1024;
+        const MAX_HEIGHT = 1024;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject('No canvas context');
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        // Using jpeg and quality 0.8 to reduce size while retaining text readability
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      
+      reader.readAsDataURL(file);
+    });
+  };
+
   const scanFile = async (file: File) => {
     setIsScanning(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64Data = (reader.result as string).split(',')[1];
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-        
-        const response = await ai.models.generateContent({
-          model: "gemini-3.1-flash-lite-preview",
-          contents: [
-            {
-              parts: [
-                { text: "Extract receipt details: amount (number), payee (string), and category. You MUST choose a category from this list: [" + customCategories.join(', ') + "]. If no category matches, you MUST use 'อื่นๆ'. Return JSON only." },
-                { inlineData: { data: base64Data, mimeType: file.type } }
-              ]
-            }
-          ],
-          config: { 
-            responseMimeType: "application/json",
-            thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL }
+      const compressedDataUrl = await compressImage(file);
+      const base64Data = compressedDataUrl.split(',')[1];
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-3.1-flash-lite-preview",
+        contents: [
+          {
+            parts: [
+              { text: "Extract receipt details: amount (number), payee (string), and category. You MUST choose a category from this list: [" + customCategories.join(', ') + "]. If no category matches, you MUST use 'อื่นๆ'. Return JSON only." },
+              { inlineData: { data: base64Data, mimeType: "image/jpeg" } }
+            ]
           }
-        });
-
-        const result = JSON.parse(response.text || '{}');
-        if (result.amount) setExpenseAmount(result.amount.toString());
-        if (result.payee) setExpensePayee(result.payee);
-        if (result.category) {
-          setExpenseCategory(result.category);
+        ],
+        config: { 
+          responseMimeType: "application/json"
         }
-      };
-      reader.readAsDataURL(file);
+      });
+
+      const result = JSON.parse(response.text || '{}');
+      if (result.amount) setExpenseAmount(result.amount.toString());
+      if (result.payee) setExpensePayee(result.payee);
+      if (result.category) {
+        setExpenseCategory(result.category);
+      }
     } catch (error) {
       console.error("Scan failed:", error);
     } finally {

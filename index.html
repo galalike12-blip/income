@@ -8,27 +8,64 @@
     <link rel="apple-touch-icon" href="/icon.svg" />
     <link rel="manifest" href="/manifest.json?v=2" />
     <title>Income Tracker</title>
+    <style>
+      #app-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8fafc;
+        transition: opacity 0.5s ease;
+      }
+      .loader-icon {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 24px;
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      .progress-container {
+        width: 200px;
+        height: 4px;
+        background-color: #e2e8f0;
+        border-radius: 9999px;
+        overflow: hidden;
+      }
+      .progress-bar {
+        width: 0%;
+        height: 100%;
+        background-color: #0A84FF;
+        border-radius: 9999px;
+        animation: progress 1.5s ease-out forwards;
+      }
+      @keyframes progress {
+        0% { width: 0%; }
+        50% { width: 70%; }
+        100% { width: 95%; }
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: .7; transform: scale(0.95); }
+      }
+      @media (prefers-color-scheme: dark) {
+        #app-loader { background-color: #0f172a; }
+        .progress-container { background-color: #1e293b; }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="app-loader">
+      <img src="/icon.svg" class="loader-icon" alt="Loading" />
+      <div class="progress-container">
+        <div class="progress-bar"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Force unregister all service workers and clear caches for this origin
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for(let registration of registrations) {
-            registration.unregister();
-            console.log('SW unregistered during force-cleanup');
-          }
-        });
-      }
-      if ('caches' in window) {
-        caches.keys().then(function(names) {
-          for (let name of names) caches.delete(name);
-          console.log('Caches cleared during force-cleanup');
-        });
-      }
-      // Also clear Firestore IndexedDB if any remains (though we use memory cache now)
+      // Clear old DBs but don't kill SW here. The React app will fade out the loader.
       try {
         window.indexedDB.deleteDatabase('firestore/[DEFAULT]/my-income-tracker-6a372/main');
         window.indexedDB.deleteDatabase('firebase-messaging-database');
