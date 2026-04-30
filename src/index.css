@@ -58,8 +58,10 @@ body {
 .recharts-bar-rectangle,
 .recharts-pie-sector,
 .recharts-active-dot,
+.recharts-layer,
 .recharts-svg {
   outline: none !important;
+  -webkit-tap-highlight-color: transparent !important;
 }
 
 .glass-panel {

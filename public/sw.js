@@ -1,12 +1,28 @@
+const CACHE_NAME = 'income-tracker-v2';
+
 self.addEventListener('install', (event) => {
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll([
+        '/',
+        '/index.html',
+        '/icon.svg',
+        '/manifest.json'
+      ]);
+    })
+  );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map((cacheName) => caches.delete(cacheName))
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
+          }
+        })
       );
     }).then(() => self.clients.claim())
   );
@@ -58,6 +74,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Direct to network, no caching
-  event.respondWith(fetch(event.request));
+  // Direct to network, fallback to cache for offline support
+  event.respondWith(
+    fetch(event.request).catch(() => {
+      return caches.match(event.request);
+    })
+  );
 });
