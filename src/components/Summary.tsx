@@ -217,6 +217,16 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     const totalIncome = Object.values(dailyStats).reduce((sum, s) => sum + s.income, 0);
     const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
 
+    const categoryStats: Record<string, number> = {};
+    filteredExpenses.forEach(e => {
+      const cat = e.category || 'อื่นๆ';
+      categoryStats[cat] = (categoryStats[cat] || 0) + (e.amount || 0);
+    });
+
+    const categoryStatsList = Object.entries(categoryStats)
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount);
+
     return {
       totalTips,
       workDays,
@@ -224,6 +234,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
       totalIncome,
       totalExpenses,
       dailyStatsList: Object.entries(dailyStats).map(([date, val]) => ({ date, ...val })).sort((a, b) => a.date.localeCompare(b.date)),
+      categoryStatsList,
       startStr,
       endStr,
       todayStr
@@ -452,6 +463,45 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
           </div>
         </motion.div>
       )}
+
+      {/* Category Expenses Chart */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass-panel p-6 rounded-[2rem] mt-6"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h4 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2 uppercase tracking-widest">
+            <Filter className="w-4 h-4 text-rose-500" />
+            รายจ่ายตามหมวดหมู่
+          </h4>
+        </div>
+        
+        {rangeData.categoryStatsList.length > 0 ? (
+          <div className="h-[250px] w-full mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={rangeData.categoryStatsList} layout="vertical" margin={{ top: 0, right: 20, left: 20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 'bold' }} />
+                <YAxis type="category" dataKey="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 'bold' }} width={80} />
+                <Tooltip 
+                  cursor={{ fill: '#f8fafc' }}
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                  formatter={(value: number) => [`฿${value.toLocaleString()}`, 'ยอดรวมรายจ่าย']}
+                />
+                <Bar dataKey="amount" name="ยอดรวม" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={20} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center p-8 text-slate-400">
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-full mb-3">
+              <TrendingDown className="w-6 h-6 opacity-50" />
+            </div>
+            <p className="text-xs font-bold text-center">ไม่มีข้อมูลรายจ่ายในช่วงเวลานี้</p>
+          </div>
+        )}
+      </motion.div>
     </div>
   );
 }
