@@ -218,7 +218,10 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     });
 
     const totalIncome = Object.values(dailyStats).reduce((sum, s) => sum + s.income, 0);
-    const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalExpenses = filteredExpenses.reduce((sum, e) => {
+      const isActuallyPaid = e.isPaid !== false;
+      return sum + (isActuallyPaid ? e.amount : 0);
+    }, 0);
 
     const categoryStats: Record<string, number> = {};
     filteredExpenses.forEach(e => {

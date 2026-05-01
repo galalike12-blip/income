@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, query, orderBy, getDoc, getDocs, where, limit } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, query, orderBy, getDoc, getDocs, where, limit, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import { JobEntry, ExpenseEntry, Goal, UserPreferences, ActivityLog } from '../types';
 import { User } from 'firebase/auth';
@@ -385,15 +385,26 @@ export function useUserData(user: User | null) {
   const updateExpense = async (id: string, updates: Partial<ExpenseEntry>) => {
     if (user) {
       const expenseRef = doc(db, 'users', user.uid, 'expenses', id);
-      const oldExpense = firestoreExpenses.find(e => e.id === id);
+      const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
+      let oldExpensePayee = '';
+      let oldExpenseCategory = '';
       
-      if (oldExpense) {
-        const currentBalance = preferences.expenseBalance || 0;
+      await runTransaction(db, async (transaction) => {
+        const expenseDoc = await transaction.get(expenseRef);
+        if (!expenseDoc.exists()) return;
+        
+        const prefDoc = await transaction.get(prefRef);
+        
+        const currentBalance = prefDoc.exists() ? (prefDoc.data().expenseBalance || 0) : 0;
         let newBalance = currentBalance;
 
-        const wasPaid = oldExpense.isPaid;
+        const oldExpense = expenseDoc.data() as ExpenseEntry;
+        oldExpensePayee = oldExpense.payee || '';
+        oldExpenseCategory = oldExpense.category || '';
+        
+        const wasPaid = oldExpense.isPaid || false;
         const isPaid = updates.isPaid !== undefined ? updates.isPaid : wasPaid;
-        const oldAmount = oldExpense.amount;
+        const oldAmount = oldExpense.amount || 0;
         const newAmount = updates.amount !== undefined ? updates.amount : oldAmount;
 
         if (!wasPaid && isPaid) {
@@ -408,71 +419,115 @@ export function useUserData(user: User | null) {
           newBalance = currentBalance - diff;
         }
 
+        const cleanUpdates = Object.fromEntries(
+          Object.entries(updates).filter(([_, v]) => v !== undefined)
+        );
+
+        transaction.set(expenseRef, cleanUpdates, { merge: true });
+
         if (newBalance !== currentBalance) {
-          const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
-          await setDoc(prefRef, { expenseBalance: newBalance }, { merge: true });
+          transaction.set(prefRef, { expenseBalance: newBalance }, { merge: true });
         }
-      }
-
-      // Filter out undefined values
-      const cleanUpdates = Object.fromEntries(
-        Object.entries(updates).filter(([_, v]) => v !== undefined)
-      );
+      });
       
-      await setDoc(expenseRef, cleanUpdates, { merge: true });
-      await addLog('edit_expense', `แก้ไขรายจ่าย: ${updates.payee || oldExpense?.payee || updates.category || oldExpense?.category}`, updates.amount);
+      await addLog('edit_expense', `แก้ไขรายจ่าย: ${updates.payee || oldExpensePayee || updates.category || oldExpenseCategory}`, updates.amount);
     } else {
-      const oldExpense = localExpenses.find(e => e.id === id);
-      if (oldExpense) {
-        const currentBalance = preferences.expenseBalance || 0;
-        let newBalance = currentBalance;
+      setLocalExpenses(prev => {
+        const currentExpenses = [...prev];
+        const index = currentExpenses.findIndex(e => e.id === id);
+        if (index === -1) return currentExpenses;
 
+        const oldExpense = currentExpenses[index];
         const wasPaid = oldExpense.isPaid;
         const isPaid = updates.isPaid !== undefined ? updates.isPaid : wasPaid;
         const oldAmount = oldExpense.amount;
         const newAmount = updates.amount !== undefined ? updates.amount : oldAmount;
 
-        if (!wasPaid && isPaid) {
-          newBalance = currentBalance - newAmount;
-        } else if (wasPaid && !isPaid) {
-          newBalance = currentBalance + oldAmount;
-        } else if (wasPaid && isPaid && updates.amount !== undefined) {
-          const diff = newAmount - oldAmount;
-          newBalance = currentBalance - diff;
-        }
+        setLocalPreferences(prevPref => {
+          const currentBalance = prevPref.expenseBalance || 0;
+          let newBalance = currentBalance;
 
-        if (newBalance !== currentBalance) {
-          setLocalPreferences(prev => ({ ...prev, expenseBalance: newBalance }));
-        }
-      }
-      setLocalExpenses(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
-      await addLog('edit_expense', `แก้ไขรายจ่าย: ${updates.payee || oldExpense?.payee || updates.category || oldExpense?.category}`, updates.amount);
+          if (!wasPaid && isPaid) {
+            newBalance = currentBalance - newAmount;
+          } else if (wasPaid && !isPaid) {
+            newBalance = currentBalance + oldAmount;
+          } else if (wasPaid && isPaid && updates.amount !== undefined) {
+            const diff = newAmount - oldAmount;
+            newBalance = currentBalance - diff;
+          }
+
+          if (newBalance !== currentBalance) {
+            return { ...prevPref, expenseBalance: newBalance };
+          }
+          return prevPref;
+        });
+
+        currentExpenses[index] = { ...oldExpense, ...updates };
+        return currentExpenses;
+      });
+      
+      const oldEx = localExpenses.find(e => e.id === id);
+      await addLog('edit_expense', `แก้ไขรายจ่าย: ${updates.payee || oldEx?.payee || updates.category || oldEx?.category}`, updates.amount);
     }
   };
 
   const deleteExpense = async (id: string) => {
-    const expenseToDelete = (user ? firestoreExpenses : localExpenses).find(e => e.id === id);
-    if (expenseToDelete) {
-      const currentBalance = preferences.expenseBalance || 0;
+    if (user) {
+      const expenseRef = doc(db, 'users', user.uid, 'expenses', id);
+      const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
+      let expenseAmount = 0;
+      let expensePayee = '';
+      let expenseCategory = '';
       
-      // Only add back if it was paid
-      const newBalance = expenseToDelete.isPaid ? currentBalance + expenseToDelete.amount : currentBalance;
+      await runTransaction(db, async (transaction) => {
+        const expenseDoc = await transaction.get(expenseRef);
+        if (!expenseDoc.exists()) return;
+        
+        const expenseToDelete = expenseDoc.data() as ExpenseEntry;
+        expenseAmount = expenseToDelete.amount;
+        expensePayee = expenseToDelete.payee || '';
+        expenseCategory = expenseToDelete.category || '';
+        
+        const prefDoc = await transaction.get(prefRef);
+        const currentBalance = prefDoc.exists() ? (prefDoc.data().expenseBalance || 0) : 0;
+        
+        // Only add back if it was paid
+        const newBalance = expenseToDelete.isPaid ? currentBalance + expenseToDelete.amount : currentBalance;
 
-      if (user) {
-        const expenseRef = doc(db, 'users', user.uid, 'expenses', id);
-        await deleteDoc(expenseRef);
+        transaction.delete(expenseRef);
         
         if (expenseToDelete.isPaid) {
-          const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
-          await setDoc(prefRef, { expenseBalance: newBalance }, { merge: true });
+          transaction.set(prefRef, { expenseBalance: newBalance }, { merge: true });
         }
-        await addLog('delete_expense', `ลบรายจ่าย: ${expenseToDelete.payee || expenseToDelete.category}`, expenseToDelete.amount);
-      } else {
-        setLocalExpenses(prev => prev.filter(e => e.id !== id));
-        if (expenseToDelete.isPaid) {
-          setLocalPreferences(prev => ({ ...prev, expenseBalance: newBalance }));
+      });
+      
+      if (expenseAmount > 0 || expensePayee || expenseCategory) {
+        await addLog('delete_expense', `ลบรายจ่าย: ${expensePayee || expenseCategory}`, expenseAmount);
+      }
+    } else {
+      let expenseAmount = 0;
+      let expensePayee = '';
+      let expenseCategory = '';
+      
+      setLocalExpenses(prev => {
+        const expenseToDelete = prev.find(e => e.id === id);
+        if (expenseToDelete) {
+          expenseAmount = expenseToDelete.amount;
+          expensePayee = expenseToDelete.payee || '';
+          expenseCategory = expenseToDelete.category || '';
+          
+          if (expenseToDelete.isPaid) {
+            setLocalPreferences(prevPref => {
+              const currentBalance = prevPref.expenseBalance || 0;
+              return { ...prevPref, expenseBalance: currentBalance + expenseToDelete.amount };
+            });
+          }
         }
-        await addLog('delete_expense', `ลบรายจ่าย: ${expenseToDelete.payee || expenseToDelete.category}`, expenseToDelete.amount);
+        return prev.filter(e => e.id !== id);
+      });
+      
+      if (expenseAmount > 0 || expensePayee || expenseCategory) {
+        await addLog('delete_expense', `ลบรายจ่าย: ${expensePayee || expenseCategory}`, expenseAmount);
       }
     }
   };
