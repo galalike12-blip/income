@@ -21,7 +21,6 @@ export interface ExpenseEntry {
   frequency?: 'monthly' | 'yearly';
   isIndefinite?: boolean;
   websiteUrl?: string;
-  imageUrl?: string;
   isPaid?: boolean;
   groupId?: string;
 }

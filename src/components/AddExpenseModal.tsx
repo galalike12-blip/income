@@ -15,18 +15,20 @@ interface AddExpenseModalProps {
   setCustomCategories: (categories: string[]) => void;
   editingExpense?: ExpenseEntry | null;
   sharedFile?: File | null;
+  expenses?: ExpenseEntry[];
 }
 
-export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategories, setCustomCategories, editingExpense, sharedFile }: AddExpenseModalProps) {
+export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategories, setCustomCategories, editingExpense, sharedFile, expenses = [] }: AddExpenseModalProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
+
+  const uniqueUrls = Array.from(new Set(expenses.map(e => e.websiteUrl).filter(Boolean))) as string[];
 
   const [expenseDate, setExpenseDate] = useState('');
   const [expenseCategory, setExpenseCategory] = useState('');
   const [expensePayee, setExpensePayee] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseNote, setExpenseNote] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [necessity, setNecessity] = useState<'necessary' | 'luxury'>('necessary');
   const [isFixed, setIsFixed] = useState(false);
@@ -93,7 +95,6 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         setExpensePayee(editingExpense.payee || '');
         setExpenseAmount((editingExpense.amount ?? 0).toString());
         setExpenseNote(editingExpense.note || '');
-        setImageUrl(editingExpense.imageUrl || '');
         setWebsiteUrl(editingExpense.websiteUrl || '');
         setNecessity(editingExpense.necessity || 'necessary');
         setIsFixed(editingExpense.isFixed || false);
@@ -108,7 +109,6 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         setExpensePayee('');
         setExpenseAmount('');
         setExpenseNote('');
-        setImageUrl('');
         setWebsiteUrl('');
         setNecessity('necessary');
         setIsFixed(false);
@@ -223,7 +223,6 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
       payee: expensePayee,
       amount: parseFloat(expenseAmount) || 0,
       note: expenseNote,
-      imageUrl,
       websiteUrl,
       necessity,
       isFixed,
@@ -347,13 +346,20 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
                   </div>
 
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 ml-1">URL รูปภาพ</label>
-                    <input type="url" value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" />
-                  </div>
-
-                  <div className="col-span-2">
                     <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 ml-1">URL เว็บไซต์ (สำหรับดึงไอคอน)</label>
-                    <input type="url" value={websiteUrl} onChange={e => setWebsiteUrl(e.target.value)} placeholder="https://example.com" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" />
+                    <input 
+                      type="url" 
+                      list="recent-website-urls"
+                      value={websiteUrl} 
+                      onChange={e => setWebsiteUrl(e.target.value)} 
+                      placeholder="https://example.com" 
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" 
+                    />
+                    <datalist id="recent-website-urls">
+                      {uniqueUrls.map(url => (
+                        <option key={url} value={url} />
+                      ))}
+                    </datalist>
                   </div>
 
                   <div className="col-span-2">

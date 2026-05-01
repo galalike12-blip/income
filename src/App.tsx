@@ -394,6 +394,7 @@ function MainContent() {
         setCustomCategories={(cats) => updatePreferences({ customCategories: cats })}
         editingExpense={editingExpense}
         sharedFile={sharedFile}
+        expenses={expenses}
       />
       <FloatingNav 
         onAddIncome={() => {
