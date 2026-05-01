@@ -957,8 +957,10 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-4 min-w-0">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${expense.isPaid ? 'bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-indigo-100/50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'}`}>
-            {getFaviconUrl(expense.websiteUrl) ? (
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${expense.isPaid ? 'bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-indigo-100/50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'} overflow-hidden`}>
+            {expense.imageUrl ? (
+              <img src={expense.imageUrl} alt="icon" className="w-full h-full object-cover" />
+            ) : getFaviconUrl(expense.websiteUrl) ? (
               <img src={getFaviconUrl(expense.websiteUrl)!} alt="icon" className="w-6 h-6 rounded-full bg-white p-0.5" referrerPolicy="no-referrer" />
             ) : (
               <div className="text-current">

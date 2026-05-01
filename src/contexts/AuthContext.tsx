@@ -43,17 +43,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(currentUser);
       
       if (currentUser) {
-        // DIAGNOSTIC: Try writing to debug collection to check if basic connectivity works
-        try {
-          await setDoc(doc(db, 'debug', 'connectivity_test'), {
-            lastCheck: serverTimestamp(),
-            clientTime: new Date().toISOString()
-          });
-          console.log("Firestore Diagnostic: Basic connectivity SUCCESS");
-        } catch (e: any) {
-          console.error("Firestore Diagnostic: Basic connectivity FAILED", e);
-        }
-
         // Fetch user profile from Firestore with retry logic
         const docRef = doc(db, 'users', currentUser.uid);
         
@@ -132,18 +121,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (error: any) {
-      console.error("Error signing in with Google", error);
+      console.error("Error signing in with Google:", error?.message || error);
       
       if (error.code === 'auth/popup-blocked') {
         toast.error('เบราว์เซอร์บล็อก Pop-up กรุณาอนุญาต Pop-up หรือเปิดแอปในแท็บใหม่ (New Tab)');
       } else if (error.code === 'auth/unauthorized-domain') {
         toast.error('โดเมนนี้ยังไม่ได้รับอนุญาต กรุณาเพิ่มโดเมนใน Firebase Console -> Authentication -> Settings -> Authorized domains');
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        // User closed the popup, no need for a loud error
+      } else if (
+        error.code === 'auth/popup-closed-by-user' || 
+        error.code === 'auth/cancelled-popup-request'
+      ) {
+        // User closed or canceled the popup, no need for a loud error or re-throw
+        return;
       } else {
         toast.error('เกิดข้อผิดพลาดในการเข้าสู่ระบบ: ' + (error.message || 'Unknown error') + ' แนะนำให้เปิดแอปในแท็บใหม่');
       }
-      throw error;
+      // Re-throwing could cause unhandled promise rejections with cyclic structures
+      // Throw only if it's an unexpected error, but maybe better not to throw if UI handled it
     }
   };
 

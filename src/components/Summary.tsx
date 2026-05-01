@@ -165,7 +165,10 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
       const dStr = j.date.split('T')[0];
       return dStr >= startStr && dStr <= endStr;
     });
-    const filteredExpenses = expenses.filter(e => e.date >= startStr && e.date <= endStr);
+    const filteredExpenses = expenses.filter(e => {
+      const dStr = e.date.split('T')[0];
+      return dStr >= startStr && dStr <= endStr;
+    });
 
     // Day-by-day calculation using string keys for robustness
     const dailyStats: Record<string, { income: number, jobs: number, tips: number, incentive: number }> = {};

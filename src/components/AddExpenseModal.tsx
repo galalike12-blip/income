@@ -27,6 +27,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseNote, setExpenseNote] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [websiteUrl, setWebsiteUrl] = useState('');
   const [necessity, setNecessity] = useState<'necessary' | 'luxury'>('necessary');
   const [isFixed, setIsFixed] = useState(false);
   const [frequency, setFrequency] = useState<'monthly' | 'yearly'>('monthly');
@@ -93,6 +94,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         setExpenseAmount((editingExpense.amount ?? 0).toString());
         setExpenseNote(editingExpense.note || '');
         setImageUrl(editingExpense.imageUrl || '');
+        setWebsiteUrl(editingExpense.websiteUrl || '');
         setNecessity(editingExpense.necessity || 'necessary');
         setIsFixed(editingExpense.isFixed || false);
         setFrequency(editingExpense.frequency || 'monthly');
@@ -107,6 +109,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         setExpenseAmount('');
         setExpenseNote('');
         setImageUrl('');
+        setWebsiteUrl('');
         setNecessity('necessary');
         setIsFixed(false);
         setFrequency('monthly');
@@ -221,6 +224,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
       amount: parseFloat(expenseAmount) || 0,
       note: expenseNote,
       imageUrl,
+      websiteUrl,
       necessity,
       isFixed,
       isPaid: isFixed ? isPaid : true,
@@ -345,6 +349,11 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 ml-1">URL รูปภาพ</label>
                     <input type="url" value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 ml-1">URL เว็บไซต์ (สำหรับดึงไอคอน)</label>
+                    <input type="url" value={websiteUrl} onChange={e => setWebsiteUrl(e.target.value)} placeholder="https://example.com" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" />
                   </div>
 
                   <div className="col-span-2">

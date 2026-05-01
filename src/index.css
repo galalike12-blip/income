@@ -52,15 +52,11 @@ body {
 }
 
 /* Glassmorphism utilities */
-.recharts-wrapper,
-.recharts-surface,
-.recharts-sector,
-.recharts-bar-rectangle,
-.recharts-pie-sector,
-.recharts-active-dot,
-.recharts-layer,
-.recharts-svg {
+.recharts-wrapper * {
   outline: none !important;
+}
+
+* {
   -webkit-tap-highlight-color: transparent !important;
 }
 
