@@ -488,7 +488,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 'bold' }} />
                 <YAxis type="category" dataKey="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 'bold' }} width={80} />
                 <Tooltip 
-                  cursor={{ fill: '#f8fafc' }}
+                  cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }}
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px' }}
                   formatter={(value: number) => [`฿${value.toLocaleString()}`, 'ยอดรวมรายจ่าย']}
                 />
