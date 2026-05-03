@@ -262,7 +262,10 @@ function MainContent() {
   }, [jobs, user, googleAccessToken, spreadsheetId]);
 
   return (
-    <div className="h-screen flex flex-col font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200 relative overflow-hidden">
+    <div 
+      className="h-[100dvh] flex flex-col font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200 relative overflow-hidden"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+    >
       {/* Fixed Background */}
       <div className="liquid-bg fixed inset-0 pointer-events-none">
         <div className="blob blob-1"></div>

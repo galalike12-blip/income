@@ -24,12 +24,32 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
 
+    const updateThemeColor = (activeTheme: 'light' | 'dark') => {
+      const metas = document.querySelectorAll("meta[name='theme-color']");
+      const color = activeTheme === 'dark' ? '#020617' : '#f8fafc';
+      
+      if (metas.length > 0) {
+        metas.forEach(meta => {
+          meta.setAttribute("content", color);
+          meta.removeAttribute("media"); // override the initial media query
+        });
+      } else {
+        const metaThemeColor = document.createElement("meta");
+        metaThemeColor.setAttribute("name", "theme-color");
+        metaThemeColor.setAttribute("content", color);
+        document.head.appendChild(metaThemeColor);
+      }
+    };
+
+    let appliedTheme: 'light' | 'dark' = 'light';
     if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      root.classList.add(systemTheme);
+      appliedTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     } else {
-      root.classList.add(theme);
+      appliedTheme = theme as 'light' | 'dark';
     }
+    
+    root.classList.add(appliedTheme);
+    updateThemeColor(appliedTheme);
   }, [theme]);
 
   // Listen for system theme changes
@@ -39,7 +59,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       if (theme === 'system') {
         const root = window.document.documentElement;
         root.classList.remove('light', 'dark');
-        root.classList.add(mediaQuery.matches ? 'dark' : 'light');
+        const appliedTheme = mediaQuery.matches ? 'dark' : 'light';
+        root.classList.add(appliedTheme);
+        
+        const metas = document.querySelectorAll("meta[name='theme-color']");
+        const color = appliedTheme === 'dark' ? '#020617' : '#f8fafc';
+        metas.forEach(meta => {
+          meta.setAttribute("content", color);
+          meta.removeAttribute("media");
+        });
       }
     };
     mediaQuery.addEventListener('change', handleChange);
