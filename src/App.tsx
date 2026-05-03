@@ -14,6 +14,7 @@ import { AddExpenseModal } from './components/AddExpenseModal';
 import { Header } from './components/Header';
 import { GoalModal } from './components/GoalModal';
 import { ActivityLogModal } from './components/ActivityLogModal';
+import { IosInstallPrompt } from './components/IosInstallPrompt';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useUserData } from './hooks/useUserData';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext';
@@ -424,7 +425,7 @@ function MainContent() {
         goals={goals}
         onSetGoal={setGoal}
       />
-
+      <IosInstallPrompt />
       <Toaster position="top-center" richColors />
     </div>
   );

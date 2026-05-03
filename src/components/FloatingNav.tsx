@@ -67,7 +67,10 @@ export function FloatingNav({ onAddExpense, onAddIncome, onOpenAI, onLongPressAI
   };
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 w-full max-w-xs sm:max-w-sm">
+    <div 
+      className="fixed left-1/2 -translate-x-1/2 z-50 px-4 w-full max-w-xs sm:max-w-sm pb-safe-bottom"
+      style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+    >
       <div className="relative flex items-center justify-between bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-full p-2 shadow-2xl shadow-indigo-500/10 h-[62px]">
         
         {/* Add Expense Button */}
