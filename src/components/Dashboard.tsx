@@ -5,6 +5,7 @@ import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 interface DashboardProps {
   jobs: JobEntry[];
@@ -29,6 +30,12 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
   const widgetOrder = preferences?.dashboardWidgetOrder?.filter(id => id !== 'transfer') || ['goals', 'summary', 'list'];
   const setWidgetOrder = (newOrder: string[]) => updatePreferences({ dashboardWidgetOrder: newOrder });
   const [isCustomizing, setIsCustomizing] = useState(false);
+  const [cardVisibility, setCardVisibility] = useLocalStorage('dashboard-card-visibility', {
+    netIncome: true,
+    dailyIncentive: true,
+    dailyAverage: true,
+    incomeComparison: true,
+  });
 
   const totalUntransferred = useMemo(() => {
     const jobNet = jobs.filter(j => !j.transferred).reduce((sum, j) => {
@@ -272,21 +279,53 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
       </div>
 
       {isCustomizing ? (
-        <Reorder.Group axis="y" values={widgetOrder} onReorder={setWidgetOrder} className="space-y-4">
-          {widgetOrder.map(id => (
-            <Reorder.Item key={id} value={id} className="glass-panel p-4 rounded-3xl flex items-center gap-4 cursor-grab active:cursor-grabbing">
-              <GripVertical className="text-slate-400" />
-              <span className="font-medium text-slate-700 dark:text-slate-200">
-                {id === 'goals' && "เป้าหมายรายได้ (Goals)"}
-                {id === 'summary' && t.dailyEarnings}
-                {id === 'transfer' && "ตัดยอดเข้ารายจ่าย (Transfer)"}
-                {id === 'form' && t.addJobEntry}
-                {id === 'list' && t.todaysEntries}
-                {id === 'expenses' && "รายจ่าย (Expenses)"}
-              </span>
-            </Reorder.Item>
-          ))}
-        </Reorder.Group>
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          <div className="glass-panel p-4 rounded-[2rem] space-y-3 mb-2 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10">
+            <h4 className="text-sm font-black text-slate-800 dark:text-white px-2">ตั้งค่าการแสดงผลหน้ารายรับ</h4>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { key: 'netIncome', label: 'ยอดสุทธิ', icon: <DollarSign className="w-4 h-4" /> },
+                { key: 'dailyIncentive', label: 'โบนัสรายวัน', icon: <Gift className="w-4 h-4" /> },
+                { key: 'dailyAverage', label: 'ค่าเฉลี่ยรายวัน', icon: <BarChart2 className="w-4 h-4" /> },
+                { key: 'incomeComparison', label: 'เปรียบเทียบรายได้', icon: <TrendingUp className="w-4 h-4" /> },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setCardVisibility({ ...cardVisibility, [item.key]: !cardVisibility[item.key as keyof typeof cardVisibility] })}
+                  className={`flex items-center gap-2 p-3 rounded-xl transition-all border ${cardVisibility[item.key as keyof typeof cardVisibility] ? 'bg-white dark:bg-slate-800 border-indigo-200 dark:border-indigo-800 shadow-sm text-slate-800 dark:text-white' : 'bg-slate-100/50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 opacity-60'}`}
+                >
+                  <div className={cardVisibility[item.key as keyof typeof cardVisibility] ? 'text-indigo-500' : ''}>
+                    {item.icon}
+                  </div>
+                  <span className="text-xs font-bold">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div>
+            <h4 className="text-sm font-black text-slate-800 dark:text-white px-2 mb-3">เรียงลำดับวิดเจ็ต</h4>
+            <Reorder.Group axis="y" values={widgetOrder} onReorder={setWidgetOrder} className="space-y-4">
+              {widgetOrder.map(id => (
+                <Reorder.Item key={id} value={id} className="glass-panel p-4 rounded-3xl flex items-center gap-4 cursor-grab active:cursor-grabbing">
+                  <GripVertical className="text-slate-400" />
+                  <span className="font-medium text-slate-700 dark:text-slate-200">
+                    {id === 'goals' && "เป้าหมายรายได้ (Goals)"}
+                    {id === 'summary' && t.dailyEarnings}
+                    {id === 'transfer' && "ตัดยอดเข้ารายจ่าย (Transfer)"}
+                    {id === 'form' && t.addJobEntry}
+                    {id === 'list' && t.todaysEntries}
+                    {id === 'expenses' && "รายจ่าย (Expenses)"}
+                  </span>
+                </Reorder.Item>
+              ))}
+            </Reorder.Group>
+          </div>
+        </motion.div>
       ) : (
         <div className="space-y-6">
           {widgetOrder.map(id => (
@@ -357,82 +396,90 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
               {id === 'summary' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    <div className="p-5 rounded-3xl glass-panel-subtle transition-colors col-span-1 flex flex-col justify-between">
-                      <div>
-                        <div className="flex justify-between items-start mb-3">
-                          <h3 className="text-[25px] font-semibold text-emerald-700 dark:text-emerald-400 opacity-90">{t.netIncome}</h3>
-                          <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl">
-                            <DollarSign className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                    {cardVisibility.netIncome && (
+                      <div className="p-5 rounded-3xl glass-panel-subtle transition-colors col-span-1 flex flex-col justify-between">
+                        <div>
+                          <div className="flex justify-between items-start mb-3">
+                            <h3 className="text-[25px] font-semibold text-emerald-700 dark:text-emerald-400 opacity-90">{t.netIncome}</h3>
+                            <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl">
+                              <DollarSign className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                            </div>
+                          </div>
+                          <div className="text-[23px] font-bold text-emerald-700 dark:text-emerald-400">฿{summary.netIncome.toFixed(2)}</div>
+                        </div>
+                        
+                        <div className="mt-4 pt-4 border-t border-emerald-100 dark:border-emerald-800/50">
+                          <div className="flex justify-between items-end">
+                            <div>
+                              <div className="text-[10px] font-bold text-emerald-600/60 dark:text-emerald-400/60 uppercase tracking-wider mb-0.5">ยอดสะสมรอตัด</div>
+                              <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400">฿{totalUntransferred.toFixed(2)}</div>
+                            </div>
+                            <button
+                              onClick={() => totalUntransferred > 0 && setShowTransferConfirm(true)}
+                              disabled={totalUntransferred <= 0}
+                              className={`p-2 rounded-xl transition-all ${totalUntransferred > 0 ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-200 dark:shadow-none active:scale-95' : 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed'}`}
+                              title="ตัดยอดเข้ารายจ่าย"
+                            >
+                              <ArrowUpCircle className="w-5 h-5" />
+                            </button>
                           </div>
                         </div>
-                        <div className="text-[23px] font-bold text-emerald-700 dark:text-emerald-400">฿{summary.netIncome.toFixed(2)}</div>
                       </div>
-                      
-                      <div className="mt-4 pt-4 border-t border-emerald-100 dark:border-emerald-800/50">
-                        <div className="flex justify-between items-end">
-                          <div>
-                            <div className="text-[10px] font-bold text-emerald-600/60 dark:text-emerald-400/60 uppercase tracking-wider mb-0.5">ยอดสะสมรอตัด</div>
-                            <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400">฿{totalUntransferred.toFixed(2)}</div>
-                          </div>
-                          <button
-                            onClick={() => totalUntransferred > 0 && setShowTransferConfirm(true)}
-                            disabled={totalUntransferred <= 0}
-                            className={`p-2 rounded-xl transition-all ${totalUntransferred > 0 ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-200 dark:shadow-none active:scale-95' : 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed'}`}
-                            title="ตัดยอดเข้ารายจ่าย"
-                          >
-                            <ArrowUpCircle className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                    )}
                     
-                    <div className="p-5 rounded-3xl glass-panel-subtle transition-colors">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="text-[25px] font-semibold text-violet-700 dark:text-violet-400 opacity-90">{t.dailyIncentive}</h3>
-                        <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl"><Gift className="w-5 h-5 text-violet-600 dark:text-violet-400" /></div>
+                    {cardVisibility.dailyIncentive && (
+                      <div className="p-5 rounded-3xl glass-panel-subtle transition-colors">
+                        <div className="flex justify-between items-start mb-2">
+                          <h3 className="text-[25px] font-semibold text-violet-700 dark:text-violet-400 opacity-90">{t.dailyIncentive}</h3>
+                          <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl"><Gift className="w-5 h-5 text-violet-600 dark:text-violet-400" /></div>
+                        </div>
+                        <div className="mt-2 flex items-center gap-1">
+                          <span className="text-[23px] font-bold text-violet-700 dark:text-violet-400">฿</span>
+                          <input
+                            type="number"
+                            value={incentives[selectedDate] || ''}
+                            onChange={(e) => setIncentive(selectedDate, parseFloat(e.target.value) || 0)}
+                            placeholder="0.00"
+                            className="w-full bg-transparent text-[23px] font-bold text-violet-700 dark:text-violet-400 outline-none placeholder-violet-300 dark:placeholder-violet-700/50"
+                          />
+                        </div>
                       </div>
-                      <div className="mt-2 flex items-center gap-1">
-                        <span className="text-[23px] font-bold text-violet-700 dark:text-violet-400">฿</span>
-                        <input
-                          type="number"
-                          value={incentives[selectedDate] || ''}
-                          onChange={(e) => setIncentive(selectedDate, parseFloat(e.target.value) || 0)}
-                          placeholder="0.00"
-                          className="w-full bg-transparent text-[23px] font-bold text-violet-700 dark:text-violet-400 outline-none placeholder-violet-300 dark:placeholder-violet-700/50"
-                        />
-                      </div>
-                    </div>
+                    )}
 
-                    <SummaryCard 
-                      title={t.dailyAverage} 
-                      valueDisplay={`฿${dailyAverage.toFixed(2)}`}
-                      icon={<BarChart2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />} 
-                      bg="bg-indigo-50 dark:bg-indigo-900/30" 
-                      color="text-indigo-700 dark:text-indigo-400" 
-                    />
+                    {cardVisibility.dailyAverage && (
+                      <SummaryCard 
+                        title={t.dailyAverage} 
+                        valueDisplay={`฿${dailyAverage.toFixed(2)}`}
+                        icon={<BarChart2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />} 
+                        bg="bg-indigo-50 dark:bg-indigo-900/30" 
+                        color="text-indigo-700 dark:text-indigo-400" 
+                      />
+                    )}
                   </div>
                   
-                  <div className="glass-panel p-6 rounded-3xl transition-colors">
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                      <BarChart2 className="w-5 h-5 text-indigo-500" />
-                      {t.incomeComparison || 'เปรียบเทียบรายได้ 7 วันล่าสุด'}
-                    </h3>
-                    <div className="h-[250px] w-full min-w-0 relative">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={last7DaysData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                          <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                          <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `฿${value}`} />
-                          <Tooltip 
-                            cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }}
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                            formatter={(value: number) => [`฿${value.toFixed(2)}`, t.netIncome]}
-                          />
-                          <Bar dataKey="income" fill="#4f46e5" radius={[8, 8, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
+                  {cardVisibility.incomeComparison && (
+                    <div className="glass-panel p-6 rounded-3xl transition-colors">
+                      <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                        <BarChart2 className="w-5 h-5 text-indigo-500" />
+                        {t.incomeComparison || 'เปรียบเทียบรายได้ 7 วันล่าสุด'}
+                      </h3>
+                      <div className="h-[250px] w-full min-w-0 relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={last7DaysData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                            <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                            <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `฿${value}`} />
+                            <Tooltip 
+                              cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }}
+                              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                              formatter={(value: number) => [`฿${value.toFixed(2)}`, t.netIncome]}
+                            />
+                            <Bar dataKey="income" fill="#4f46e5" radius={[8, 8, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
 

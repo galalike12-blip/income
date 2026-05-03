@@ -13,7 +13,8 @@ import {
   XCircle,
   Coins,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Settings2
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -29,6 +30,7 @@ import {
 import { JobEntry, ExpenseEntry } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 interface SummaryProps {
   jobs: JobEntry[];
@@ -43,6 +45,15 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
   const t = translations[currentLang];
 
   const [activeTab, setActiveTab] = useState<SubTab>('monthly');
+  const [showSettings, setShowSettings] = useState(false);
+  const [cardVisibility, setCardVisibility] = useLocalStorage('summary-card-visibility', {
+    tips: true,
+    offDays: true,
+    workDays: true,
+    secondaryStats: true,
+    dailyChart: true,
+    categoryChart: true
+  });
   
   // Helper to get local date string YYYY-MM-DD
   const getLocalDateStr = (d: Date) => {
@@ -256,22 +267,67 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
 
   return (
     <div className="max-w-4xl mx-auto px-4 pt-2 pb-24 space-y-6">
-      {/* Sub-tabs Selection */}
-      <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl sticky top-2 z-10 shadow-sm border border-slate-200 dark:border-slate-700">
-        {subTabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
-              activeTab === tab.id 
-                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm scale-[0.98]' 
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Sub-tabs Selection and Settings */}
+      <div className="flex gap-2 items-center sticky top-2 z-10">
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex-1">
+          {subTabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                activeTab === tab.id 
+                  ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm scale-[0.98]' 
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <button 
+          onClick={() => setShowSettings(!showSettings)}
+          className={`p-3 rounded-2xl transition-all shadow-sm border flex-shrink-0 ${showSettings ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+        >
+          <Settings2 className="w-5 h-5" />
+        </button>
       </div>
+
+      {/* Settings Panel */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, scale: 0.95 }}
+            animate={{ opacity: 1, height: 'auto', scale: 1 }}
+            exit={{ opacity: 0, height: 0, scale: 0.95 }}
+            className="overflow-hidden"
+          >
+            <div className="glass-panel p-4 rounded-[2rem] space-y-3 mb-2 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10">
+              <h4 className="text-sm font-black text-slate-800 dark:text-white px-2">ตั้งค่าการแสดงผลหน้าสรุป</h4>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { key: 'tips', label: 'ทิปที่ได้', icon: <Coins className="w-4 h-4" /> },
+                  { key: 'offDays', label: 'วันหยุด', icon: <XCircle className="w-4 h-4" /> },
+                  { key: 'workDays', label: 'วันทำงาน', icon: <CheckCircle2 className="w-4 h-4" /> },
+                  { key: 'secondaryStats', label: 'รายรับ/รายจ่ายรวม', icon: <TrendingUp className="w-4 h-4" /> },
+                  { key: 'dailyChart', label: 'กราฟรายวัน', icon: <Calendar className="w-4 h-4" /> },
+                  { key: 'categoryChart', label: 'กราฟหมวดหมู่', icon: <Filter className="w-4 h-4" /> },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={() => setCardVisibility({ ...cardVisibility, [item.key]: !cardVisibility[item.key as keyof typeof cardVisibility] })}
+                    className={`flex items-center gap-2 p-3 rounded-xl transition-all border ${cardVisibility[item.key as keyof typeof cardVisibility] ? 'bg-white dark:bg-slate-800 border-indigo-200 dark:border-indigo-800 shadow-sm text-slate-800 dark:text-white' : 'bg-slate-100/50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 opacity-60'}`}
+                  >
+                    <div className={cardVisibility[item.key as keyof typeof cardVisibility] ? 'text-indigo-500' : ''}>
+                      {item.icon}
+                    </div>
+                    <span className="text-xs font-bold">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Inputs based on sub-tab */}
       <AnimatePresence mode="wait">
@@ -330,92 +386,100 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
 
       {/* Main Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="glass-panel p-6 rounded-[2rem] border-b-4 border-amber-500 relative overflow-hidden group col-span-2 lg:col-span-1"
-        >
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-colors" />
-          <div className="relative flex flex-col items-center text-center space-y-3">
-            <div className="p-3 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-2xl">
-              <Coins className="w-6 h-6" />
+        {cardVisibility.tips && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass-panel p-6 rounded-[2rem] border-b-4 border-amber-500 relative overflow-hidden group col-span-2 lg:col-span-1"
+          >
+            <div className="absolute -right-4 -top-4 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-colors" />
+            <div className="relative flex flex-col items-center text-center space-y-3">
+              <div className="p-3 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-2xl">
+                <Coins className="w-6 h-6" />
+              </div>
+              <div>
+                 <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">ทิปที่ได้</p>
+                 <h3 className="text-3xl font-black text-slate-800 dark:text-white mt-1">
+                   ฿{rangeData.totalTips.toLocaleString()}
+                 </h3>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">ทิปที่ได้</p>
-              <h3 className="text-3xl font-black text-slate-800 dark:text-white mt-1">
-                ฿{rangeData.totalTips.toLocaleString()}
-              </h3>
-            </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        )}
 
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1 }}
-          className="glass-panel p-6 rounded-[2rem] border-b-4 border-rose-500 relative overflow-hidden group"
-        >
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-rose-500/5 rounded-full blur-2xl group-hover:bg-rose-500/10 transition-colors" />
-          <div className="relative flex flex-col items-center text-center space-y-3">
-            <div className="p-3 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-2xl">
-              <XCircle className="w-6 h-6" />
+        {cardVisibility.offDays && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="glass-panel p-6 rounded-[2rem] border-b-4 border-rose-500 relative overflow-hidden group"
+          >
+            <div className="absolute -right-4 -top-4 w-24 h-24 bg-rose-500/5 rounded-full blur-2xl group-hover:bg-rose-500/10 transition-colors" />
+            <div className="relative flex flex-col items-center text-center space-y-3">
+              <div className="p-3 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-2xl">
+                <XCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">หยุดไปกี่วัน</p>
+                <h3 className="text-3xl font-black text-slate-800 dark:text-white mt-1">
+                  {rangeData.offDays} <span className="text-sm font-bold text-slate-400 ml-1">วัน</span>
+                </h3>
+                <p className="text-[10px] text-slate-400 mt-1 font-bold">(รายได้ {'<='} 800)</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">หยุดไปกี่วัน</p>
-              <h3 className="text-3xl font-black text-slate-800 dark:text-white mt-1">
-                {rangeData.offDays} <span className="text-sm font-bold text-slate-400 ml-1">วัน</span>
-              </h3>
-              <p className="text-[10px] text-slate-400 mt-1 font-bold">(รายได้ {'<='} 800)</p>
-            </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        )}
 
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
-          className="glass-panel p-6 rounded-[2rem] border-b-4 border-emerald-500 relative overflow-hidden group"
-        >
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors" />
-          <div className="relative flex flex-col items-center text-center space-y-3">
-            <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl">
-              <CheckCircle2 className="w-6 h-6" />
+        {cardVisibility.workDays && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2 }}
+            className="glass-panel p-6 rounded-[2rem] border-b-4 border-emerald-500 relative overflow-hidden group"
+          >
+            <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors" />
+            <div className="relative flex flex-col items-center text-center space-y-3">
+              <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">ทำงานกี่วัน</p>
+                <h3 className="text-3xl font-black text-slate-800 dark:text-white mt-1">
+                  {rangeData.workDays} <span className="text-sm font-bold text-slate-400 ml-1">วัน</span>
+                </h3>
+                <p className="text-[10px] text-slate-400 mt-1 font-bold">(รายได้ {'>'} 800)</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">ทำงานกี่วัน</p>
-              <h3 className="text-3xl font-black text-slate-800 dark:text-white mt-1">
-                {rangeData.workDays} <span className="text-sm font-bold text-slate-400 ml-1">วัน</span>
-              </h3>
-              <p className="text-[10px] text-slate-400 mt-1 font-bold">(รายได้ {'>'} 800)</p>
-            </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        )}
       </div>
 
       {/* Secondary Stats Group */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="glass-panel p-4 rounded-3xl flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">รายรับรวม</p>
-            <p className="text-lg font-black text-emerald-600">฿{rangeData.totalIncome.toLocaleString()}</p>
+      {cardVisibility.secondaryStats && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="glass-panel p-4 rounded-3xl flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">รายรับรวม</p>
+              <p className="text-lg font-black text-emerald-600">฿{rangeData.totalIncome.toLocaleString()}</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-emerald-500" />
+            </div>
           </div>
-          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-emerald-500" />
+          <div className="glass-panel p-4 rounded-3xl flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">รายจ่ายรวม</p>
+              <p className="text-lg font-black text-rose-600">฿{rangeData.totalExpenses.toLocaleString()}</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center">
+              <TrendingDown className="w-5 h-5 text-rose-500" />
+            </div>
           </div>
         </div>
-        <div className="glass-panel p-4 rounded-3xl flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">รายจ่ายรวม</p>
-            <p className="text-lg font-black text-rose-600">฿{rangeData.totalExpenses.toLocaleString()}</p>
-          </div>
-          <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center">
-            <TrendingDown className="w-5 h-5 text-rose-500" />
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Daily Income Chart */}
-      {activeTab !== 'daily' && (
+      {activeTab !== 'daily' && cardVisibility.dailyChart && (
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -471,43 +535,45 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
       )}
 
       {/* Category Expenses Chart */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-panel p-6 rounded-[2rem] mt-6"
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h4 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2 uppercase tracking-widest">
-            <Filter className="w-4 h-4 text-rose-500" />
-            รายจ่ายตามหมวดหมู่
-          </h4>
-        </div>
-        
-        {rangeData.categoryStatsList.length > 0 ? (
-          <div className="h-[250px] w-full mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={rangeData.categoryStatsList} layout="vertical" margin={{ top: 0, right: 20, left: 20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 'bold' }} />
-                <YAxis type="category" dataKey="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 'bold' }} width={80} />
-                <Tooltip 
-                  cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }}
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px' }}
-                  formatter={(value: number) => [`฿${value.toLocaleString()}`, 'ยอดรวมรายจ่าย']}
-                />
-                <Bar dataKey="amount" name="ยอดรวม" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={20} />
-              </BarChart>
-            </ResponsiveContainer>
+      {cardVisibility.categoryChart && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-panel p-6 rounded-[2rem] mt-6"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h4 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2 uppercase tracking-widest">
+              <Filter className="w-4 h-4 text-rose-500" />
+              รายจ่ายตามหมวดหมู่
+            </h4>
           </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center p-8 text-slate-400">
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-full mb-3">
-              <TrendingDown className="w-6 h-6 opacity-50" />
+          
+          {rangeData.categoryStatsList.length > 0 ? (
+            <div className="h-[250px] w-full mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={rangeData.categoryStatsList} layout="vertical" margin={{ top: 0, right: 20, left: 20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 'bold' }} />
+                  <YAxis type="category" dataKey="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 'bold' }} width={80} />
+                  <Tooltip 
+                    cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }}
+                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                    formatter={(value: number) => [`฿${value.toLocaleString()}`, 'ยอดรวมรายจ่าย']}
+                  />
+                  <Bar dataKey="amount" name="ยอดรวม" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-            <p className="text-xs font-bold text-center">ไม่มีข้อมูลรายจ่ายในช่วงเวลานี้</p>
-          </div>
-        )}
-      </motion.div>
+          ) : (
+            <div className="flex flex-col items-center justify-center p-8 text-slate-400">
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-full mb-3">
+                <TrendingDown className="w-6 h-6 opacity-50" />
+              </div>
+              <p className="text-xs font-bold text-center">ไม่มีข้อมูลรายจ่ายในช่วงเวลานี้</p>
+            </div>
+          )}
+        </motion.div>
+      )}
     </div>
   );
 }
