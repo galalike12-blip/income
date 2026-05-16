@@ -38,7 +38,7 @@ interface SummaryProps {
   incentives: Record<string, number>;
 }
 
-type SubTab = 'daily' | 'weekly' | 'monthly' | 'custom';
+type SubTab = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
 export function Summary({ jobs, expenses, incentives }: SummaryProps) {
   const { currentLang } = useSettings();
@@ -52,7 +52,8 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     workDays: true,
     secondaryStats: true,
     dailyChart: true,
-    categoryChart: true
+    categoryChart: true,
+    comparison: true // added this
   });
   
   // Helper to get local date string YYYY-MM-DD
@@ -77,6 +78,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear().toString());
 
   const navigateDate = (direction: number) => {
     const now = new Date();
@@ -91,6 +93,12 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
       const d = new Date(y, m - 1 + direction);
       if (d <= now) {
         setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      }
+    } else if (activeTab === 'yearly') {
+      const y = parseInt(selectedYear);
+      const d = new Date(y + direction, 0, 1);
+      if (d.getFullYear() <= now.getFullYear()) {
+        setSelectedYear(d.getFullYear().toString());
       }
     } else if (activeTab === 'weekly') {
       if (direction === -1) {
@@ -115,6 +123,9 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
       const d = new Date(y, m - 1);
       return d.toLocaleDateString(currentLang === 'th' ? 'th-TH' : 'en-US', { month: 'long', year: 'numeric' });
     }
+    if (activeTab === 'yearly') {
+      return selectedYear;
+    }
     if (activeTab === 'weekly') {
       const d = new Date();
       d.setDate(d.getDate() + (weekOffset * 7));
@@ -131,6 +142,8 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
   const rangeData = useMemo(() => {
     let startStr: string;
     let endStr: string;
+    let compStartStr: string | null = null;
+    let compEndStr: string | null = null;
     const now = new Date();
 
     const todayStr = getLocalDateStr(new Date());
@@ -161,6 +174,39 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
         const lastDayDate = new Date(y, m, 0);
         endStr = getLocalDateStr(lastDayDate);
       }
+      
+      // Comparison: up to same day of the previous month
+      const diffDays = Math.ceil((new Date(endStr).getTime() - new Date(startStr).getTime()) / 86400000) + 1;
+      let prevM = m - 1;
+      let prevY = y;
+      if (prevM === 0) {
+        prevM = 12;
+        prevY--;
+      }
+      compStartStr = `${prevY}-${String(prevM).padStart(2, '0')}-01`;
+      const compEndDate = new Date(prevY, prevM - 1, diffDays);
+      const lastDayOfPrevMonth = new Date(prevY, prevM, 0);
+      compEndStr = getLocalDateStr(compEndDate > lastDayOfPrevMonth ? lastDayOfPrevMonth : compEndDate);
+
+    } else if (activeTab === 'yearly') {
+      // Year-to-Date: Start Jan 1st, End Today (if current year)
+      const y = parseInt(selectedYear);
+      startStr = `${y}-01-01`;
+      
+      if (selectedYear === now.getFullYear().toString()) {
+        endStr = todayStr;
+      } else {
+        endStr = `${y}-12-31`;
+      }
+      
+      // Comparison: up to same day of the previous year
+      const diffDays = Math.ceil((new Date(endStr).getTime() - new Date(startStr).getTime()) / 86400000) + 1;
+      const prevY = y - 1;
+      compStartStr = `${prevY}-01-01`;
+      const compEndDate = new Date(prevY, 0, diffDays);
+      const lastDayOfPrevYear = new Date(prevY, 11, 31);
+      compEndStr = getLocalDateStr(compEndDate > lastDayOfPrevYear ? lastDayOfPrevYear : compEndDate);
+
     } else {
       startStr = startDate;
       endStr = endDate;
@@ -180,6 +226,39 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
       const dStr = e.date.split('T')[0];
       return dStr >= startStr && dStr <= endStr;
     });
+    
+    // Previous period filtering for comparison
+    let prevTotalIncome = 0;
+    if (compStartStr && compEndStr) {
+      const prevJobs = jobs.filter(j => {
+        const dStr = j.date.split('T')[0];
+        return dStr >= compStartStr! && dStr <= compEndStr!;
+      });
+      // day-by-day map to handle tips/incentives for previous period
+      const prevDailyStats: Record<string, number> = {};
+      const [psy, psm, psd] = compStartStr.split('-').map(Number);
+      const [pey, pem, ped] = compEndStr.split('-').map(Number);
+      const pCurrent = new Date(psy, psm - 1, psd, 12, 0, 0);
+      const pStop = new Date(pey, pem - 1, ped, 12, 0, 0);
+      while(pCurrent <= pStop) {
+        const d = getLocalDateStr(pCurrent);
+        prevDailyStats[d] = incentives[d] || 0;
+        pCurrent.setDate(pCurrent.getDate() + 1);
+      }
+      
+      prevJobs.forEach(j => {
+        const d = j.date.split('T')[0];
+        if (prevDailyStats[d] !== undefined) {
+          const amountToCollect = j.customerMustPay + j.upfrontCost;
+          const actual = j.actualReceived ?? amountToCollect;
+          const diff = actual - amountToCollect;
+          const tip = diff > 0 ? diff : 0;
+          const loss = diff < 0 ? Math.abs(diff) : 0;
+          prevDailyStats[d] += (j.appNetIncome - loss + tip);
+        }
+      });
+      prevTotalIncome = Object.values(prevDailyStats).reduce((sum, val) => sum + Math.max(0, val), 0);
+    }
 
     // Day-by-day calculation using string keys for robustness
     const dailyStats: Record<string, { income: number, jobs: number, tips: number, incentive: number }> = {};
@@ -254,14 +333,16 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
       categoryStatsList,
       startStr,
       endStr,
-      todayStr
+      todayStr,
+      prevTotalIncome // Added this
     };
-  }, [activeTab, jobs, expenses, incentives, selectedDay, selectedMonth, startDate, endDate, weekOffset]);
+  }, [activeTab, jobs, expenses, incentives, selectedDay, selectedMonth, selectedYear, startDate, endDate, weekOffset]);
 
   const subTabs: { id: SubTab, label: string }[] = [
     { id: 'daily', label: currentLang === 'th' ? 'รายวัน' : 'Daily' },
     { id: 'weekly', label: currentLang === 'th' ? 'รายสัปดาห์' : 'Weekly' },
     { id: 'monthly', label: currentLang === 'th' ? 'รายเดือน' : 'Monthly' },
+    { id: 'yearly', label: currentLang === 'th' ? 'รายปี' : 'Yearly' },
     { id: 'custom', label: currentLang === 'th' ? 'กำหนดเอง' : 'Custom' },
   ];
 
@@ -311,6 +392,7 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
                   { key: 'secondaryStats', label: 'รายรับ/รายจ่ายรวม', icon: <TrendingUp className="w-4 h-4" /> },
                   { key: 'dailyChart', label: 'กราฟรายวัน', icon: <Calendar className="w-4 h-4" /> },
                   { key: 'categoryChart', label: 'กราฟหมวดหมู่', icon: <Filter className="w-4 h-4" /> },
+                  { key: 'comparison', label: 'เปรียบเทียบ', icon: <TrendingUp className="w-4 h-4" /> },
                 ].map((item) => (
                   <button
                     key={item.key}
@@ -350,6 +432,13 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
               <button onClick={() => navigateDate(-1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><ChevronLeft className="w-5 h-5 text-slate-500" /></button>
               <span className="text-sm font-black text-slate-800 dark:text-white">{getDisplayLabel()}</span>
               <button disabled={selectedMonth === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`} onClick={() => navigateDate(1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-full"><ChevronRight className="w-5 h-5 text-slate-500" /></button>
+            </div>
+          )}
+          {activeTab === 'yearly' && (
+            <div className="flex items-center justify-between">
+              <button onClick={() => navigateDate(-1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><ChevronLeft className="w-5 h-5 text-slate-500" /></button>
+              <span className="text-sm font-black text-slate-800 dark:text-white">{getDisplayLabel()}</span>
+              <button disabled={selectedYear === new Date().getFullYear().toString()} onClick={() => navigateDate(1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-full"><ChevronRight className="w-5 h-5 text-slate-500" /></button>
             </div>
           )}
           {activeTab === 'custom' && (
@@ -476,6 +565,42 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Comparison Group */}
+      {cardVisibility.comparison && (activeTab === 'monthly' || activeTab === 'yearly') && rangeData.prevTotalIncome !== undefined && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-panel p-5 rounded-3xl"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                <CalendarRange className="w-3.5 h-3.5" />
+                เทียบกับช่วงเดียวกันของ{activeTab === 'monthly' ? 'เดือน' : 'ปี'}ที่แล้ว
+              </p>
+              <div className="flex items-end gap-3 mt-2">
+                <p className="text-xl font-black text-slate-800 dark:text-white">
+                  ฿{rangeData.prevTotalIncome.toLocaleString()}
+                </p>
+                {(() => {
+                  const diff = rangeData.totalIncome - rangeData.prevTotalIncome;
+                  const isPositive = diff > 0;
+                  const percent = rangeData.prevTotalIncome > 0 ? (diff / rangeData.prevTotalIncome) * 100 : 100;
+                  if (diff === 0) return <span className="text-sm font-bold text-slate-400 mb-0.5">เท่าเดิม</span>;
+                  return (
+                    <div className={`flex items-center gap-1 mb-1 text-xs font-bold px-2 py-0.5 rounded-md ${isPositive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30'}`}>
+                      {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      <span>{isPositive ? '+' : ''}฿{Math.abs(diff).toLocaleString()}</span>
+                      <span className="opacity-70 ml-0.5">({isPositive ? '+' : ''}{percent.toFixed(1)}%)</span>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        </motion.div>
       )}
 
       {/* Daily Income Chart */}
