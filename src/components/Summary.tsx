@@ -632,16 +632,25 @@ export function Summary({ jobs, expenses, incentives, rawIncentives = {}, expens
           animate={{ opacity: 1, y: 0 }}
           className="glass-panel p-5 rounded-3xl"
         >
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700/50 pb-4 mb-4">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                <CalendarRange className="w-3.5 h-3.5" />
-                เทียบเงินคงเหลือในบัญชี ณ เวลาเดียวกันของ{activeTab === 'monthly' ? 'เดือน' : 'ปี'}ที่แล้ว
-              </p>
-              <div className="flex items-end gap-3 mt-2">
-                <p className="text-xl font-black text-slate-800 dark:text-white">
-                  ฿{rangeData.prevBalance.toLocaleString()}
-                </p>
+          <div className="flex flex-col border-b border-slate-200 dark:border-slate-700/50 pb-4 mb-4">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <CalendarRange className="w-3.5 h-3.5" />
+              เทียบเงินคงเหลือในบัญชี กับเวลาเดียวกันของ{activeTab === 'monthly' ? 'เดือน' : 'ปี'}ที่แล้ว
+            </p>
+            
+            <div className="flex flex-col gap-1.5">
+              <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-xl text-sm">
+                <span className="text-slate-500 dark:text-slate-400">ยอดคงเหลือปัจจุบัน</span>
+                <span className="font-bold text-slate-800 dark:text-white">฿{rangeData.currentBalance.toLocaleString()}</span>
+              </div>
+              
+              <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-xl text-sm">
+                <span className="text-slate-500 dark:text-slate-400">ยอดคงเหลือเวลาเดียวกัน ({activeTab === 'monthly' ? 'เดือน' : 'ปี'}ที่แล้ว)</span>
+                <span className="font-bold text-slate-800 dark:text-white">฿{rangeData.prevBalance.toLocaleString()}</span>
+              </div>
+              
+              <div className="flex justify-between items-center px-2 pt-3 mt-1 border-t border-slate-100 dark:border-slate-800/60">
+                <span className="text-slate-600 dark:text-slate-300 text-sm font-bold">ส่วนต่าง</span>
                 {(() => {
                   const currentNet = rangeData.currentBalance;
                   const prevNet = rangeData.prevBalance;
@@ -651,26 +660,32 @@ export function Summary({ jobs, expenses, incentives, rawIncentives = {}, expens
                   const percent = prevNetAbs > 0 ? (diff / prevNetAbs) * 100 : 100;
                   if (diff === 0) return <span className="text-sm font-bold text-slate-400 mb-0.5">เท่าเดิม</span>;
                   return (
-                    <div className={`flex items-center gap-1 mb-1 text-xs font-bold px-2 py-0.5 rounded-md ${isPositive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30'}`}>
-                      {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-md ${isPositive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400'}`}>
+                      {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
                       <span>{isPositive ? '+' : ''}฿{Math.abs(diff).toLocaleString()}</span>
-                      <span className="opacity-70 ml-0.5">({isPositive ? '+' : ''}{percent.toFixed(1)}%)</span>
+                      <span className="opacity-80 ml-0.5">({isPositive ? '+' : ''}{percent.toFixed(1)}%)</span>
                     </div>
                   );
                 })()}
               </div>
             </div>
           </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                <CalendarRange className="w-3.5 h-3.5" />
-                เทียบรายจ่ายรวมกับเวลาเดียวกันของ{activeTab === 'monthly' ? 'เดือน' : 'ปี'}ที่แล้ว
-              </p>
-              <div className="flex items-end gap-3 mt-2">
-                <p className="text-xl font-black text-slate-800 dark:text-white">
-                  ฿{rangeData.prevTotalExpenses.toLocaleString()}
-                </p>
+          <div className="flex flex-col mt-2">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <CalendarRange className="w-3.5 h-3.5" />
+              เทียบรายจ่ายรวมกับเวลาเดียวกันของ{activeTab === 'monthly' ? 'เดือน' : 'ปี'}ที่แล้ว
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-xl text-sm">
+                <span className="text-slate-500 dark:text-slate-400">รายจ่ายรวมปัจจุบัน</span>
+                <span className="font-bold text-slate-800 dark:text-white">฿{rangeData.totalExpenses.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-xl text-sm">
+                <span className="text-slate-500 dark:text-slate-400">รายจ่ายรวมเวลาเดียวกัน ({activeTab === 'monthly' ? 'เดือน' : 'ปี'}ที่แล้ว)</span>
+                <span className="font-bold text-slate-800 dark:text-white">฿{rangeData.prevTotalExpenses.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center px-2 pt-3 mt-1 border-t border-slate-100 dark:border-slate-800/60">
+                <span className="text-slate-600 dark:text-slate-300 text-sm font-bold">ส่วนต่าง</span>
                 {(() => {
                   const diff = rangeData.totalExpenses - rangeData.prevTotalExpenses;
                   // For expenses, a DECREASE is actually positive (good), but visually we might use green for decrease.
@@ -679,10 +694,10 @@ export function Summary({ jobs, expenses, incentives, rawIncentives = {}, expens
                   const percent = prevAbs > 0 ? (diff / prevAbs) * 100 : 100;
                   if (diff === 0) return <span className="text-sm font-bold text-slate-400 mb-0.5">เท่าเดิม</span>;
                   return (
-                    <div className={`flex items-center gap-1 mb-1 text-xs font-bold px-2 py-0.5 rounded-md ${!isBad ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30'}`}>
-                      {!isBad ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+                    <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-md ${!isBad ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400'}`}>
+                      {!isBad ? <TrendingDown className="w-3.5 h-3.5" /> : <TrendingUp className="w-3.5 h-3.5" />}
                       <span>{!isBad ? '' : '+'}฿{Math.abs(diff).toLocaleString()}</span>
-                      <span className="opacity-70 ml-0.5">({!isBad ? '' : '+'}{percent.toFixed(1)}%)</span>
+                      <span className="opacity-80 ml-0.5">({!isBad ? '' : '+'}{percent.toFixed(1)}%)</span>
                     </div>
                   );
                 })()}
