@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { JobEntry, ExpenseEntry, UserPreferences } from '../types';
-import { Plus, Trash2, Calendar, DollarSign, Wallet, PieChart, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Edit2, GripVertical, ChevronDown, ChevronUp, Settings2, Check, Lock, Unlock, BarChart2, AlertCircle, ChevronRight, Camera, Loader2, X, Search, UtensilsCrossed, Fuel, Zap, Car, ShoppingBag, Wrench, HelpCircle, Home, TrendingUp, TrendingDown } from 'lucide-react';
+import { Plus, Trash2, Calendar, DollarSign, Wallet, PieChart, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Edit2, GripVertical, ChevronDown, ChevronUp, Settings2, Check, Lock, Unlock, BarChart2, AlertCircle, ChevronRight, Camera, Loader2, X, Search, UtensilsCrossed, Fuel, Zap, Car, ShoppingBag, Wrench, HelpCircle, Home } from 'lucide-react';
 import { Tooltip } from 'recharts';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -176,55 +176,6 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
     }
     setIsEditingBalance(false);
   };
-
-  const pastBalanceComparison = useMemo(() => {
-    // 1. Get today's date at midnight
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    // 2. Get the same day last month
-    const lastMonth = new Date(today);
-    lastMonth.setMonth(lastMonth.getMonth() - 1);
-    
-    const todayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-    const lastMonthStr = new Date(lastMonth.getTime() - (lastMonth.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-
-    // 3. Find transferred income between lastMonth and today
-    // We want the balance at the END of lastMonthStr, so we subtract transactions that happened AFTER lastMonthStr
-    const transferredJobs = jobs.filter(j => j.transferred && j.date > lastMonthStr && j.date <= todayStr);
-    const transferredIncome = transferredJobs.reduce((sum, j) => {
-      const amountToCollect = j.customerMustPay + j.upfrontCost;
-      const diff = (j.actualReceived ?? amountToCollect) - amountToCollect;
-      const tip = diff > 0 ? diff : 0;
-      const loss = diff < 0 ? Math.abs(diff) : 0;
-      return sum + (j.appNetIncome - loss + tip);
-    }, 0);
-
-    const transferredIncentives = Object.entries(incentives)
-      .filter(([date, _amount]) => {
-        return (date > lastMonthStr && date <= todayStr);
-      })
-      .reduce((sum, [_, amount]) => sum + amount, 0);
-
-    const totalTransferred = transferredIncome + transferredIncentives;
-
-    // 4. Find paid expenses between lastMonth and today
-    const paidExpenses = expenses.filter(e => e.isPaid && e.date > lastMonthStr && e.date <= todayStr);
-    const totalPaid = paidExpenses.reduce((sum, e) => sum + e.amount, 0);
-
-    // 5. Calculate estimated past balance
-    const estPastBalance = expenseBalance - totalTransferred + totalPaid;
-    const diff = expenseBalance - estPastBalance;
-    const isPositive = diff >= 0;
-    const percent = estPastBalance > 0 ? (Math.abs(diff) / estPastBalance) * 100 : 0;
-    
-    return {
-      estPastBalance,
-      diff,
-      isPositive,
-      percent
-    };
-  }, [jobs, expenses, incentives, expenseBalance]);
 
   const monthExpenses = useMemo(() => {
     return expenses.filter(e => e.date.startsWith(selectedMonth));
@@ -522,38 +473,15 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
                         />
                       </form>
                     ) : (
-                      <>
-                        <div 
-                          className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 cursor-pointer hover:opacity-80 transition-opacity"
-                          onClick={() => {
-                            setBalanceInput(expenseBalance.toString());
-                            setIsEditingBalance(true);
-                          }}
-                        >
-                          ฿{expenseBalance.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </div>
-                        {pastBalanceComparison && (
-                          <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/50">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
-                              <span>ยอดเมื่อวันเดียวกันของเดือนที่แล้ว</span>
-                              <span>฿{pastBalanceComparison.estPastBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                            </p>
-                            {(() => {
-                              const { diff, isPositive, percent } = pastBalanceComparison;
-                              if (diff === 0) {
-                                return <div className="text-xs font-bold text-slate-400">เท่าเดิม</div>;
-                              }
-                              return (
-                                <div className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-md ${isPositive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30'}`}>
-                                  {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                                  <span>{isPositive ? 'เพิ่มขึ้น' : 'ลดลง'} ฿{Math.abs(diff).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                  <span className="opacity-70 ml-0.5">({percent.toFixed(1)}%)</span>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                      </>
+                      <div 
+                        className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => {
+                          setBalanceInput(expenseBalance.toString());
+                          setIsEditingBalance(true);
+                        }}
+                      >
+                        ฿{expenseBalance.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
                     )}
                   </div>
 
