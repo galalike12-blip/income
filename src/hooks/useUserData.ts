@@ -334,8 +334,10 @@ export function useUserData(user: User | null) {
       
       // Only the first one is paid if requested
       const isPaid = i === 0 ? !!expense.isPaid : false;
+      let balanceAfter;
       if (isPaid) {
         currentBalance -= expense.amount;
+        balanceAfter = currentBalance;
       }
 
       const baseDate = new Date(expense.date);
@@ -347,7 +349,8 @@ export function useUserData(user: User | null) {
         id: newId,
         date: dateString,
         isPaid,
-        groupId
+        groupId,
+        ...(balanceAfter !== undefined && { balanceAfter })
       });
     }
 
@@ -408,9 +411,21 @@ export function useUserData(user: User | null) {
         balanceChange = -(newAmount - oldAmount);
       }
 
-      const cleanUpdates = Object.fromEntries(
+      const cleanUpdates: Partial<ExpenseEntry> = Object.fromEntries(
         Object.entries(updates).filter(([_, v]) => v !== undefined)
       );
+
+      const currentBalance = preferences.expenseBalance || 0;
+      if (balanceChange !== 0 || updates.isPaid !== undefined) {
+        if (isPaid) {
+          cleanUpdates.balanceAfter = currentBalance + balanceChange;
+        } else if (!isPaid) {
+          cleanUpdates.balanceAfter = undefined;
+          // In Firestore we can use deleteField() but setting to null is okay too.
+          // Let's just set it to null so it overwrites.
+          (cleanUpdates as any).balanceAfter = null;
+        }
+      }
 
       const batch = writeBatch(db);
       batch.set(expenseRef, cleanUpdates, { merge: true });
@@ -445,6 +460,12 @@ export function useUserData(user: User | null) {
           } else if (wasPaid && isPaid && updates.amount !== undefined) {
             const diff = newAmount - oldAmount;
             newBalance = currentBalance - diff;
+          }
+
+          if (isPaid) {
+            updates.balanceAfter = newBalance;
+          } else {
+            updates.balanceAfter = undefined;
           }
 
           if (newBalance !== currentBalance) {

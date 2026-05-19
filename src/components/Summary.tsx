@@ -27,7 +27,7 @@ import {
   Cell,
   Legend
 } from 'recharts';
-import { JobEntry, ExpenseEntry } from '../types';
+import { JobEntry, ExpenseEntry, ActivityLog } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -38,11 +38,12 @@ interface SummaryProps {
   incentives: Record<string, number>;
   rawIncentives?: Record<string, any>;
   expenseBalance: number;
+  logs?: ActivityLog[];
 }
 
 type SubTab = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
-export function Summary({ jobs, expenses, incentives, rawIncentives = {}, expenseBalance }: SummaryProps) {
+export function Summary({ jobs, expenses, incentives, rawIncentives = {}, expenseBalance, logs = [] }: SummaryProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
@@ -288,25 +289,63 @@ export function Summary({ jobs, expenses, incentives, rawIncentives = {}, expens
 
       // Calculate historical balance exactly at compEndStr
       let transIncomeAfter = 0;
-      jobs.filter(j => j.date.split('T')[0] > compEndStr! && j.transferred).forEach(j => {
-        const amountToCollect = j.customerMustPay + j.upfrontCost;
-        const actual = j.actualReceived ?? amountToCollect;
-        const diff = actual - amountToCollect;
-        const tip = diff > 0 ? diff : 0;
-        const loss = diff < 0 ? Math.abs(diff) : 0;
-        transIncomeAfter += (j.appNetIncome - loss + tip);
-      });
-      Object.entries(rawIncentives || {}).forEach(([d, inc]) => {
-        if (d > compEndStr! && inc && typeof inc !== 'number' && inc.transferred) {
-          transIncomeAfter += inc.amount;
-        }
-      });
+      const hasAnyTransferLogs = logs.some(l => l.type === 'transfer_income');
+      
+      if (hasAnyTransferLogs) {
+        logs.filter(l => l.type === 'transfer_income' && l.timestamp > compEndStr! + 'T23:59:59').forEach(l => {
+          transIncomeAfter += (l.amount || 0);
+        });
+      } else {
+        jobs.filter(j => j.date.split('T')[0] > compEndStr! && j.transferred).forEach(j => {
+          const amountToCollect = j.customerMustPay + j.upfrontCost;
+          const actual = j.actualReceived ?? amountToCollect;
+          const diff = actual - amountToCollect;
+          const tip = diff > 0 ? diff : 0;
+          const loss = diff < 0 ? Math.abs(diff) : 0;
+          transIncomeAfter += (j.appNetIncome - loss + tip);
+        });
+        Object.entries(rawIncentives || {}).forEach(([d, inc]) => {
+          if (d > compEndStr! && inc && typeof inc !== 'number' && inc.transferred) {
+            transIncomeAfter += inc.amount;
+          }
+        });
+      }
+
       let paidExpensesAfter = 0;
       expenses.filter(e => e.date.split('T')[0] > compEndStr! && e.isPaid !== false).forEach(e => {
         paidExpensesAfter += e.amount;
       });
       prevBalance = expenseBalance - transIncomeAfter + paidExpensesAfter;
     }
+
+    let currentBalanceAtEndStr = expenseBalance;
+    let transIncomeAfterEnd = 0;
+    const hasAnyTransferLogsEnd = logs.some(l => l.type === 'transfer_income');
+    if (hasAnyTransferLogsEnd) {
+      logs.filter(l => l.type === 'transfer_income' && l.timestamp > endStr + 'T23:59:59').forEach(l => {
+        transIncomeAfterEnd += (l.amount || 0);
+      });
+    } else {
+      jobs.filter(j => j.date.split('T')[0] > endStr && j.transferred).forEach(j => {
+        const amountToCollect = j.customerMustPay + j.upfrontCost;
+        const actual = j.actualReceived ?? amountToCollect;
+        const diff = actual - amountToCollect;
+        const tip = diff > 0 ? diff : 0;
+        const loss = diff < 0 ? Math.abs(diff) : 0;
+        transIncomeAfterEnd += (j.appNetIncome - loss + tip);
+      });
+      Object.entries(rawIncentives || {}).forEach(([d, inc]) => {
+        if (d > endStr && inc && typeof inc !== 'number' && inc.transferred) {
+          transIncomeAfterEnd += inc.amount;
+        }
+      });
+    }
+
+    let paidExpensesAfterEnd = 0;
+    expenses.filter(e => e.date.split('T')[0] > endStr && e.isPaid !== false).forEach(e => {
+      paidExpensesAfterEnd += e.amount;
+    });
+    currentBalanceAtEndStr = expenseBalance - transIncomeAfterEnd + paidExpensesAfterEnd;
 
     let currentTransferredIncome = 0;
     filteredJobs.forEach(j => {
@@ -406,7 +445,7 @@ export function Summary({ jobs, expenses, incentives, rawIncentives = {}, expens
       currentTransferredIncome,
       prevTotalExpenses,
       prevBalance,
-      currentBalance: expenseBalance
+      currentBalance: currentBalanceAtEndStr
     };
   }, [activeTab, jobs, expenses, incentives, rawIncentives, expenseBalance, selectedDay, selectedMonth, selectedYear, startDate, endDate, weekOffset]);
 
@@ -631,6 +670,9 @@ export function Summary({ jobs, expenses, incentives, rawIncentives = {}, expens
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">รายจ่ายรวม</p>
               <p className="text-lg font-black text-rose-600">฿{rangeData.totalExpenses.toLocaleString()}</p>
+              {activeTab === 'monthly' && (
+                <p className="text-xs font-bold text-slate-500 mt-1">คงเหลือ: ฿{rangeData.currentBalance.toLocaleString()}</p>
+              )}
             </div>
             <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center">
               <TrendingDown className="w-5 h-5 text-rose-500" />

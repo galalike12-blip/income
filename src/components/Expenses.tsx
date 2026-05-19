@@ -1004,6 +1004,11 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
             <div className={`font-black ${expense.isPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
               ฿{(expense.amount ?? 0).toLocaleString()}
             </div>
+            {expense.isPaid && expense.balanceAfter !== undefined && (
+              <div className="text-[10px] font-bold text-slate-500 mt-0.5">
+                คงเหลือ ฿{expense.balanceAfter.toLocaleString()}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-1">
             {isFixed && (
@@ -1028,9 +1033,16 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 mb-4">
             <div className="flex items-center justify-between text-sm sm:hidden">
               <span className="text-slate-400 font-medium">{t.amount || 'จำนวน'}</span>
-              <span className={`font-semibold ${expense.isPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                ฿{(expense.amount ?? 0).toLocaleString()}
-              </span>
+              <div className="text-right">
+                <span className={`font-semibold block ${expense.isPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                  ฿{(expense.amount ?? 0).toLocaleString()}
+                </span>
+                {expense.isPaid && expense.balanceAfter !== undefined && (
+                  <span className="text-[10px] font-semibold text-slate-500 block leading-tight">
+                    คงเหลือ ฿{expense.balanceAfter.toLocaleString()}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-400 font-medium">{t.date || 'วันที่'}</span>

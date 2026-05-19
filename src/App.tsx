@@ -321,6 +321,7 @@ function MainContent() {
           {activeTab === 'dashboard' && (
             <Dashboard 
               jobs={jobs} 
+              expenses={expenses}
               editJob={handleEditJob}
               deleteJob={deleteJob} 
               selectedDate={selectedDate}
@@ -359,6 +360,7 @@ function MainContent() {
               incentives={incentives}
               rawIncentives={rawIncentives}
               expenseBalance={preferences?.expenseBalance || 0}
+              logs={logs}
             />
           )}
         </div>

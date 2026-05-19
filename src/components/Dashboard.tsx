@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { JobEntry, DailySummary, ExpenseEntry, Goal, UserPreferences } from '../types';
-import { Plus, Trash2, Calendar, DollarSign, TrendingUp, TrendingDown, Pencil, X, Settings2, Check, GripVertical, ChevronDown, ChevronUp, Gift, Target, BarChart2, ArrowUpCircle } from 'lucide-react';
+import { Plus, Trash2, Calendar, DollarSign, TrendingUp, TrendingDown, Pencil, X, Settings2, Check, GripVertical, ChevronDown, ChevronUp, Gift, Target, BarChart2, ArrowUpCircle, Wallet } from 'lucide-react';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
@@ -9,6 +9,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 
 interface DashboardProps {
   jobs: JobEntry[];
+  expenses?: ExpenseEntry[];
   editJob: (job: JobEntry) => void;
   deleteJob: (id: string) => void;
   selectedDate: string;
@@ -23,7 +24,7 @@ interface DashboardProps {
   untransferredIncentivesAmount: number;
 }
 
-export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedDate, incentives, setIncentive, goals, setGoal, preferences, updatePreferences, transferIncomeToExpenses, untransferredIncentivesAmount }: DashboardProps) {
+export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDate, setSelectedDate, incentives, setIncentive, goals, setGoal, preferences, updatePreferences, transferIncomeToExpenses, untransferredIncentivesAmount }: DashboardProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
@@ -480,6 +481,32 @@ export function Dashboard({ jobs, editJob, deleteJob, selectedDate, setSelectedD
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {id === 'expenses' && (
+                <div className="glass-panel p-6 rounded-3xl transition-colors">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-medium text-slate-800 dark:text-white flex items-center gap-2">
+                      <Wallet className="w-5 h-5 text-rose-500" />
+                      {t.expenses || "รายจ่าย (Expenses)"}
+                    </h3>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">ยอดเงินคงเหลือในบัญชีรายจ่าย</p>
+                      <p className="text-xl font-black text-slate-800 dark:text-white">
+                        ฿{(preferences?.expenseBalance || 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="bg-rose-50 dark:bg-rose-900/20 p-4 rounded-2xl">
+                      <p className="text-xs font-bold text-rose-400 uppercase tracking-widest mb-1">{t.totalExpensesThisMonth || 'รายจ่ายรวมเดือนนี้'}</p>
+                      <p className="text-xl font-black text-rose-600 dark:text-rose-400">
+                        ฿{expenses.filter(e => e.date.startsWith(new Date().toISOString().substring(0, 7))).reduce((sum, e) => sum + e.amount, 0).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
 

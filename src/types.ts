@@ -23,6 +23,7 @@ export interface ExpenseEntry {
   websiteUrl?: string;
   isPaid?: boolean;
   groupId?: string;
+  balanceAfter?: number;
 }
 
 export interface ActivityLog {
