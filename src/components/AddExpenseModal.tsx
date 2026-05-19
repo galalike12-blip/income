@@ -180,7 +180,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         contents: [
           {
             parts: [
-              { text: "Extract receipt details: amount (number), payee (string), and category. You MUST choose a category from this list: [" + customCategories.join(', ') + "]. If no category matches, you MUST use 'อื่นๆ'. Return JSON only." },
+              { text: "Extract receipt details: amount (number), payee (string), category, and date (string, in 'YYYY-MM-DDTHH:mm' local timezone format, extracting both the date and the time from the slip if available). You MUST choose a category from this list: [" + customCategories.join(', ') + "]. If no category matches, you MUST use 'อื่นๆ'. Return JSON only." },
               { inlineData: { data: base64Data, mimeType: "image/jpeg" } }
             ]
           }
@@ -195,6 +195,9 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
       if (result.payee) setExpensePayee(result.payee);
       if (result.category) {
         setExpenseCategory(result.category);
+      }
+      if (result.date) {
+        setExpenseDate(result.date);
       }
     } catch (error) {
       console.error("Scan failed:", error);

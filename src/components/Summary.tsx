@@ -232,6 +232,7 @@ export function Summary({ jobs, expenses, incentives, rawIncentives = {}, expens
     // Previous period filtering for comparison
     let prevTransferredIncome = 0;
     let prevTotalExpenses = 0;
+    let prevTotalIncome = 0;
     let prevBalance = expenseBalance;
 
     if (compStartStr && compEndStr) {
@@ -249,13 +250,18 @@ export function Summary({ jobs, expenses, incentives, rawIncentives = {}, expens
         return sum + (isActuallyPaid ? e.amount : 0);
       }, 0);
 
+      const prevDailyStatsForIncome: Record<string, number> = {};
+
       prevJobs.forEach(j => {
+        const d = j.date.split('T')[0];
+        const amountToCollect = j.customerMustPay + j.upfrontCost;
+        const actual = j.actualReceived ?? amountToCollect;
+        const diff = actual - amountToCollect;
+        const tip = diff > 0 ? diff : 0;
+        const loss = diff < 0 ? Math.abs(diff) : 0;
+        prevDailyStatsForIncome[d] = (prevDailyStatsForIncome[d] || 0) + (j.appNetIncome - loss + tip);
+
         if (j.transferred) {
-          const amountToCollect = j.customerMustPay + j.upfrontCost;
-          const actual = j.actualReceived ?? amountToCollect;
-          const diff = actual - amountToCollect;
-          const tip = diff > 0 ? diff : 0;
-          const loss = diff < 0 ? Math.abs(diff) : 0;
           prevTransferredIncome += (j.appNetIncome - loss + tip);
         }
       });
@@ -267,11 +273,18 @@ export function Summary({ jobs, expenses, incentives, rawIncentives = {}, expens
       while(pCurrent <= pStop) {
         const d = getLocalDateStr(pCurrent);
         const incData = rawIncentives?.[d];
+        if (incData) {
+          const incAmount = typeof incData === 'number' ? incData : incData.amount;
+          prevDailyStatsForIncome[d] = (prevDailyStatsForIncome[d] || 0) + incAmount;
+        }
+
         if (incData && typeof incData !== 'number' && incData.transferred) {
           prevTransferredIncome += incData.amount;
         }
         pCurrent.setDate(pCurrent.getDate() + 1);
       }
+
+      prevTotalIncome = Object.values(prevDailyStatsForIncome).reduce((sum, val) => sum + Math.max(0, val), 0);
 
       // Calculate historical balance exactly at compEndStr
       let transIncomeAfter = 0;
@@ -388,6 +401,7 @@ export function Summary({ jobs, expenses, incentives, rawIncentives = {}, expens
       startStr,
       endStr,
       todayStr,
+      prevTotalIncome,
       prevTransferredIncome,
       currentTransferredIncome,
       prevTotalExpenses,
@@ -658,6 +672,39 @@ export function Summary({ jobs, expenses, incentives, rawIncentives = {}, expens
                   const isPositive = diff > 0;
                   const prevNetAbs = Math.abs(prevNet);
                   const percent = prevNetAbs > 0 ? (diff / prevNetAbs) * 100 : 100;
+                  if (diff === 0) return <span className="text-sm font-bold text-slate-400 mb-0.5">เท่าเดิม</span>;
+                  return (
+                    <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-md ${isPositive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400'}`}>
+                      {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                      <span>{isPositive ? '+' : ''}฿{Math.abs(diff).toLocaleString()}</span>
+                      <span className="opacity-80 ml-0.5">({isPositive ? '+' : ''}{percent.toFixed(1)}%)</span>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col border-b border-slate-200 dark:border-slate-700/50 pb-4 mb-4 mt-2">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <CalendarRange className="w-3.5 h-3.5" />
+              เทียบรายรับรวมกับเวลาเดียวกันของ{activeTab === 'monthly' ? 'เดือน' : 'ปี'}ที่แล้ว
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-xl text-sm">
+                <span className="text-slate-500 dark:text-slate-400">รายรับรวมปัจจุบัน</span>
+                <span className="font-bold text-slate-800 dark:text-white">฿{rangeData.totalIncome.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-xl text-sm">
+                <span className="text-slate-500 dark:text-slate-400">รายรับรวมเวลาเดียวกัน ({activeTab === 'monthly' ? 'เดือน' : 'ปี'}ที่แล้ว)</span>
+                <span className="font-bold text-slate-800 dark:text-white">฿{Math.max(0, rangeData.prevTotalIncome).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center px-2 pt-3 mt-1 border-t border-slate-100 dark:border-slate-800/60">
+                <span className="text-slate-600 dark:text-slate-300 text-sm font-bold">ส่วนต่าง</span>
+                {(() => {
+                  const diff = rangeData.totalIncome - rangeData.prevTotalIncome;
+                  const isPositive = diff > 0;
+                  const prevAbs = Math.abs(rangeData.prevTotalIncome);
+                  const percent = prevAbs > 0 ? (diff / prevAbs) * 100 : 100;
                   if (diff === 0) return <span className="text-sm font-bold text-slate-400 mb-0.5">เท่าเดิม</span>;
                   return (
                     <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-md ${isPositive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400'}`}>

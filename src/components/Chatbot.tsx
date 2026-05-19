@@ -113,7 +113,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
             category: { type: Type.STRING, description: "Category. You MUST choose from this list: [" + customCategories.join(', ') + "]. If no category matches, you MUST use 'อื่นๆ'." },
             payee: { type: Type.STRING, description: "The store or person paid" },
             note: { type: Type.STRING, description: "A brief description or note" },
-            date: { type: Type.STRING, description: "Date in YYYY-MM-DD format. Use today's date if not specified." }
+            date: { type: Type.STRING, description: "Date and time in 'YYYY-MM-DDTHH:mm' local timezone format. Extract both the date and time from the receipt if uploaded, use today's date if not specified." }
           },
           required: ["amount", "category"]
         }
@@ -252,7 +252,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               note: args.note || '',
               date: args.date || (() => {
                 const d = new Date();
-                return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
               })(),
               isPaid: true
             });
