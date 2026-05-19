@@ -601,6 +601,7 @@ export function useUserData(user: User | null) {
   return {
     rawJobs: jobs,
     incentives,
+    rawIncentives,
     expenses,
     goals,
     preferences,

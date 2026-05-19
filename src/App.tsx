@@ -29,7 +29,7 @@ function MainContent() {
   const { user, googleAccessToken, spreadsheetId } = useAuth();
   const t = translations[currentLang];
   
-  const { rawJobs, incentives, expenses, goals, preferences, updatePreferences, addJob: firestoreAddJob, editJob: firestoreEditJob, deleteJob: firestoreDeleteJob, setIncentive, addExpense, updateExpense, deleteExpense, setGoal, clearAllData, transferIncomeToExpenses, untransferredIncentivesAmount, logs } = useUserData(user);
+  const { rawJobs, incentives, rawIncentives, expenses, goals, preferences, updatePreferences, addJob: firestoreAddJob, editJob: firestoreEditJob, deleteJob: firestoreDeleteJob, setIncentive, addExpense, updateExpense, deleteExpense, setGoal, clearAllData, transferIncomeToExpenses, untransferredIncentivesAmount, logs } = useUserData(user);
   
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
@@ -356,7 +356,9 @@ function MainContent() {
             <Summary 
               jobs={jobs}
               expenses={expenses}
-              incentives={incentives} 
+              incentives={incentives}
+              rawIncentives={rawIncentives}
+              expenseBalance={preferences?.expenseBalance || 0}
             />
           )}
         </div>

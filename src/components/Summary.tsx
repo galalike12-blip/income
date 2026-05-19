@@ -36,11 +36,13 @@ interface SummaryProps {
   jobs: JobEntry[];
   expenses: ExpenseEntry[];
   incentives: Record<string, number>;
+  rawIncentives?: Record<string, any>;
+  expenseBalance: number;
 }
 
 type SubTab = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
-export function Summary({ jobs, expenses, incentives }: SummaryProps) {
+export function Summary({ jobs, expenses, incentives, rawIncentives = {}, expenseBalance }: SummaryProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
@@ -228,37 +230,82 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     });
     
     // Previous period filtering for comparison
-    let prevTotalIncome = 0;
+    let prevTransferredIncome = 0;
+    let prevTotalExpenses = 0;
+    let prevBalance = expenseBalance;
+
     if (compStartStr && compEndStr) {
       const prevJobs = jobs.filter(j => {
         const dStr = j.date.split('T')[0];
         return dStr >= compStartStr! && dStr <= compEndStr!;
       });
-      // day-by-day map to handle tips/incentives for previous period
-      const prevDailyStats: Record<string, number> = {};
+      const prevExps = expenses.filter(e => {
+        const dStr = e.date.split('T')[0];
+        return dStr >= compStartStr! && dStr <= compEndStr!;
+      });
+      
+      prevTotalExpenses = prevExps.reduce((sum, e) => {
+        const isActuallyPaid = e.isPaid !== false;
+        return sum + (isActuallyPaid ? e.amount : 0);
+      }, 0);
+
+      prevJobs.forEach(j => {
+        if (j.transferred) {
+          const amountToCollect = j.customerMustPay + j.upfrontCost;
+          const actual = j.actualReceived ?? amountToCollect;
+          const diff = actual - amountToCollect;
+          const tip = diff > 0 ? diff : 0;
+          const loss = diff < 0 ? Math.abs(diff) : 0;
+          prevTransferredIncome += (j.appNetIncome - loss + tip);
+        }
+      });
+
       const [psy, psm, psd] = compStartStr.split('-').map(Number);
       const [pey, pem, ped] = compEndStr.split('-').map(Number);
       const pCurrent = new Date(psy, psm - 1, psd, 12, 0, 0);
       const pStop = new Date(pey, pem - 1, ped, 12, 0, 0);
       while(pCurrent <= pStop) {
         const d = getLocalDateStr(pCurrent);
-        prevDailyStats[d] = incentives[d] || 0;
+        const incData = rawIncentives?.[d];
+        if (incData && typeof incData !== 'number' && incData.transferred) {
+          prevTransferredIncome += incData.amount;
+        }
         pCurrent.setDate(pCurrent.getDate() + 1);
       }
-      
-      prevJobs.forEach(j => {
-        const d = j.date.split('T')[0];
-        if (prevDailyStats[d] !== undefined) {
-          const amountToCollect = j.customerMustPay + j.upfrontCost;
-          const actual = j.actualReceived ?? amountToCollect;
-          const diff = actual - amountToCollect;
-          const tip = diff > 0 ? diff : 0;
-          const loss = diff < 0 ? Math.abs(diff) : 0;
-          prevDailyStats[d] += (j.appNetIncome - loss + tip);
+
+      // Calculate historical balance exactly at compEndStr
+      let transIncomeAfter = 0;
+      jobs.filter(j => j.date.split('T')[0] > compEndStr! && j.transferred).forEach(j => {
+        const amountToCollect = j.customerMustPay + j.upfrontCost;
+        const actual = j.actualReceived ?? amountToCollect;
+        const diff = actual - amountToCollect;
+        const tip = diff > 0 ? diff : 0;
+        const loss = diff < 0 ? Math.abs(diff) : 0;
+        transIncomeAfter += (j.appNetIncome - loss + tip);
+      });
+      Object.entries(rawIncentives || {}).forEach(([d, inc]) => {
+        if (d > compEndStr! && inc && typeof inc !== 'number' && inc.transferred) {
+          transIncomeAfter += inc.amount;
         }
       });
-      prevTotalIncome = Object.values(prevDailyStats).reduce((sum, val) => sum + Math.max(0, val), 0);
+      let paidExpensesAfter = 0;
+      expenses.filter(e => e.date.split('T')[0] > compEndStr! && e.isPaid !== false).forEach(e => {
+        paidExpensesAfter += e.amount;
+      });
+      prevBalance = expenseBalance - transIncomeAfter + paidExpensesAfter;
     }
+
+    let currentTransferredIncome = 0;
+    filteredJobs.forEach(j => {
+      if (j.transferred) {
+        const amountToCollect = j.customerMustPay + j.upfrontCost;
+        const actual = j.actualReceived ?? amountToCollect;
+        const diff = actual - amountToCollect;
+        const tip = diff > 0 ? diff : 0;
+        const loss = diff < 0 ? Math.abs(diff) : 0;
+        currentTransferredIncome += (j.appNetIncome - loss + tip);
+      }
+    });
 
     // Day-by-day calculation using string keys for robustness
     const dailyStats: Record<string, { income: number, jobs: number, tips: number, incentive: number }> = {};
@@ -273,7 +320,14 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
     
     while (current <= stopAt) {
       const d = getLocalDateStr(current);
-      dailyStats[d] = { income: 0, jobs: 0, tips: 0, incentive: incentives[d] || 0 };
+      const inc = incentives[d] || 0;
+      dailyStats[d] = { income: 0, jobs: 0, tips: 0, incentive: inc };
+      
+      const rawInc = rawIncentives?.[d];
+      if (rawInc && typeof rawInc !== 'number' && rawInc.transferred) {
+        currentTransferredIncome += rawInc.amount;
+      }
+
       current.setDate(current.getDate() + 1);
     }
 
@@ -334,9 +388,13 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
       startStr,
       endStr,
       todayStr,
-      prevTotalIncome // Added this
+      prevTransferredIncome,
+      currentTransferredIncome,
+      prevTotalExpenses,
+      prevBalance,
+      currentBalance: expenseBalance
     };
-  }, [activeTab, jobs, expenses, incentives, selectedDay, selectedMonth, selectedYear, startDate, endDate, weekOffset]);
+  }, [activeTab, jobs, expenses, incentives, rawIncentives, expenseBalance, selectedDay, selectedMonth, selectedYear, startDate, endDate, weekOffset]);
 
   const subTabs: { id: SubTab, label: string }[] = [
     { id: 'daily', label: currentLang === 'th' ? 'รายวัน' : 'Daily' },
@@ -568,32 +626,63 @@ export function Summary({ jobs, expenses, incentives }: SummaryProps) {
       )}
 
       {/* Comparison Group */}
-      {cardVisibility.comparison && (activeTab === 'monthly' || activeTab === 'yearly') && rangeData.prevTotalIncome !== undefined && (
+      {cardVisibility.comparison && (activeTab === 'monthly' || activeTab === 'yearly') && (
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="glass-panel p-5 rounded-3xl"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700/50 pb-4 mb-4">
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
                 <CalendarRange className="w-3.5 h-3.5" />
-                เทียบกับช่วงเดียวกันของ{activeTab === 'monthly' ? 'เดือน' : 'ปี'}ที่แล้ว
+                เทียบเงินคงเหลือในบัญชี ณ เวลาเดียวกันของ{activeTab === 'monthly' ? 'เดือน' : 'ปี'}ที่แล้ว
               </p>
               <div className="flex items-end gap-3 mt-2">
                 <p className="text-xl font-black text-slate-800 dark:text-white">
-                  ฿{rangeData.prevTotalIncome.toLocaleString()}
+                  ฿{rangeData.prevBalance.toLocaleString()}
                 </p>
                 {(() => {
-                  const diff = rangeData.totalIncome - rangeData.prevTotalIncome;
+                  const currentNet = rangeData.currentBalance;
+                  const prevNet = rangeData.prevBalance;
+                  const diff = currentNet - prevNet;
                   const isPositive = diff > 0;
-                  const percent = rangeData.prevTotalIncome > 0 ? (diff / rangeData.prevTotalIncome) * 100 : 100;
+                  const prevNetAbs = Math.abs(prevNet);
+                  const percent = prevNetAbs > 0 ? (diff / prevNetAbs) * 100 : 100;
                   if (diff === 0) return <span className="text-sm font-bold text-slate-400 mb-0.5">เท่าเดิม</span>;
                   return (
                     <div className={`flex items-center gap-1 mb-1 text-xs font-bold px-2 py-0.5 rounded-md ${isPositive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30'}`}>
                       {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                       <span>{isPositive ? '+' : ''}฿{Math.abs(diff).toLocaleString()}</span>
                       <span className="opacity-70 ml-0.5">({isPositive ? '+' : ''}{percent.toFixed(1)}%)</span>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                <CalendarRange className="w-3.5 h-3.5" />
+                เทียบรายจ่ายรวมกับเวลาเดียวกันของ{activeTab === 'monthly' ? 'เดือน' : 'ปี'}ที่แล้ว
+              </p>
+              <div className="flex items-end gap-3 mt-2">
+                <p className="text-xl font-black text-slate-800 dark:text-white">
+                  ฿{rangeData.prevTotalExpenses.toLocaleString()}
+                </p>
+                {(() => {
+                  const diff = rangeData.totalExpenses - rangeData.prevTotalExpenses;
+                  // For expenses, a DECREASE is actually positive (good), but visually we might use green for decrease.
+                  const isBad = diff > 0;
+                  const prevAbs = Math.abs(rangeData.prevTotalExpenses);
+                  const percent = prevAbs > 0 ? (diff / prevAbs) * 100 : 100;
+                  if (diff === 0) return <span className="text-sm font-bold text-slate-400 mb-0.5">เท่าเดิม</span>;
+                  return (
+                    <div className={`flex items-center gap-1 mb-1 text-xs font-bold px-2 py-0.5 rounded-md ${!isBad ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30'}`}>
+                      {!isBad ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+                      <span>{!isBad ? '' : '+'}฿{Math.abs(diff).toLocaleString()}</span>
+                      <span className="opacity-70 ml-0.5">({!isBad ? '' : '+'}{percent.toFixed(1)}%)</span>
                     </div>
                   );
                 })()}
