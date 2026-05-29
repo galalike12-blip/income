@@ -6,6 +6,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { toast } from 'sonner';
 
 interface DashboardProps {
   jobs: JobEntry[];
@@ -51,6 +52,38 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
   const [showTransferConfirm, setShowTransferConfirm] = useState(false);
   const [dailyGoalAmount, setDailyGoalAmount] = useState('');
   const [isEditingGoal, setIsEditingGoal] = useState(false);
+
+  const [isEditingIncentive, setIsEditingIncentive] = useState(false);
+  const [incentiveInput, setIncentiveInput] = useState('');
+  const [isEditingBalance, setIsEditingBalance] = useState(false);
+  const [balanceInput, setBalanceInput] = useState('');
+
+  useEffect(() => {
+    setIsEditingIncentive(false);
+  }, [selectedDate]);
+
+  const handleIncentiveSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const newIncentive = parseFloat(incentiveInput) || 0;
+    try {
+      await setIncentive(selectedDate, newIncentive);
+      toast.success('บันทึกอินเซนทีฟสำเร็จ');
+      setIsEditingIncentive(false);
+    } catch (err) {
+      console.error(err);
+      toast.error('ไม่สามารถบันทึกอินเซนทีฟได้');
+    }
+  };
+
+  const handleBalanceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newBalance = parseFloat(balanceInput);
+    if (!isNaN(newBalance)) {
+      updatePreferences({ expenseBalance: newBalance });
+      toast.success('บันทึกยอดเงินคงเหลือในบัญชีรายจ่ายเรียบร้อย');
+    }
+    setIsEditingBalance(false);
+  };
 
   const todaysJobs = useMemo(() => jobs.filter(j => j.date.startsWith(selectedDate)), [jobs, selectedDate]);
   const groupedHistory = useMemo(() => {
@@ -434,16 +467,48 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
                           <h3 className="text-[25px] font-semibold text-violet-700 dark:text-violet-400 opacity-90">{t.dailyIncentive}</h3>
                           <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl"><Gift className="w-5 h-5 text-violet-600 dark:text-violet-400" /></div>
                         </div>
-                        <div className="mt-2 flex items-center gap-1">
-                          <span className="text-[23px] font-bold text-violet-700 dark:text-violet-400">฿</span>
-                          <input
-                            type="number"
-                            value={incentives[selectedDate] || ''}
-                            onChange={(e) => setIncentive(selectedDate, parseFloat(e.target.value) || 0)}
-                            placeholder="0.00"
-                            className="w-full bg-transparent text-[23px] font-bold text-violet-700 dark:text-violet-400 outline-none placeholder-violet-300 dark:placeholder-violet-700/50"
-                          />
-                        </div>
+                        {isEditingIncentive ? (
+                          <form onSubmit={handleIncentiveSubmit} className="flex gap-2 mt-2 items-center">
+                            <span className="text-[23px] font-bold text-violet-700 dark:text-violet-400">฿</span>
+                            <input
+                              type="number"
+                              step="any"
+                              value={incentiveInput}
+                              onChange={(e) => setIncentiveInput(e.target.value)}
+                              placeholder="0.00"
+                              className="w-full bg-slate-100/50 dark:bg-slate-800/50 px-3 py-1 text-lg font-bold text-violet-700 dark:text-violet-400 outline-none rounded-xl"
+                              autoFocus
+                            />
+                            <button
+                              type="submit"
+                              className="p-1.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-lg hover:opacity-85 transition-opacity"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingIncentive(false)}
+                              className="p-1.5 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 rounded-lg hover:opacity-85 transition-opacity"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </form>
+                        ) : (
+                          <div 
+                            className="mt-2 flex items-center justify-between cursor-pointer group hover:bg-violet-50/50 dark:hover:bg-violet-950/20 p-2 rounded-2xl transition-all"
+                            onClick={() => {
+                              setIncentiveInput((incentives[selectedDate] || 0).toString());
+                              setIsEditingIncentive(true);
+                            }}
+                          >
+                            <div className="flex items-center gap-1">
+                              <span className="text-[23px] font-black text-violet-700 dark:text-violet-400">
+                                ฿{(incentives[selectedDate] || 0).toLocaleString()}
+                              </span>
+                            </div>
+                            <Pencil className="w-4 h-4 text-violet-400 lg:opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -493,18 +558,59 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
                     </h3>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl">
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">ยอดเงินคงเหลือในบัญชีรายจ่าย</p>
-                      <p className="text-xl font-black text-slate-800 dark:text-white">
-                        ฿{(preferences?.expenseBalance || 0).toLocaleString()}
-                      </p>
+                   <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl flex flex-col justify-between min-h-[96px]">
+                      <div>
+                        <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">ยอดเงินคงเหลือในบัญชีรายจ่าย</p>
+                        {isEditingBalance ? (
+                          <form onSubmit={handleBalanceSubmit} className="flex gap-1.5 mt-1 items-center">
+                            <span className="text-sm font-semibold text-slate-500">฿</span>
+                            <input
+                              type="number"
+                              step="any"
+                              value={balanceInput}
+                              onChange={(e) => setBalanceInput(e.target.value)}
+                              placeholder="0.00"
+                              className="w-full bg-white dark:bg-slate-800 px-2 py-0.5 text-sm font-bold text-slate-800 dark:text-white outline-none rounded-lg border border-slate-200 dark:border-slate-700"
+                              autoFocus
+                            />
+                            <button
+                              type="submit"
+                              className="p-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-md hover:opacity-85"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingBalance(false)}
+                              className="p-1 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 rounded-md hover:opacity-85"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </form>
+                        ) : (
+                          <div 
+                            className="mt-1 flex items-center justify-between cursor-pointer group hover:bg-slate-100 dark:hover:bg-slate-700/50 px-2 py-1 rounded-xl transition-all"
+                            onClick={() => {
+                              setBalanceInput((preferences?.expenseBalance || 0).toString());
+                              setIsEditingBalance(true);
+                            }}
+                          >
+                            <p className="text-xl font-black text-slate-800 dark:text-white">
+                              ฿{(preferences?.expenseBalance || 0).toLocaleString()}
+                            </p>
+                            <Pencil className="w-3.5 h-3.5 text-slate-400 lg:opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="bg-rose-50 dark:bg-rose-900/20 p-4 rounded-2xl">
-                      <p className="text-xs font-bold text-rose-400 uppercase tracking-widest mb-1">{t.totalExpensesThisMonth || 'รายจ่ายรวมเดือนนี้'}</p>
-                      <p className="text-xl font-black text-rose-600 dark:text-rose-400">
-                        ฿{expenses.filter(e => e.date.startsWith(new Date().toISOString().substring(0, 7))).reduce((sum, e) => sum + e.amount, 0).toLocaleString()}
-                      </p>
+                    <div className="bg-rose-50 dark:bg-rose-900/20 p-4 rounded-2xl flex flex-col justify-between min-h-[96px]">
+                      <div>
+                        <p className="text-[10px] sm:text-xs font-bold text-rose-400 uppercase tracking-widest mb-1">{t.totalExpensesThisMonth || 'รายจ่ายรวมเดือนนี้'}</p>
+                        <p className="text-xl font-black text-rose-600 dark:text-rose-400 mt-2 px-2">
+                          ฿{expenses.filter(e => e.date.startsWith(new Date().toISOString().substring(0, 7))).reduce((sum, e) => sum + e.amount, 0).toLocaleString()}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
