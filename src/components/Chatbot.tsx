@@ -48,16 +48,6 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
     scrollToBottom();
   }, [messages, isLoading]);
 
-  useEffect(() => {
-    if (isOpen) {
-      // Focus after modal transition completed to ensure keyboard displays correctly
-      const timer = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
-
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -163,6 +153,16 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
       const cutoffStr = sixtyDaysAgo.toISOString().split('T')[0];
 
+      // Generate a distinct mapping of payee to their most frequent/recent category
+      const payeeToCategoryMap: Record<string, string> = {};
+      [...expenses]
+        .sort((a, b) => a.date.localeCompare(b.date)) // older to newer, so newer overrides older
+        .forEach(e => {
+          if (e.payee && e.payee.trim() && e.category) {
+            payeeToCategoryMap[e.payee.trim().toLowerCase()] = e.category;
+          }
+        });
+
       const filteredJobs = jobs
         .filter(j => j.date >= cutoffStr)
         .map(j => ({ d: j.date, inc: j.appNetIncome, rec: j.actualReceived }))
@@ -170,7 +170,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         
       const filteredExpenses = expenses
         .filter(e => e.date >= cutoffStr)
-        .map(e => ({ d: e.date, amt: e.amount, cat: e.category }))
+        .map(e => ({ d: e.date, amt: e.amount, cat: e.category, payee: e.payee }))
         .slice(-100);
 
       const filteredIncentives = Object.fromEntries(
@@ -202,6 +202,15 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       Expenses Summary: ${JSON.stringify(expensesSummary)}
       Daily Incentives: ${JSON.stringify(filteredIncentives)}
       
+      Payee Category History Map (payee -> historically preferred category):
+      ${JSON.stringify(payeeToCategoryMap)}
+      
+      CRITICAL FOR CATEGORIZATION:
+      When scanning slips or adding an expense, extract the name of the payee (store/seller/merchant/recipient/person paid).
+      Compare the extracted payee name (case-insensitive, ignoring spacing, punctuation, and slight spelling variants in Thai/English) against the Payee Category History Map.
+      If there is a match or high similarity to a historical payee (e.g., "7-Eleven" matches "7-eleven", "นาย ก" matches "นาย ก."), you MUST USE that exact historical category as the category argument.
+      If it is a new payee not in the map, categorize it logically choosing ONLY from this list: [${customCategories.join(', ')}]. If no category matches and it's not in the map, you MUST use 'อื่นๆ'.
+      
       Note on fields:
       - customerMustPay: The fare amount before app discount.
       - customerActuallyPays: The fare amount after app discount.
@@ -215,9 +224,8 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       
       The user's preferred language code is '${currentLang}'. Please respond in this language.
       
-      If the user uploads an image of a receipt or slip, extract the details and call the 'addExpense' tool.
-      When extracting the category, you MUST ONLY use categories from this list: [${customCategories.join(', ')}].
-      If the receipt's category is not in the list, you MUST use 'อื่นๆ'.
+      If the user uploads an image of a receipt or slip, extract the details such as payee name and call the 'addExpense' tool.
+      When extracting the category, always check the Payee Category History Map first. If a match is found, use it. If not, use the custom lists or default 'อื่นๆ'.
       If the user provides JSON data, process it by calling the appropriate tools (addExpense, addJob, setIncentive) for each entry in the JSON.
       If the user mentions adding a job or income, use the 'addJob' tool.
       If the user mentions a daily incentive, use the 'setIncentive' tool.
@@ -256,9 +264,27 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         for (const call of functionCalls) {
           if (call.name === 'addExpense') {
             const args = call.args as any;
+            
+            let finalCategory = args.category;
+            const argPayee = (args.payee || '').trim().toLowerCase();
+            if (argPayee) {
+              // Strict match
+              if (payeeToCategoryMap[argPayee]) {
+                finalCategory = payeeToCategoryMap[argPayee];
+              } else {
+                // Fuzzy/substring match: find if any key in map is a substring or vice versa
+                const matchedKey = Object.keys(payeeToCategoryMap).find(key => 
+                  argPayee.includes(key) || key.includes(argPayee)
+                );
+                if (matchedKey) {
+                  finalCategory = payeeToCategoryMap[matchedKey];
+                }
+              }
+            }
+
             const res = await addExpense({
               amount: args.amount,
-              category: args.category,
+              category: finalCategory,
               payee: args.payee || '',
               note: args.note || '',
               date: args.date || (() => {

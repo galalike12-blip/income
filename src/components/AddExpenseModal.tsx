@@ -175,12 +175,22 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
       const base64Data = compressedDataUrl.split(',')[1];
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
+      // Generate a distinct mapping of payee to their most frequent/recent category
+      const payeeToCategoryMap: Record<string, string> = {};
+      [...expenses]
+        .sort((a, b) => a.date.localeCompare(b.date)) // older to newer, so newer overrides older
+        .forEach(e => {
+          if (e.payee && e.payee.trim() && e.category) {
+            payeeToCategoryMap[e.payee.trim().toLowerCase()] = e.category;
+          }
+        });
+
       const response = await ai.models.generateContent({
         model: "gemini-3.5-flash",
         contents: [
           {
             parts: [
-              { text: "Extract receipt details: amount (number), payee (string), category, and date (string, in 'YYYY-MM-DDTHH:mm' local timezone format, extracting both the date and the time from the slip if available). You MUST choose a category from this list: [" + customCategories.join(', ') + "]. If no category matches, you MUST use 'อื่นๆ'. Return JSON only." },
+              { text: "Extract receipt details: amount (number), payee (string), category, and date (string, in 'YYYY-MM-DDTHH:mm' local timezone format, extracting both the date and the time from the slip if available). You MUST choose a category from this list: [" + customCategories.join(', ') + "]. If no category matches, you MUST use 'อื่นๆ'. Here is a history map of payees and their matching categories: " + JSON.stringify(payeeToCategoryMap) + ". If the payee/recipient name detected matches or is highly similar to any in this history map, you MUST use its historical category. Return JSON only with fields: amount, payee, category, date." },
               { inlineData: { data: base64Data, mimeType: "image/jpeg" } }
             ]
           }
@@ -192,10 +202,28 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
 
       const result = JSON.parse(response.text || '{}');
       if (result.amount) setExpenseAmount(result.amount.toString());
-      if (result.payee) setExpensePayee(result.payee);
-      if (result.category) {
-        setExpenseCategory(result.category);
+      
+      let finalPayee = result.payee || '';
+      let finalCategory = result.category || '';
+
+      if (finalPayee.trim()) {
+        const normPayee = finalPayee.trim().toLowerCase();
+        // Check strict match first
+        if (payeeToCategoryMap[normPayee]) {
+          finalCategory = payeeToCategoryMap[normPayee];
+        } else {
+          // Check fuzzy/substring match
+          const matchedKey = Object.keys(payeeToCategoryMap).find(key => 
+            normPayee.includes(key) || key.includes(normPayee)
+          );
+          if (matchedKey) {
+            finalCategory = payeeToCategoryMap[matchedKey];
+          }
+        }
       }
+
+      if (finalPayee) setExpensePayee(finalPayee);
+      if (finalCategory) setExpenseCategory(finalCategory);
       if (result.date) {
         setExpenseDate(result.date);
       }
