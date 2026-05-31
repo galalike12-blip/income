@@ -481,7 +481,6 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                 </button>
                 <textarea
                   ref={inputRef}
-                  inputMode="decimal"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
