@@ -245,7 +245,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         for (const call of functionCalls) {
           if (call.name === 'addExpense') {
             const args = call.args as any;
-            addExpense({
+            const res = await addExpense({
               amount: args.amount,
               category: args.category,
               payee: args.payee || '',
@@ -256,7 +256,12 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               })(),
               isPaid: true
             });
-            toast.success(t.synced || 'เพิ่มรายจ่ายสำเร็จ');
+            const bal = (res as any)?.balanceAfter;
+            if (bal !== undefined) {
+              toast.success(`${t.synced || 'เพิ่มรายจ่ายสำเร็จ'} (ยอดคงเหลือ ฿${bal.toLocaleString()})`);
+            } else {
+              toast.success(t.synced || 'เพิ่มรายจ่ายสำเร็จ');
+            }
           } else if (call.name === 'setIncentive') {
             const args = call.args as any;
             setIncentive(args.date, args.amount);

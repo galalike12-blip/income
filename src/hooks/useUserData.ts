@@ -65,7 +65,7 @@ export function useUserData(user: User | null) {
         snapshot.docs.forEach(doc => {
           const data = doc.data();
           if (data.date && data.amount !== undefined) {
-            incData[data.date] = { amount: data.amount, transferred: !data.transferred };
+            incData[data.date] = { amount: data.amount, transferred: !!data.transferred };
           }
         });
         setFirestoreIncentives(incData);
@@ -279,24 +279,45 @@ export function useUserData(user: User | null) {
     const newBalance = currentBalance + totalNet;
 
     if (user) {
+      const batches: ReturnType<typeof writeBatch>[] = [];
+      let currentBatch = writeBatch(db);
+      let operationCount = 0;
+
+      const incrementBatch = () => {
+        operationCount++;
+        if (operationCount === 490) { // Limit is 500
+          batches.push(currentBatch);
+          currentBatch = writeBatch(db);
+          operationCount = 0;
+        }
+      };
+
       // Mark jobs as transferred in Firestore
-      const jobPromises = untransferredJobs.map(j => {
+      untransferredJobs.forEach(j => {
         const jobRef = doc(db, 'users', user.uid, 'jobs', j.id);
-        return setDoc(jobRef, { transferred: true }, { merge: true });
+        currentBatch.set(jobRef, { transferred: true }, { merge: true });
+        incrementBatch();
       });
 
       // Mark incentives as transferred in Firestore
-      const incPromises = untransferredIncentives.map(([date, data]) => {
+      untransferredIncentives.forEach(([date, data]) => {
         const incRef = doc(db, 'users', user.uid, 'incentives', date);
-        return setDoc(incRef, { transferred: true }, { merge: true });
+        currentBatch.set(incRef, { transferred: true }, { merge: true });
+        incrementBatch();
       });
 
-      await Promise.all([...jobPromises, ...incPromises]);
-      
       // Update balance in preferences
       const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
-      await setDoc(prefRef, { expenseBalance: newBalance }, { merge: true });
-      await addLog('transfer_income', `โอนรายได้เข้าบัญชีรายจ่าย: ${totalNet} บาท`, totalNet);
+      currentBatch.set(prefRef, { expenseBalance: newBalance }, { merge: true });
+      batches.push(currentBatch);
+      
+      try {
+        await Promise.all(batches.map(batch => batch.commit()));
+        await addLog('transfer_income', `โอนรายได้เข้าบัญชีรายจ่าย: ${totalNet} บาท`, totalNet);
+      } catch (e) {
+        console.error("Error committing transfer batch", e);
+        throw e;
+      }
     } else {
       // Mark jobs as transferred locally
       setLocalJobs(prev => prev.map(j => untransferredJobs.some(uj => uj.id === j.id) ? { ...j, transferred: true } : j));
@@ -378,7 +399,7 @@ export function useUserData(user: User | null) {
       await addLog('add_expense', `เพิ่มรายจ่าย: ${expense.payee || expense.category} (${expense.amount} บาท)${isMultiMonth ? ` จำนวน ${duration} เดือน` : ''}`, expense.amount * duration);
     }
     
-    return entries[0].id;
+    return { id: entries[0].id, balanceAfter: entries[0].balanceAfter };
   };
 
   const updateExpense = async (id: string, updates: Partial<ExpenseEntry>) => {
