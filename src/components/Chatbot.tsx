@@ -12,6 +12,7 @@ interface ChatMessage {
   role: 'user' | 'model';
   text: string;
   image?: string;
+  images?: string[];
 }
 
 interface ChatbotProps {
@@ -32,7 +33,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
   
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -49,14 +50,26 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
   }, [messages, isLoading]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setSelectedImage(event.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    const loadedImages: string[] = [];
+    let processed = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          loadedImages.push(event.target.result as string);
+        }
+        processed++;
+        if (processed === files.length) {
+          setSelectedImages(prev => [...prev, ...loadedImages]);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleJsonSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,19 +91,19 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
   };
 
   const handleSend = async () => {
-    if ((!input.trim() && !selectedImage) || isLoading) return;
+    if ((!input.trim() && selectedImages.length === 0) || isLoading) return;
 
     const userMsg: ChatMessage = { 
       id: Date.now().toString(), 
       role: 'user', 
       text: input,
-      image: selectedImage || undefined
+      images: selectedImages.length > 0 ? selectedImages : undefined
     };
     setMessages(prev => [...prev, userMsg]);
     const currentInput = input;
-    const currentImage = selectedImage;
+    const currentImages = [...selectedImages];
     setInput('');
-    setSelectedImage(null);
+    setSelectedImages([]);
     setIsLoading(true);
 
     try {
@@ -236,13 +249,15 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         parts: [{ text: m.text }]
       }));
 
-      const parts: any[] = [{ text: currentInput || "Please process this slip." }];
-      if (currentImage) {
-        parts.push({
-          inlineData: {
-            data: currentImage.split(',')[1],
-            mimeType: "image/jpeg"
-          }
+      const parts: any[] = [{ text: currentInput || "Please process these slips." }];
+      if (currentImages && currentImages.length > 0) {
+        currentImages.forEach(img => {
+          parts.push({
+            inlineData: {
+              data: img.split(',')[1],
+              mimeType: "image/jpeg"
+            }
+          });
         });
       }
 
@@ -427,7 +442,14 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[80%] p-3.5 rounded-2xl ${msg.role === 'user' ? 'bg-indigo-600/90 backdrop-blur-sm text-white rounded-tr-sm shadow-md shadow-indigo-500/20' : 'glass-panel-subtle text-slate-800 dark:text-slate-200 rounded-tl-sm'}`}>
-                    {msg.image && (
+                    {msg.images && msg.images.length > 0 && (
+                      <div className={`grid gap-2 mb-2 ${msg.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                        {msg.images.map((img, idx) => (
+                          <img key={idx} src={img} alt={`Uploaded ${idx + 1}`} className="w-full h-auto object-cover max-h-48 rounded-lg border border-white/20" referrerPolicy="no-referrer" />
+                        ))}
+                      </div>
+                    )}
+                    {msg.image && !msg.images && (
                       <img src={msg.image} alt="Uploaded" className="w-full h-auto rounded-lg mb-2 border border-white/20" referrerPolicy="no-referrer" />
                     )}
                     <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
@@ -447,15 +469,19 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
 
             {/* Input */}
             <div className="p-3 sm:p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border-t border-white/40 dark:border-white/10 transition-colors">
-              {selectedImage && (
-                <div className="mb-3 relative inline-block">
-                  <img src={selectedImage} alt="Preview" className="w-20 h-20 object-cover rounded-xl border-2 border-indigo-500" referrerPolicy="no-referrer" />
-                  <button 
-                    onClick={() => setSelectedImage(null)}
-                    className="absolute -top-2 -right-2 bg-rose-500 text-white p-1 rounded-full shadow-lg"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+              {selectedImages.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2 max-h-24 overflow-y-auto py-1">
+                  {selectedImages.map((img, idx) => (
+                    <div key={idx} className="relative inline-block shrink-0">
+                      <img src={img} alt={`Preview ${idx}`} className="w-12 h-12 object-cover rounded-xl border border-indigo-500" referrerPolicy="no-referrer" />
+                      <button 
+                        onClick={() => setSelectedImages(prev => prev.filter((_, i) => i !== idx))}
+                        className="absolute -top-1.5 -right-1.5 bg-rose-500 hover:bg-rose-650 text-white p-0.5 rounded-full shadow-lg cursor-pointer animate-fade-in"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
               <div className="flex items-center gap-2">
@@ -464,17 +490,18 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                   ref={fileInputRef}
                   onChange={handleImageSelect}
                   accept="image/*"
+                  multiple
                   className="hidden"
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-3 glass-button rounded-full text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                  className="p-3 glass-button rounded-full text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
                 >
                   <Camera className="w-4 h-4" />
                 </button>
                 <button
                   onClick={toggleListening}
-                  className={`p-3 glass-button rounded-full transition-colors ${isListening ? 'text-rose-500 animate-pulse' : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
+                  className={`p-3 glass-button rounded-full transition-colors cursor-pointer ${isListening ? 'text-rose-500 animate-pulse' : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
                   title="Voice Input"
                 >
                   {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -495,7 +522,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                 />
                 <button
                   onClick={handleSend}
-                  disabled={(!input.trim() && !selectedImage) || isLoading}
+                  disabled={(!input.trim() && selectedImages.length === 0) || isLoading}
                   className="p-3 glass-button rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Send className="w-4 h-4" />
