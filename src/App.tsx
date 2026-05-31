@@ -14,6 +14,7 @@ import { AddExpenseModal } from './components/AddExpenseModal';
 import { Header } from './components/Header';
 import { GoalModal } from './components/GoalModal';
 import { ActivityLogModal } from './components/ActivityLogModal';
+import { ExportModal } from './components/ExportModal';
 import { IosInstallPrompt } from './components/IosInstallPrompt';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useUserData } from './hooks/useUserData';
@@ -42,6 +43,7 @@ function MainContent() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isActivityLogOpen, setIsActivityLogOpen] = useState(false);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetInput, setResetInput] = useState('');
   const chatbotRef = useRef<any>(null);
@@ -279,6 +281,7 @@ function MainContent() {
         setShowResetConfirm={setShowResetConfirm} 
         setShowActivityLog={setIsActivityLogOpen}
         setShowGoalModal={setIsGoalModalOpen}
+        setShowExportModal={setIsExportOpen}
       />
       
       {/* Main Content Area (Scrollable) */}
@@ -431,6 +434,12 @@ function MainContent() {
         onClose={() => setIsGoalModalOpen(false)}
         goals={goals}
         onSetGoal={setGoal}
+      />
+      <ExportModal 
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        jobs={jobs}
+        expenses={expenses}
       />
       <IosInstallPrompt />
       <Toaster position="top-center" richColors />

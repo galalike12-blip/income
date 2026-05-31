@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Moon, Sun, Monitor, Globe, LogIn, LogOut, Menu, X, Download, Trash2, History, Wallet, Target } from 'lucide-react';
+import { Moon, Sun, Monitor, Globe, LogIn, LogOut, Menu, X, Download, Trash2, History, Wallet, Target, FileSpreadsheet } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,12 +8,14 @@ export function Header({
   onInstall, 
   setShowResetConfirm, 
   setShowActivityLog,
-  setShowGoalModal 
+  setShowGoalModal,
+  setShowExportModal
 }: { 
   onInstall?: () => void; 
   setShowResetConfirm: (show: boolean) => void; 
   setShowActivityLog: (show: boolean) => void;
   setShowGoalModal: (show: boolean) => void;
+  setShowExportModal: (show: boolean) => void;
 }) {
   const { theme, setTheme, language, setLanguage, currentLang } = useSettings();
   const t = translations[currentLang];
@@ -122,6 +124,15 @@ export function Header({
             >
               <Target className="w-4 h-4 text-indigo-500" />
               <span>{t.goals || 'เป้าหมายรายได้'}</span>
+            </button>
+
+            {/* Export CSV Data */}
+            <button 
+              onClick={() => { setShowExportModal(true); setIsMenuOpen(false); }}
+              className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+              <span>{t.exportData || 'ส่งออกข้อมูล (CSV)'}</span>
             </button>
 
             {/* Clear All Data */}
