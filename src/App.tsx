@@ -24,6 +24,7 @@ import { GoogleSheetsService } from './services/googleSheets';
 import { translations } from './i18n/translations';
 import { JobEntry, ExpenseEntry } from './types';
 import { Toaster } from 'sonner';
+import { Settings2 } from 'lucide-react';
 
 function MainContent() {
   const { currentLang } = useSettings();
@@ -44,6 +45,7 @@ function MainContent() {
   const [isActivityLogOpen, setIsActivityLogOpen] = useState(false);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [showSummarySettings, setShowSummarySettings] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetInput, setResetInput] = useState('');
   const chatbotRef = useRef<any>(null);
@@ -307,16 +309,26 @@ function MainContent() {
         )}
         
         <div className="max-w-5xl mx-auto px-4 mt-3 mb-2 flex justify-center sticky top-0 z-20">
-          <div className="flex w-full max-w-md glass-panel-subtle p-1 rounded-full overflow-hidden shadow-lg">
-            <button onClick={() => setActiveTab('dashboard')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-              {t.income || 'รายรับ'}
-            </button>
-            <button onClick={() => setActiveTab('expenses')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'expenses' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-              {t.expenses || 'รายจ่าย'}
-            </button>
-            <button onClick={() => setActiveTab('summary')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'summary' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-              {t.summary || 'สรุป'}
-            </button>
+          <div className="flex items-center gap-2 w-full max-w-md">
+            <div className="flex-1 flex glass-panel-subtle p-1 rounded-full overflow-hidden shadow-lg">
+              <button onClick={() => setActiveTab('dashboard')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                {t.income || 'รายรับ'}
+              </button>
+              <button onClick={() => setActiveTab('expenses')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'expenses' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                {t.expenses || 'รายจ่าย'}
+              </button>
+              <button onClick={() => setActiveTab('summary')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'summary' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                {t.summary || 'สรุป'}
+              </button>
+            </div>
+            {activeTab === 'summary' && (
+              <button 
+                onClick={() => setShowSummarySettings(!showSummarySettings)}
+                className={`p-2.5 rounded-full transition-all shadow-lg border flex-shrink-0 cursor-pointer ${showSummarySettings ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600' : 'bg-white/80 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750'}`}
+              >
+                <Settings2 className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -364,6 +376,7 @@ function MainContent() {
               rawIncentives={rawIncentives}
               expenseBalance={preferences?.expenseBalance || 0}
               logs={logs}
+              showSettings={showSummarySettings}
             />
           )}
         </div>
