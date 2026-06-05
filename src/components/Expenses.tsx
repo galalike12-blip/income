@@ -76,6 +76,7 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
 
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState(`${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`);
+  const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
   
   const customCategories = (preferences?.customCategories) || [];
   const setCustomCategories = (newCategories: string[]) => updatePreferences({ customCategories: newCategories });
@@ -567,6 +568,8 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
                   t={t}
                   isFixed={true}
                   progress={getGroupProgress(expense.groupId)}
+                  expandedExpenseId={expandedExpenseId}
+                  setExpandedExpenseId={setExpandedExpenseId}
                 />
               ))}
             </div>
@@ -629,6 +632,8 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
                             getFaviconUrl={getFaviconUrl}
                             t={t}
                             isFixed={false}
+                            expandedExpenseId={expandedExpenseId}
+                            setExpandedExpenseId={setExpandedExpenseId}
                           />
                         ))
                       )}
@@ -666,6 +671,8 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
                                   getFaviconUrl={getFaviconUrl}
                                   t={t}
                                   isFixed={false}
+                                  expandedExpenseId={expandedExpenseId}
+                                  setExpandedExpenseId={setExpandedExpenseId}
                                 />
                               ))}
                             </div>
@@ -939,8 +946,8 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
   );
 }
 
-function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpense, getFaviconUrl, t, isFixed, progress }: any) {
-  const [isExpanded, setIsExpanded] = useState(false);
+function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpense, getFaviconUrl, t, isFixed, progress, expandedExpenseId, setExpandedExpenseId }: any) {
+  const isExpanded = expandedExpenseId === expense.id;
   
   return (
     <motion.div 
@@ -954,7 +961,7 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
     >
       <div 
         className="p-4 flex justify-between items-center cursor-pointer hover:bg-white/40 dark:hover:bg-slate-800/40 transition-colors flex-1"
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => isExpanded ? setExpandedExpenseId(null) : setExpandedExpenseId(expense.id)}
       >
         <div className="flex items-center gap-4 min-w-0">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${expense.isPaid ? 'bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-indigo-100/50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'} overflow-hidden`}>

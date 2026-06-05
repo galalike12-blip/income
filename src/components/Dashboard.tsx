@@ -57,6 +57,7 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
   const [incentiveInput, setIncentiveInput] = useState('');
   const [isEditingBalance, setIsEditingBalance] = useState(false);
   const [balanceInput, setBalanceInput] = useState('');
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
 
   useEffect(() => {
     setIsEditingIncentive(false);
@@ -649,6 +650,8 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
                             handleEditClick={handleEditClick} 
                             deleteJob={deleteJob} 
                             t={t} 
+                            expandedJobId={expandedJobId}
+                            setExpandedJobId={setExpandedJobId}
                           />
                         ))}
                       </div>
@@ -682,6 +685,8 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
                                   handleEditClick={handleEditClick} 
                                   deleteJob={deleteJob} 
                                   t={t} 
+                                  expandedJobId={expandedJobId}
+                                  setExpandedJobId={setExpandedJobId}
                                 />
                                 ))}
                             </div>
@@ -753,8 +758,8 @@ function SummaryCard({ title, amount, valueDisplay, subtitle, icon, bg, color, c
   );
 }
 
-function JobItem({ job, index, handleEditClick, deleteJob, t }: any) {
-  const [isExpanded, setIsExpanded] = useState(false);
+function JobItem({ job, index, handleEditClick, deleteJob, t, expandedJobId, setExpandedJobId }: any) {
+  const isExpanded = expandedJobId === job.id;
   const amountToCollect = job.customerMustPay + job.upfrontCost;
   const diff = job.actualReceived - amountToCollect;
   const tip = diff > 0 ? diff : 0;
@@ -769,7 +774,7 @@ function JobItem({ job, index, handleEditClick, deleteJob, t }: any) {
     >
       <div 
         className="p-4 flex justify-between items-center cursor-pointer hover:bg-white/40 dark:hover:bg-slate-800/40 transition-colors flex-1"
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => isExpanded ? setExpandedJobId(null) : setExpandedJobId(job.id)}
       >
         <div className="flex items-center gap-4 min-w-0">
           <div className="bg-indigo-100/50 dark:bg-indigo-900/30 backdrop-blur-sm text-indigo-700 dark:text-indigo-300 w-10 h-10 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0">

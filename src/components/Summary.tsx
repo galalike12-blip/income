@@ -19,6 +19,8 @@ import {
 import { 
   BarChart, 
   Bar, 
+  LineChart,
+  Line,
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -297,27 +299,32 @@ export function Summary({
 
       // Calculate historical balance exactly at compEndStr
       let transIncomeAfter = 0;
-      const hasAnyTransferLogs = logs.some(l => l.type === 'transfer_income');
       
-      if (hasAnyTransferLogs) {
-        logs.filter(l => l.type === 'transfer_income' && l.timestamp > compEndStr! + 'T23:59:59').forEach(l => {
+      const sortedTransferLogs = logs.filter(l => l.type === 'transfer_income').sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      const firstTransferLogTime = sortedTransferLogs.length > 0 ? sortedTransferLogs[0].timestamp : '9999-99-99T99:99';
+
+      // 1. Add from transfer logs
+      sortedTransferLogs.forEach(l => {
+        if (l.timestamp > compEndStr! + 'T23:59:59') {
           transIncomeAfter += (l.amount || 0);
-        });
-      } else {
-        jobs.filter(j => j.date.split('T')[0] > compEndStr! && j.transferred).forEach(j => {
-          const amountToCollect = j.customerMustPay + j.upfrontCost;
-          const actual = j.actualReceived ?? amountToCollect;
-          const diff = actual - amountToCollect;
-          const tip = diff > 0 ? diff : 0;
-          const loss = diff < 0 ? Math.abs(diff) : 0;
-          transIncomeAfter += (j.appNetIncome - loss + tip);
-        });
-        Object.entries(rawIncentives || {}).forEach(([d, inc]) => {
-          if (d > compEndStr! && inc && typeof inc !== 'number' && inc.transferred) {
-            transIncomeAfter += inc.amount;
-          }
-        });
-      }
+        }
+      });
+
+      // 2. Add from legacy jobs that were transferred BEFORE the logging feature existed
+      jobs.filter(j => j.date.split('T')[0] > compEndStr! && j.transferred && j.date < firstTransferLogTime).forEach(j => {
+        const amountToCollect = j.customerMustPay + j.upfrontCost;
+        const actual = j.actualReceived ?? amountToCollect;
+        const diff = actual - amountToCollect;
+        const tip = diff > 0 ? diff : 0;
+        const loss = diff < 0 ? Math.abs(diff) : 0;
+        transIncomeAfter += (j.appNetIncome - loss + tip);
+      });
+      
+      Object.entries(rawIncentives || {}).forEach(([d, inc]) => {
+        if (d > compEndStr! && inc && typeof inc !== 'number' && inc.transferred && d < firstTransferLogTime.split('T')[0]) {
+          transIncomeAfter += inc.amount;
+        }
+      });
 
       let paidExpensesAfter = 0;
       expenses.filter(e => e.date.split('T')[0] > compEndStr! && e.isPaid !== false).forEach(e => {
@@ -328,26 +335,32 @@ export function Summary({
 
     let currentBalanceAtEndStr = expenseBalance;
     let transIncomeAfterEnd = 0;
-    const hasAnyTransferLogsEnd = logs.some(l => l.type === 'transfer_income');
-    if (hasAnyTransferLogsEnd) {
-      logs.filter(l => l.type === 'transfer_income' && l.timestamp > endStr + 'T23:59:59').forEach(l => {
+    
+    // We already have smoothed logs and sortedTransferLogs/firstTransferLogTime from above, 
+    // but they are scoped. Let's just re-calculate or simplify.
+    const sortedTransferLogsEnd = logs.filter(l => l.type === 'transfer_income').sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    const firstTransferLogTimeEnd = sortedTransferLogsEnd.length > 0 ? sortedTransferLogsEnd[0].timestamp : '9999-99-99T99:99';
+
+    sortedTransferLogsEnd.forEach(l => {
+      if (l.timestamp > endStr + 'T23:59:59') {
         transIncomeAfterEnd += (l.amount || 0);
-      });
-    } else {
-      jobs.filter(j => j.date.split('T')[0] > endStr && j.transferred).forEach(j => {
-        const amountToCollect = j.customerMustPay + j.upfrontCost;
-        const actual = j.actualReceived ?? amountToCollect;
-        const diff = actual - amountToCollect;
-        const tip = diff > 0 ? diff : 0;
-        const loss = diff < 0 ? Math.abs(diff) : 0;
-        transIncomeAfterEnd += (j.appNetIncome - loss + tip);
-      });
-      Object.entries(rawIncentives || {}).forEach(([d, inc]) => {
-        if (d > endStr && inc && typeof inc !== 'number' && inc.transferred) {
-          transIncomeAfterEnd += inc.amount;
-        }
-      });
-    }
+      }
+    });
+
+    jobs.filter(j => j.date.split('T')[0] > endStr && j.transferred && j.date < firstTransferLogTimeEnd).forEach(j => {
+      const amountToCollect = j.customerMustPay + j.upfrontCost;
+      const actual = j.actualReceived ?? amountToCollect;
+      const diff = actual - amountToCollect;
+      const tip = diff > 0 ? diff : 0;
+      const loss = diff < 0 ? Math.abs(diff) : 0;
+      transIncomeAfterEnd += (j.appNetIncome - loss + tip);
+    });
+    
+    Object.entries(rawIncentives || {}).forEach(([d, inc]) => {
+      if (d > endStr && inc && typeof inc !== 'number' && inc.transferred && d < firstTransferLogTimeEnd.split('T')[0]) {
+        transIncomeAfterEnd += inc.amount;
+      }
+    });
 
     let paidExpensesAfterEnd = 0;
     expenses.filter(e => e.date.split('T')[0] > endStr && e.isPaid !== false).forEach(e => {
@@ -437,6 +450,90 @@ export function Summary({
       .map(([category, amount]) => ({ category, amount }))
       .sort((a, b) => b.amount - a.amount);
 
+    // Overlapping Data for Line Chart (Past 4 periods)
+    let overlappingData: any[] = [];
+    if (activeTab === 'monthly') {
+      const currentYearMonth = selectedMonth; // e.g. "2024-06"
+      const [curYStr, curMStr] = currentYearMonth.split('-');
+      const curY = parseInt(curYStr);
+      const curM = parseInt(curMStr) - 1; // 0-indexed month
+      
+      const periods = Array.from({ length: 4 }, (_, i) => {
+        const date = new Date(curY, curM - i, 1);
+        return {
+          id: i === 0 ? 'เดือนนี้' : i === 1 ? 'เดือนที่แล้ว' : `${i} เดือนที่แล้ว`,
+          prefix: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` // prefix to match 'YYYY-MM'
+        };
+      });
+
+      // Prepare 31 days data structure
+      for (let day = 1; day <= 31; day++) {
+        const dayStr = String(day).padStart(2, '0');
+        const dayObj: any = { day: dayStr };
+        // For each period, calculate standard income for that specific day
+        periods.forEach((period, idx) => {
+          const targetDateStr = `${period.prefix}-${dayStr}`;
+          
+          let dayIncome = 0;
+          
+          jobs.filter(j => j.date.startsWith(targetDateStr)).forEach(j => {
+            const amountToCollect = j.customerMustPay + j.upfrontCost;
+            const actual = j.actualReceived ?? amountToCollect;
+            const diff = actual - amountToCollect;
+            const tip = diff > 0 ? diff : 0;
+            const loss = diff < 0 ? Math.abs(diff) : 0;
+            dayIncome += (j.appNetIncome - loss + tip);
+          });
+          
+          Object.entries(rawIncentives || {}).forEach(([d, inc]) => {
+            if (d === targetDateStr && inc && typeof inc !== 'number') {
+              dayIncome += inc.amount;
+            }
+          });
+          
+          dayObj[`v${idx}`] = dayIncome;
+        });
+        overlappingData.push(dayObj);
+      }
+    } else if (activeTab === 'yearly') {
+      const curY = parseInt(selectedYear);
+      const periods = Array.from({ length: 4 }, (_, i) => {
+        return {
+          id: i === 0 ? 'ปีนี้' : i === 1 ? 'ปีที่แล้ว' : `${i} ปีที่แล้ว`,
+          prefix: `${curY - i}` // prefix to match 'YYYY'
+        };
+      });
+
+      // Prepare 12 months data structure
+      for (let m = 1; m <= 12; m++) {
+        const monthStr = String(m).padStart(2, '0');
+        const mObj: any = { month: monthStr };
+        periods.forEach((period, idx) => {
+          const targetPrefix = `${period.prefix}-${monthStr}`; // 'YYYY-MM'
+          
+          let monthIncome = 0;
+          
+          jobs.filter(j => j.date.startsWith(targetPrefix)).forEach(j => {
+            const amountToCollect = j.customerMustPay + j.upfrontCost;
+            const actual = j.actualReceived ?? amountToCollect;
+            const diff = actual - amountToCollect;
+            const tip = diff > 0 ? diff : 0;
+            const loss = diff < 0 ? Math.abs(diff) : 0;
+            monthIncome += (j.appNetIncome - loss + tip);
+          });
+          
+          Object.entries(rawIncentives || {}).forEach(([d, inc]) => {
+            if (d.startsWith(targetPrefix) && inc && typeof inc !== 'number') {
+              monthIncome += inc.amount;
+            }
+          });
+          
+          mObj[`v${idx}`] = monthIncome;
+        });
+        overlappingData.push(mObj);
+      }
+    }
+
     return {
       totalTips,
       workDays,
@@ -453,7 +550,8 @@ export function Summary({
       currentTransferredIncome,
       prevTotalExpenses,
       prevBalance,
-      currentBalance: currentBalanceAtEndStr
+      currentBalance: currentBalanceAtEndStr,
+      overlappingData
     };
   }, [activeTab, jobs, expenses, incentives, rawIncentives, expenseBalance, selectedDay, selectedMonth, selectedYear, startDate, endDate, weekOffset]);
 
@@ -854,6 +952,46 @@ export function Summary({
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#f43f5e' }} />
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">หยุด ({'<='}800)</span>
             </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Historical Overlap Line Chart */}
+      {(activeTab === 'monthly' || activeTab === 'yearly') && rangeData.overlappingData?.length > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-panel p-6 rounded-[2rem] mt-6"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h4 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2 uppercase tracking-widest">
+              <TrendingUp className="w-4 h-4 text-indigo-500" />
+              เปรียบเทียบย้อนหลัง (4 {activeTab === 'monthly' ? 'เดือน' : 'ปี'})
+            </h4>
+          </div>
+          <div className="h-[250px] w-full mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={rangeData.overlappingData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis 
+                  dataKey={activeTab === 'monthly' ? 'day' : 'month'} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 9, fill: '#64748b', fontWeight: 'bold' }}
+                  minTickGap={15}
+                />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 'bold' }} width={45} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                  formatter={(value: number, name: string) => [`฿${value.toLocaleString()}`, name === 'v0' ? (activeTab === 'monthly' ? 'เดือนนี้' : 'ปีนี้') : name === 'v1' ? (activeTab === 'monthly' ? 'เดือนที่แล้ว' : 'ปีที่แล้ว') : name === 'v2' ? (activeTab === 'monthly' ? '2 เดือนที่แล้ว' : '2 ปีที่แล้ว') : (activeTab === 'monthly' ? '3 เดือนที่แล้ว' : '3 ปีที่แล้ว')]}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '15px' }} formatter={(value) => <span className="font-medium text-slate-600 dark:text-slate-300">{value === 'v0' ? (activeTab === 'monthly' ? 'เดือนนี้' : 'ปีนี้') : value === 'v1' ? (activeTab === 'monthly' ? 'เดือนที่แล้ว' : 'ปีที่แล้ว') : value === 'v2' ? (activeTab === 'monthly' ? '2 เดือนที่แล้ว' : '2 ปีที่แล้ว') : (activeTab === 'monthly' ? '3 เดือนที่แล้ว' : '3 ปีที่แล้ว')}</span> } />
+                <Line type="monotone" dataKey="v0" stroke="#4f46e5" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, fill: '#4f46e5', stroke: '#fff', strokeWidth: 2 }} />
+                <Line type="monotone" dataKey="v1" stroke="#0ea5e9" strokeWidth={2.5} dot={{ r: 0 }} activeDot={{ r: 4, fill: '#0ea5e9', stroke: '#fff', strokeWidth: 2 }} />
+                <Line type="monotone" dataKey="v2" stroke="#10b981" strokeWidth={2} strokeOpacity={0.7} dot={{ r: 0 }} activeDot={{ r: 4, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }} />
+                <Line type="monotone" dataKey="v3" stroke="#f43f5e" strokeWidth={1.5} strokeOpacity={0.6} strokeDasharray="4 4" dot={{ r: 0 }} activeDot={{ r: 4, fill: '#f43f5e', stroke: '#fff', strokeWidth: 2 }} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </motion.div>
       )}
