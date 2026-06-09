@@ -5,6 +5,7 @@ import { Tooltip } from 'recharts';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { useSettings } from '../contexts/SettingsContext';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { translations } from '../i18n/translations';
 
 const COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#64748b'];
@@ -23,6 +24,7 @@ interface ExpensesProps {
   resetInput: string;
   setResetInput: (input: string) => void;
   handleResetData: () => Promise<void>;
+  showSettings?: boolean;
 }
 
 const getFaviconUrl = (url?: string) => {
@@ -70,7 +72,7 @@ const getCategoryIcon = (category: string) => {
   return <HelpCircle className="w-4 h-4" />;
 };
 
-export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpense, deleteExpense, preferences, updatePreferences, showResetConfirm, setShowResetConfirm, resetInput, setResetInput, handleResetData }: ExpensesProps) {
+export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpense, deleteExpense, preferences, updatePreferences, showResetConfirm, setShowResetConfirm, resetInput, setResetInput, handleResetData, showSettings = false }: ExpensesProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
@@ -112,8 +114,11 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
     toast.success(`เปลี่ยนชื่อหมวดหมู่เป็น "${newName}" เรียบร้อยแล้ว`);
   };
 
-  const [isCustomizingLayout, setIsCustomizingLayout] = useState(false);
-  const widgetOrder = (preferences?.expensesWidgetOrder) || ['summary', 'fixed', 'variable'];
+  const validWidgets = ['summary', 'fixed', 'variable'];
+  const savedOrder = preferences?.expensesWidgetOrder || [];
+  const widgetOrder = savedOrder.length > 0 
+    ? [...savedOrder.filter(id => validWidgets.includes(id)), ...validWidgets.filter(id => !savedOrder.includes(id))] 
+    : validWidgets;
   const setWidgetOrder = (newOrder: string[]) => updatePreferences({ expensesWidgetOrder: newOrder });
   const fixedExpensesOrder = (preferences?.fixedExpensesOrder) || [];
   const setFixedExpensesOrder = (newOrder: string[]) => updatePreferences({ fixedExpensesOrder: newOrder });
@@ -121,6 +126,10 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
   const [variableExpenseDateFilter, setVariableExpenseDateFilter] = useState(() => {
     const d = new Date();
     return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+  });
+  const [variableHistoryMonthFilter, setVariableHistoryMonthFilter] = useState(() => {
+    const d = new Date();
+    return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 7);
   });
   const [showVariableHistory, setShowVariableHistory] = useState(false);
   const [variableSearchQuery, setVariableSearchQuery] = useState('');
@@ -232,10 +241,7 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
   }, [monthExpenses, variableSearchQuery, variableCategoryFilter, t]);
 
   const groupedVariableHistory = useMemo(() => {
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    
-    let filtered = expenses.filter(e => !e.isFixed && new Date(e.date) >= oneYearAgo);
+    let filtered = expenses.filter(e => !e.isFixed && e.date.startsWith(variableHistoryMonthFilter));
     
     if (variableSearchQuery) {
       const query = variableSearchQuery.toLowerCase();
@@ -260,9 +266,12 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
     });
     
     return Object.entries(groups)
-      .sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
-      .map(([date, items]) => ({ date, items }));
-  }, [expenses, variableSearchQuery, variableCategoryFilter, t]);
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([date, items]) => {
+        items.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        return { date, items };
+      });
+  }, [expenses, variableSearchQuery, variableCategoryFilter, t, variableHistoryMonthFilter]);
 
   const totalFixed = fixedExpenses.reduce((sum, e) => sum + e.amount, 0);
   const totalFixedPaid = fixedExpenses.filter(e => e.isPaid).reduce((sum, e) => sum + e.amount, 0);
@@ -348,9 +357,9 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
   return (
     <div className="max-w-5xl mx-auto px-4 pt-2 pb-0 space-y-6">
       {/* Header & Month Picker */}
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 glass-panel p-4 rounded-3xl transition-colors overflow-hidden">
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white text-center sm:text-left">{t.expenseManagement || 'ระบบจัดการรายจ่าย'}</h1>
-        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto">
+      <div className="flex flex-col gap-3 glass-panel p-4 rounded-3xl transition-colors">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{t.expenseManagement || 'ระบบจัดการรายจ่าย'}</h1>
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           <button 
             onClick={() => {
               const today = new Date();
@@ -360,27 +369,25 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
           >
             {t.today || 'วันนี้'}
           </button>
-          <button 
-            onClick={() => setIsCustomizingLayout(!isCustomizingLayout)}
-            className={`flex items-center gap-2 px-4 h-[38px] rounded-2xl border transition-colors backdrop-blur-sm ${isCustomizingLayout ? 'bg-indigo-50/95 border-indigo-200 text-indigo-700 dark:bg-indigo-900/80 dark:border-indigo-700 dark:text-indigo-300' : 'bg-white/95 border-slate-200 text-slate-700 dark:bg-slate-800/95 dark:border-slate-600 dark:text-slate-200'}`}
-          >
-            {isCustomizingLayout ? <Check className="w-5 h-5" /> : <Settings2 className="w-5 h-5" />}
-            <span className="hidden sm:inline font-medium">{isCustomizingLayout ? t.doneCustomizing : t.customizeLayout}</span>
-          </button>
-          <div className="flex items-center gap-2 glass-input px-4 h-[38px] rounded-2xl w-[145px]">
-            <Calendar className="w-5 h-5 text-slate-500 dark:text-slate-400 flex-shrink-0 -ml-[4px]" />
-            <input 
-              type="month" 
-              value={selectedMonth}
-              max={new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 7)}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent text-[14px] font-medium text-slate-900 dark:text-white outline-none cursor-pointer w-full"
-            />
+          <div className="bg-white/90 dark:bg-slate-800/90 border border-slate-200/50 dark:border-slate-700/50 p-1 px-3 rounded-2xl flex items-center justify-between min-h-[38px] shrink-0">
+            <button onClick={() => {
+              const [y, m] = selectedMonth.split('-').map(Number);
+              const d = new Date(y, m - 2);
+              setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+            }} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
+            <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate px-2 min-w-[100px] text-center">
+              {new Date(parseInt(selectedMonth.split('-')[0]), parseInt(selectedMonth.split('-')[1]) - 1).toLocaleDateString(currentLang === 'th' ? 'th-TH' : 'en-US', { month: 'short', year: 'numeric' })}
+            </span>
+            <button disabled={selectedMonth === new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 7)} onClick={() => {
+              const [y, m] = selectedMonth.split('-').map(Number);
+              const d = new Date(y, m);
+              setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+            }} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
           </div>
         </div>
       </div>
       
-      {!isCustomizingLayout && (
+      {!showSettings && (
         <div className="glass-panel p-4 rounded-3xl flex flex-col md:flex-row items-start md:items-center gap-4">
           <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-semibold text-sm px-2">
             <Settings2 className="w-4 h-4" />
@@ -436,21 +443,34 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
         </div>
       )}
 
-      {isCustomizingLayout ? (
-        <Reorder.Group axis="y" values={widgetOrder} onReorder={setWidgetOrder} className="space-y-4">
-          {widgetOrder.map(id => (
-            <Reorder.Item key={id} value={id} className="glass-panel p-4 rounded-3xl flex items-center gap-4 cursor-grab active:cursor-grabbing">
-              <GripVertical className="text-slate-400" />
-              <span className="font-medium text-slate-700 dark:text-slate-200">
-                {id === 'summary' && (t.budgetSummary || 'สรุปงบประมาณ')}
-                {id === 'fixed' && (t.fixedCosts || 'รายจ่ายคงที่ (Fixed Costs)')}
-                {id === 'variable' && (t.variableCosts || 'รายจ่ายผันแปร (Variable Costs)')}
-              </span>
-            </Reorder.Item>
-          ))}
-        </Reorder.Group>
-      ) : (
-        <div className="space-y-6">
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, scale: 0.95 }}
+            animate={{ opacity: 1, height: 'auto', scale: 1 }}
+            exit={{ opacity: 0, height: 0, scale: 0.95 }}
+            className="overflow-hidden mb-6"
+          >
+            <div className="glass-panel p-4 rounded-[2rem] space-y-3 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10">
+              <h4 className="text-sm font-black text-slate-800 dark:text-white px-2 mb-2">จัดเรียงวิดเจ็ต (ลากเพื่อสลับตำแหน่ง)</h4>
+              <Reorder.Group axis="y" values={widgetOrder} onReorder={setWidgetOrder} className="space-y-4">
+                {widgetOrder.map(id => (
+                  <Reorder.Item key={id} value={id} className="glass-panel p-4 rounded-3xl flex items-center gap-4 cursor-grab active:cursor-grabbing">
+                    <GripVertical className="text-slate-400" />
+                    <span className="font-medium text-slate-700 dark:text-slate-200">
+                      {id === 'summary' && (t.budgetSummary || 'สรุปงบประมาณ')}
+                      {id === 'fixed' && (t.fixedCosts || 'รายจ่ายคงที่ (Fixed Costs)')}
+                      {id === 'variable' && (t.variableCosts || 'รายจ่ายผันแปร (Variable Costs)')}
+                    </span>
+                  </Reorder.Item>
+                ))}
+              </Reorder.Group>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="space-y-6">
           {widgetOrder.map(id => (
             <div key={id}>
               {id === 'summary' && (
@@ -579,34 +599,52 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
               )}
               {id === 'variable' && (
                 <div className="glass-panel p-6 rounded-3xl">
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
-                    <div className="flex items-center justify-between w-full sm:w-auto">
+                  <div className="flex flex-col gap-3 mb-4">
+                    <div className="flex items-center gap-3">
                       <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                         {showVariableHistory ? t.history : t.variableCosts || 'รายจ่ายผันแปร (Variable Costs)'}
                       </h3>
                       <button 
                         onClick={() => setShowVariableHistory(!showVariableHistory)}
-                        className="sm:hidden text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                        className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1 rounded-full"
                       >
                         {showVariableHistory ? t.today : t.history}
                       </button>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <button 
-                        onClick={() => setShowVariableHistory(!showVariableHistory)}
-                        className="hidden sm:block text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline mr-2"
-                      >
-                        {showVariableHistory ? t.today : t.history}
-                      </button>
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                       
-                      {!showVariableHistory && (
-                        <input 
-                          type="date" 
-                          value={variableExpenseDateFilter}
-                          max={new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().split('T')[0]}
-                          onChange={(e) => setVariableExpenseDateFilter(e.target.value)}
-                          className="px-3 py-1.5 glass-input rounded-xl text-sm w-full sm:w-auto"
-                        />
+                      {showVariableHistory ? (
+                        <div className="bg-white/90 dark:bg-slate-800/90 border border-slate-200/50 dark:border-slate-700/50 p-1 px-3 rounded-2xl flex items-center justify-between min-h-[38px] shrink-0">
+                          <button onClick={() => {
+                            const [y, m] = variableHistoryMonthFilter.split('-').map(Number);
+                            const d = new Date(y, m - 2);
+                            setVariableHistoryMonthFilter(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+                          }} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
+                          <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate px-2 min-w-[90px] text-center">
+                            {new Date(parseInt(variableHistoryMonthFilter.split('-')[0]), parseInt(variableHistoryMonthFilter.split('-')[1]) - 1).toLocaleDateString(currentLang === 'th' ? 'th-TH' : 'en-US', { month: 'short', year: 'numeric' })}
+                          </span>
+                          <button disabled={variableHistoryMonthFilter === new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 7)} onClick={() => {
+                            const [y, m] = variableHistoryMonthFilter.split('-').map(Number);
+                            const d = new Date(y, m);
+                            setVariableHistoryMonthFilter(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+                          }} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
+                        </div>
+                      ) : (
+                        <div className="bg-white/90 dark:bg-slate-800/90 border border-slate-200/50 dark:border-slate-700/50 p-1 px-3 rounded-2xl flex items-center justify-between min-h-[38px] shrink-0">
+                          <button onClick={() => {
+                            const d = new Date(variableExpenseDateFilter);
+                            d.setDate(d.getDate() - 1);
+                            setVariableExpenseDateFilter(d.toISOString().split('T')[0]);
+                          }} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
+                          <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate px-2 min-w-[90px] text-center">
+                            {new Date(variableExpenseDateFilter).toLocaleDateString(currentLang === 'th' ? 'th-TH' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                          <button disabled={variableExpenseDateFilter === new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().split('T')[0]} onClick={() => {
+                            const d = new Date(variableExpenseDateFilter);
+                            d.setDate(d.getDate() + 1);
+                            setVariableExpenseDateFilter(d.toISOString().split('T')[0]);
+                          }} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -653,7 +691,7 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
                               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
                               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
                                 {new Date(group.date + 'T00:00:00').toLocaleDateString(currentLang === 'th' ? 'th-TH' : currentLang === 'zh' ? 'zh-CN' : 'en-US', { 
-                                  day: 'numeric', 
+                                  day: 'numeric',
                                   month: 'short', 
                                   year: 'numeric' 
                                 })}
@@ -686,7 +724,6 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
             </div>
           ))}
         </div>
-      )}
 
       {/* Reset Data Section */}
       <div className="mt-12 pt-8 border-t border-slate-200 dark:border-slate-800 text-center">

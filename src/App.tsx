@@ -13,6 +13,7 @@ import { AddIncomeModal } from './components/AddIncomeModal';
 import { AddExpenseModal } from './components/AddExpenseModal';
 import { Header } from './components/Header';
 import { GoalModal } from './components/GoalModal';
+import { LeaveModal } from './components/LeaveModal';
 import { ActivityLogModal } from './components/ActivityLogModal';
 import { ExportModal } from './components/ExportModal';
 import { IosInstallPrompt } from './components/IosInstallPrompt';
@@ -44,8 +45,9 @@ function MainContent() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isActivityLogOpen, setIsActivityLogOpen] = useState(false);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
-  const [showSummarySettings, setShowSummarySettings] = useState(false);
+  const [showLayoutSettings, setShowLayoutSettings] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetInput, setResetInput] = useState('');
   const chatbotRef = useRef<any>(null);
@@ -75,8 +77,8 @@ function MainContent() {
         if (file) {
           console.log('Received shared file from SW:', file);
           setSharedFile(file);
-          setEditingExpense(null);
-          setIsExpenseModalOpen(true);
+          setIsExpenseModalOpen(false);
+          setIsChatOpen(true);
         }
       }
     };
@@ -284,6 +286,7 @@ function MainContent() {
         setShowActivityLog={setIsActivityLogOpen}
         setShowGoalModal={setIsGoalModalOpen}
         setShowExportModal={setIsExportOpen}
+        setShowLeaveModal={setIsLeaveModalOpen}
       />
       
       {/* Main Content Area (Scrollable) */}
@@ -321,14 +324,12 @@ function MainContent() {
                 {t.summary || 'สรุป'}
               </button>
             </div>
-            {activeTab === 'summary' && (
-              <button 
-                onClick={() => setShowSummarySettings(!showSummarySettings)}
-                className={`p-2.5 rounded-full transition-all shadow-lg border flex-shrink-0 cursor-pointer ${showSummarySettings ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600' : 'bg-white/80 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750'}`}
-              >
-                <Settings2 className="w-5 h-5" />
-              </button>
-            )}
+            <button 
+              onClick={() => setShowLayoutSettings(!showLayoutSettings)}
+              className={`p-2.5 rounded-full transition-all shadow-lg border flex-shrink-0 cursor-pointer ${showLayoutSettings ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600' : 'bg-white/80 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750'}`}
+            >
+              <Settings2 className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
@@ -349,6 +350,7 @@ function MainContent() {
               updatePreferences={updatePreferences}
               transferIncomeToExpenses={transferIncomeToExpenses}
               untransferredIncentivesAmount={untransferredIncentivesAmount}
+              showSettings={showLayoutSettings}
             />
           )}
           {activeTab === 'expenses' && (
@@ -366,6 +368,7 @@ function MainContent() {
               resetInput={resetInput}
               setResetInput={setResetInput}
               handleResetData={handleResetData}
+              showSettings={showLayoutSettings}
             />
           )}
           {activeTab === 'summary' && (
@@ -376,7 +379,8 @@ function MainContent() {
               rawIncentives={rawIncentives}
               expenseBalance={preferences?.expenseBalance || 0}
               logs={logs}
-              showSettings={showSummarySettings}
+              showSettings={showLayoutSettings}
+              preferences={preferences}
             />
           )}
         </div>
@@ -390,9 +394,13 @@ function MainContent() {
         addExpense={addExpense} 
         setIncentive={setIncentive} 
         addJob={addJob} 
+        updateJob={(job) => editJob(job.id, job)}
         preferences={preferences}
+        updatePreferences={updatePreferences}
         isOpen={isChatOpen}
         setIsOpen={setIsChatOpen}
+        sharedFile={sharedFile}
+        onClearSharedFile={() => setSharedFile(null)}
       />
       <AddIncomeModal 
         isOpen={isIncomeModalOpen}
@@ -448,6 +456,14 @@ function MainContent() {
         goals={goals}
         onSetGoal={setGoal}
       />
+      {isLeaveModalOpen && (
+        <LeaveModal
+          onClose={() => setIsLeaveModalOpen(false)}
+          preferences={preferences || {}}
+          updatePreferences={updatePreferences}
+          t={t}
+        />
+      )}
       <ExportModal 
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}

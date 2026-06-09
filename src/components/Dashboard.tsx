@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { JobEntry, DailySummary, ExpenseEntry, Goal, UserPreferences } from '../types';
 import { Plus, Trash2, Calendar, DollarSign, TrendingUp, TrendingDown, Pencil, X, Settings2, Check, GripVertical, ChevronDown, ChevronUp, Gift, Target, BarChart2, ArrowUpCircle, Wallet } from 'lucide-react';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -23,15 +24,19 @@ interface DashboardProps {
   updatePreferences: (updates: Partial<UserPreferences>) => void;
   transferIncomeToExpenses: () => void;
   untransferredIncentivesAmount: number;
+  showSettings?: boolean;
 }
 
-export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDate, setSelectedDate, incentives, setIncentive, goals, setGoal, preferences, updatePreferences, transferIncomeToExpenses, untransferredIncentivesAmount }: DashboardProps) {
+export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDate, setSelectedDate, incentives, setIncentive, goals, setGoal, preferences, updatePreferences, transferIncomeToExpenses, untransferredIncentivesAmount, showSettings = false }: DashboardProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
-  const widgetOrder = preferences?.dashboardWidgetOrder?.filter(id => id !== 'transfer') || ['goals', 'summary', 'list'];
+  const validWidgets = ['goals', 'summary', 'list', 'expenses'];
+  const savedOrder = preferences?.dashboardWidgetOrder || [];
+  const widgetOrder = savedOrder.length > 0 
+    ? [...savedOrder.filter(id => validWidgets.includes(id)), ...validWidgets.filter(id => !savedOrder.includes(id))] 
+    : ['goals', 'summary', 'list'];
   const setWidgetOrder = (newOrder: string[]) => updatePreferences({ dashboardWidgetOrder: newOrder });
-  const [isCustomizing, setIsCustomizing] = useState(false);
   const [cardVisibility, setCardVisibility] = useLocalStorage('dashboard-card-visibility', {
     netIncome: true,
     dailyIncentive: true,
@@ -58,6 +63,8 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
   const [isEditingBalance, setIsEditingBalance] = useState(false);
   const [balanceInput, setBalanceInput] = useState('');
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+
+  const isLeaveDay = preferences?.leaveDays?.includes(selectedDate) || false;
 
   useEffect(() => {
     setIsEditingIncentive(false);
@@ -198,13 +205,22 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
     // Days including today
     const currentDate = new Date(selectedDate);
     const dayOfMonth = currentDate.getDate();
-    const daysLeft = (lastDayOfMonth - dayOfMonth) + 1;
+    
+    let daysLeft = 0;
+    const currentLeaveDays = preferences?.leaveDays || [];
+    for (let d = dayOfMonth; d <= lastDayOfMonth; d++) {
+      const iterStr = `${selYear}-${String(selMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      if (!currentLeaveDays.includes(iterStr)) {
+        daysLeft++;
+      }
+    }
     
     // Income BEFORE today
     const incomeBeforeToday = monthlyGrossIncome - summary.grossIncome;
     const amountNeeded = monthlyGoal.targetAmount - incomeBeforeToday;
     
-    const dailyRequired = amountNeeded / daysLeft;
+    const isTodayLeave = currentLeaveDays.includes(selectedDate);
+    const dailyRequired = isTodayLeave ? 0 : (daysLeft > 0 ? amountNeeded / daysLeft : 0);
     
     if (daysLeft < 0) return null;
     
@@ -213,7 +229,7 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
       daysRemaining: daysLeft,
       totalRemaining: Math.max(0, monthlyGoal.targetAmount - monthlyGrossIncome)
     };
-  }, [monthlyGoal, monthlyGrossIncome, summary.grossIncome, selectedDate]);
+  }, [monthlyGoal, monthlyGrossIncome, summary.grossIncome, selectedDate, preferences?.leaveDays]);
 
   // The actual daily target to show in the progress bar
   const effectiveDailyTarget = useMemo(() => {
@@ -280,9 +296,9 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
   return (
     <div className="max-w-5xl mx-auto px-4 pt-2 pb-0 space-y-6">
       {/* Header & Date Picker */}
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 glass-panel p-4 rounded-3xl transition-colors overflow-hidden">
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white text-center sm:text-left">{t.dailyEarnings}</h1>
-        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto">
+      <div className="flex flex-col gap-3 glass-panel p-4 rounded-3xl transition-colors">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white">{t.dailyEarnings}</h1>
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           <button 
             onClick={() => {
               const today = new Date();
@@ -292,34 +308,34 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
           >
             {t.today}
           </button>
-          <button 
-            onClick={() => setIsCustomizing(!isCustomizing)}
-            className={`flex items-center gap-2 px-4 h-[38px] rounded-2xl border transition-colors backdrop-blur-sm ${isCustomizing ? 'bg-indigo-50/95 border-indigo-200 text-indigo-700 dark:bg-indigo-900/80 dark:border-indigo-700 dark:text-indigo-300' : 'bg-white/95 border-slate-200 text-slate-700 dark:bg-slate-800/95 dark:border-slate-600 dark:text-slate-200'}`}
-          >
-            {isCustomizing ? <Check className="w-5 h-5" /> : <Settings2 className="w-5 h-5" />}
-            <span className="hidden sm:inline font-medium">{isCustomizing ? t.doneCustomizing : t.customizeLayout}</span>
-          </button>
-          <div className="flex items-center gap-2 glass-input px-4 h-[38px] rounded-2xl w-[145px]">
-            <Calendar className="w-5 h-5 text-slate-500 dark:text-slate-400 flex-shrink-0 -ml-[4px]" />
-            <input
-              type="date"
-              value={selectedDate}
-              max={new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().split('T')[0]}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent border-none outline-none text-slate-700 dark:text-slate-200 font-medium text-[14px] color-scheme-light dark:color-scheme-dark w-full"
-              style={{ colorScheme: 'light dark' }}
-            />
+          
+          <div className="bg-white/90 dark:bg-slate-800/90 border border-slate-200/50 dark:border-slate-700/50 p-1 px-3 rounded-2xl flex items-center justify-between min-h-[38px] shrink-0">
+            <button onClick={() => {
+              const d = new Date(selectedDate);
+              d.setDate(d.getDate() - 1);
+              setSelectedDate(d.toISOString().split('T')[0]);
+            }} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
+            <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate px-2 min-w-[100px] text-center">
+              {new Date(selectedDate).toLocaleDateString(currentLang === 'th' ? 'th-TH' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+            <button disabled={selectedDate === new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().split('T')[0]} onClick={() => {
+              const d = new Date(selectedDate);
+              d.setDate(d.getDate() + 1);
+              setSelectedDate(d.toISOString().split('T')[0]);
+            }} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
           </div>
         </div>
       </div>
 
-      {isCustomizing ? (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-6"
-        >
-          <div className="glass-panel p-4 rounded-[2rem] space-y-3 mb-2 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10">
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, scale: 0.95 }}
+            animate={{ opacity: 1, height: 'auto', scale: 1 }}
+            exit={{ opacity: 0, height: 0, scale: 0.95 }}
+            className="overflow-hidden space-y-6"
+          >
+            <div className="glass-panel p-4 rounded-[2rem] space-y-3 mb-2 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10">
             <h4 className="text-sm font-black text-slate-800 dark:text-white px-2">ตั้งค่าการแสดงผลหน้ารายรับ</h4>
             <div className="grid grid-cols-2 gap-2">
               {[
@@ -361,8 +377,10 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
             </Reorder.Group>
           </div>
         </motion.div>
-      ) : (
-        <div className="space-y-6">
+        )}
+      </AnimatePresence>
+
+      <div className="space-y-6">
           {widgetOrder.map(id => (
             <div key={id}>
               {id === 'goals' && (
@@ -405,6 +423,31 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
 
                       {remainingGoalMessage && (
                         <div className="mt-4 p-4 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-[1.5rem] border border-indigo-100/50 dark:border-indigo-800/30">
+                          <div className="flex items-start gap-3">
+                             <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center flex-shrink-0 animate-bounce">
+                                <Target className="w-4 h-4 text-indigo-500" />
+                             </div>
+                             <div>
+                                <p className="text-[10px] font-black text-indigo-600/60 dark:text-indigo-400/60 uppercase tracking-widest mb-1">{t.monthlyGoalStatus}</p>
+                                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-relaxed">
+                                   {t.remaining || 'เหลือเีก'} <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{remainingGoalMessage.totalRemaining.toLocaleString()} ฿</span> {t.remainingToGoal} <br/>
+                                   (<span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{remainingGoalMessage.daysRemaining} {t.lastDaysOfMonth || 'วันสุดท้าย'}</span>)
+                                </p>
+                             </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : isLeaveDay ? (
+                    <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                      <div className="text-sm text-amber-600 dark:text-amber-500 py-4 mb-4 text-center glass-panel-subtle !bg-amber-50 dark:!bg-amber-900/10 rounded-2xl border-dashed !border-amber-200 dark:!border-amber-800 font-bold">
+                        <div className="text-lg mb-1">🏖️ วันนี้เป็นวันหยุด (ลา)</div>
+                        <div className="text-amber-700/80 dark:text-amber-400/80 font-normal">
+                          {preferences?.leaveReasons?.[selectedDate] ? `เหตุผล: ${preferences.leaveReasons[selectedDate]}` : 'ได้รับการยกเว้นและถูกหักออกจากเป้าหมายรายวันแล้ว'}
+                        </div>
+                      </div>
+                      {remainingGoalMessage && (
+                        <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-[1.5rem] border border-indigo-100/50 dark:border-indigo-800/30">
                           <div className="flex items-start gap-3">
                              <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center flex-shrink-0 animate-bounce">
                                 <Target className="w-4 h-4 text-indigo-500" />
@@ -700,7 +743,6 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
             </div>
           ))}
         </div>
-      )}
 
       <AnimatePresence>
         {showTransferConfirm && (

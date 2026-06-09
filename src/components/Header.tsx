@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Moon, Sun, Monitor, Globe, LogIn, LogOut, Menu, X, Download, Trash2, History, Wallet, Target, FileSpreadsheet } from 'lucide-react';
+import { Moon, Sun, Monitor, Globe, LogIn, LogOut, Menu, X, Download, Trash2, History, Wallet, Target, FileSpreadsheet, Calendar } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,13 +9,15 @@ export function Header({
   setShowResetConfirm, 
   setShowActivityLog,
   setShowGoalModal,
-  setShowExportModal
+  setShowExportModal,
+  setShowLeaveModal
 }: { 
   onInstall?: () => void; 
   setShowResetConfirm: (show: boolean) => void; 
   setShowActivityLog: (show: boolean) => void;
   setShowGoalModal: (show: boolean) => void;
   setShowExportModal: (show: boolean) => void;
+  setShowLeaveModal: (show: boolean) => void;
 }) {
   const { theme, setTheme, language, setLanguage, currentLang } = useSettings();
   const t = translations[currentLang];
@@ -115,6 +117,15 @@ export function Header({
             >
               <History className="w-4 h-4" />
               <span>{t.history || 'บันทึกกิจกรรม'}</span>
+            </button>
+
+            {/* Leave Planning */}
+            <button 
+              onClick={() => { setShowLeaveModal(true); setIsMenuOpen(false); }}
+              className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors"
+            >
+              <Calendar className="w-4 h-4 text-amber-500" />
+              <span>{t.leavePlanning || 'วางแผนการลาหยุด'}</span>
             </button>
 
             {/* Goals */}

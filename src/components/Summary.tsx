@@ -42,6 +42,7 @@ interface SummaryProps {
   expenseBalance: number;
   logs?: ActivityLog[];
   showSettings?: boolean;
+  preferences?: any;
 }
 
 type SubTab = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
@@ -53,7 +54,8 @@ export function Summary({
   rawIncentives = {}, 
   expenseBalance, 
   logs = [],
-  showSettings = false
+  showSettings = false,
+  preferences = {}
 }: SummaryProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
@@ -420,17 +422,25 @@ export function Summary({
     let totalTips = 0;
     let workDays = 0;
     let offDays = 0;
+    let leaveDays = 0;
 
     Object.keys(dailyStats).forEach(d => {
       const s = dailyStats[d];
       s.income = Math.max(0, s.jobs + s.tips + s.incentive);
       totalTips += s.tips;
       
-      // Since endStr is already capped at today for MTD, we count all dates in dailyStats
-      if (s.income > 800) {
-        workDays++;
+      const isLeave = preferences?.leaveDays?.includes(d);
+      
+      if (isLeave) {
+        leaveDays++;
+        // If they still worked and earned > 800 on a leave day, we count it as workDay too so stats aren't weird
+        if (s.income > 800) workDays++;
       } else {
-        offDays++;
+        if (s.income > 800) {
+          workDays++;
+        } else {
+          offDays++;
+        }
       }
     });
 
@@ -538,6 +548,7 @@ export function Summary({
       totalTips,
       workDays,
       offDays,
+      leaveDays,
       totalIncome,
       totalExpenses,
       dailyStatsList: Object.entries(dailyStats).map(([date, val]) => ({ date, ...val })).sort((a, b) => a.date.localeCompare(b.date)),
@@ -716,19 +727,23 @@ export function Summary({
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.1 }}
-            className="glass-panel p-6 rounded-[2rem] border-b-4 border-rose-500 relative overflow-hidden group"
+            className={`glass-panel p-6 rounded-[2rem] border-b-4 ${rangeData.leaveDays > 0 ? 'border-amber-400' : 'border-rose-500'} relative overflow-hidden group`}
           >
-            <div className="absolute -right-4 -top-4 w-24 h-24 bg-rose-500/5 rounded-full blur-2xl group-hover:bg-rose-500/10 transition-colors" />
+            <div className={`absolute -right-4 -top-4 w-24 h-24 ${rangeData.leaveDays > 0 ? 'bg-amber-400/5 group-hover:bg-amber-400/10' : 'bg-rose-500/5 group-hover:bg-rose-500/10'} rounded-full blur-2xl transition-colors`} />
             <div className="relative flex flex-col items-center text-center space-y-3">
-              <div className="p-3 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-2xl">
+              <div className={`p-3 ${rangeData.leaveDays > 0 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400'} rounded-2xl`}>
                 <XCircle className="w-6 h-6" />
               </div>
               <div>
                 <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">หยุดไปกี่วัน</p>
                 <h3 className="text-3xl font-black text-slate-800 dark:text-white mt-1">
-                  {rangeData.offDays} <span className="text-sm font-bold text-slate-400 ml-1">วัน</span>
+                  {rangeData.offDays + rangeData.leaveDays} <span className="text-sm font-bold text-slate-400 ml-1">วัน</span>
                 </h3>
-                <p className="text-[10px] text-slate-400 mt-1 font-bold">(รายได้ {'<='} 800)</p>
+                {rangeData.leaveDays > 0 ? (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 font-bold bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">(ไม่ได้ขับ {rangeData.offDays} / ลา {rangeData.leaveDays})</p>
+                ) : (
+                  <p className="text-[10px] text-slate-400 mt-1 font-bold">(รายได้ {'<='} 800)</p>
+                )}
               </div>
             </div>
           </motion.div>

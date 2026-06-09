@@ -22,12 +22,16 @@ interface ChatbotProps {
   addExpense: (expense: Omit<ExpenseEntry, 'id'>) => void;
   setIncentive: (date: string, amount: number) => void;
   addJob?: (job: Omit<JobEntry, 'id'>) => void;
+  updateJob?: (job: JobEntry) => void;
   preferences: UserPreferences;
+  updatePreferences?: (updates: Partial<UserPreferences>) => void;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
+  sharedFile?: File | null;
+  onClearSharedFile?: () => void;
 }
 
-export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, incentives, addExpense, setIncentive, addJob, preferences, isOpen, setIsOpen }, ref) => {
+export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, incentives, addExpense, setIncentive, addJob, updateJob, preferences, updatePreferences, isOpen, setIsOpen, sharedFile, onClearSharedFile }, ref) => {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
   
@@ -36,6 +40,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
@@ -48,6 +53,19 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    if (sharedFile && isOpen) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setSelectedImages(prev => [...prev, event.target!.result as string]);
+          if (onClearSharedFile) onClearSharedFile();
+        }
+      };
+      reader.readAsDataURL(sharedFile);
+    }
+  }, [sharedFile, isOpen, onClearSharedFile]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -162,6 +180,43 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         }
       };
 
+      const updateJobTool: FunctionDeclaration = {
+        name: "updateJob",
+        description: "Edit/update an existing job entry. You MUST provide the id of the job. If the user mentions adding a tip, you should add it to actualReceived.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            id: { type: Type.STRING, description: "The ID of the job to update from the 'Jobs Summary' list." },
+            customerMustPay: { type: Type.NUMBER, description: "The updated fare amount before app discount." },
+            appNetIncome: { type: Type.NUMBER, description: "The updated net income reported by the app (ยอดสุทธิ)." },
+            actualReceived: { type: Type.NUMBER, description: "The updated actual cash/transfer amount the customer paid (this includes tips). Example: if former actualReceived was 50 and they got 20 tip, this should be 70." },
+            upfrontCost: { type: Type.NUMBER, description: "Extra expenses paid upfront." },
+            date: { type: Type.STRING, description: "Updated date/time" }
+          },
+          required: ["id"]
+        }
+      };
+
+      const updatePreferencesTool: FunctionDeclaration = {
+        name: "updatePreferences",
+        description: "Update the user's dashboard or expenses widget layouts.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            dashboardWidgetOrder: { 
+              type: Type.ARRAY, 
+              items: { type: Type.STRING },
+              description: "The layout order of dashboard widgets. Allowed values: 'goals', 'summary', 'list'." 
+            },
+            expensesWidgetOrder: { 
+              type: Type.ARRAY, 
+              items: { type: Type.STRING },
+              description: "The layout order of expenses widgets. Allowed values: 'summary', 'fixed', 'variable'." 
+            }
+          }
+        }
+      };
+
       const sixtyDaysAgo = new Date();
       sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
       const cutoffStr = sixtyDaysAgo.toISOString().split('T')[0];
@@ -176,9 +231,17 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
           }
         });
 
-      const filteredJobs = jobs
+      // Group jobs by day to assign daily sequence numbers
+      const dailyJobCounts: Record<string, number> = {};
+      const jobsWithIndex = [...jobs].sort((a,b) => a.date.localeCompare(b.date)).map(j => {
+        const day = j.date.split('T')[0];
+        dailyJobCounts[day] = (dailyJobCounts[day] || 0) + 1;
+        return { ...j, dailyIndex: dailyJobCounts[day] };
+      });
+
+      const filteredJobs = jobsWithIndex
         .filter(j => j.date >= cutoffStr)
-        .map(j => ({ d: j.date, inc: j.appNetIncome, rec: j.actualReceived }))
+        .map(j => ({ id: j.id, date: j.date, dailyIndex: j.dailyIndex, appNetIncome: j.appNetIncome, actualReceived: j.actualReceived, customerMustPay: j.customerMustPay, upfrontCost: j.upfrontCost }))
         .slice(-100); // Limit to last 100 jobs in the period
         
       const filteredExpenses = expenses
@@ -211,7 +274,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       Always double-check your math before responding.
       
       The user's current data summary (Last 60 days):
-      Jobs Summary: ${JSON.stringify(jobsSummary)}
+      Jobs Summary (Note: 'dailyIndex' represents the sequence number of the job for that specific day. If the user says "งานที่ 4" (job 4), find the job with dailyIndex 4 for today. If they say "งานที่แล้ว" or "the last job", find the job with the highest dailyIndex for today. Use the job 'id' to call updateJobTool): ${JSON.stringify(jobsSummary)}
       Expenses Summary: ${JSON.stringify(expensesSummary)}
       Daily Incentives: ${JSON.stringify(filteredIncentives)}
       
@@ -266,7 +329,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         contents: [...history, { role: 'user', parts }],
         config: {
           systemInstruction: context,
-          tools: [{ functionDeclarations: [addExpenseTool, setIncentiveTool, addJobTool] }],
+          tools: [{ functionDeclarations: [addExpenseTool, setIncentiveTool, addJobTool, updateJobTool, updatePreferencesTool] }],
           thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL }
         }
       });
@@ -334,6 +397,29 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               })()
             });
             toast.success(t.synced || 'เพิ่มรายรับสำเร็จ');
+          } else if (call.name === 'updateJob' && updateJob) {
+            const args = call.args as any;
+            const jobToUpdate = jobs.find(j => j.id === args.id);
+            if (jobToUpdate) {
+              updateJob({
+                ...jobToUpdate,
+                customerMustPay: args.customerMustPay !== undefined ? args.customerMustPay : jobToUpdate.customerMustPay,
+                appNetIncome: args.appNetIncome !== undefined ? args.appNetIncome : jobToUpdate.appNetIncome,
+                actualReceived: args.actualReceived !== undefined ? args.actualReceived : jobToUpdate.actualReceived,
+                upfrontCost: args.upfrontCost !== undefined ? args.upfrontCost : jobToUpdate.upfrontCost,
+                date: args.date || jobToUpdate.date
+              });
+              toast.success('อัปเดตงานสำเร็จ');
+            }
+          } else if (call.name === 'updatePreferences' && updatePreferences) {
+            const args = call.args as any;
+            const updates: Partial<UserPreferences> = {};
+            if (args.dashboardWidgetOrder) updates.dashboardWidgetOrder = args.dashboardWidgetOrder;
+            if (args.expensesWidgetOrder) updates.expensesWidgetOrder = args.expensesWidgetOrder;
+            if (Object.keys(updates).length > 0) {
+              updatePreferences(updates);
+              toast.success('อัปเดตวิดเจ็ตสำเร็จ');
+            }
           }
         }
       }

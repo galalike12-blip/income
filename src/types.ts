@@ -43,6 +43,8 @@ export interface UserPreferences {
   customCategories?: string[];
   defaultCategories?: string[];
   expenseBalance?: number;
+  leaveDays?: string[];
+  leaveReasons?: Record<string, string>;
 }
 
 export interface Goal {
