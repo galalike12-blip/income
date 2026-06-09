@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { JobEntry, ExpenseEntry, UserPreferences } from '../types';
-import { Plus, Trash2, Calendar, DollarSign, Wallet, PieChart, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Edit2, GripVertical, ChevronDown, ChevronUp, Settings2, Check, Lock, Unlock, BarChart2, AlertCircle, ChevronRight, Camera, Loader2, X, Search, UtensilsCrossed, Fuel, Zap, Car, ShoppingBag, Wrench, HelpCircle, Home } from 'lucide-react';
+import { Plus, Trash2, Calendar, DollarSign, Wallet, PieChart, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Circle, Edit2, GripVertical, ChevronDown, ChevronUp, Settings2, Filter, Check, Lock, Unlock, BarChart2, AlertCircle, ChevronRight, Camera, Loader2, X, Search, UtensilsCrossed, Fuel, Zap, Car, ShoppingBag, Wrench, HelpCircle, Home } from 'lucide-react';
 import { Tooltip } from 'recharts';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { useSettings } from '../contexts/SettingsContext';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { translations } from '../i18n/translations';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 const COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#64748b'];
 
@@ -120,6 +121,10 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
     ? [...savedOrder.filter(id => validWidgets.includes(id)), ...validWidgets.filter(id => !savedOrder.includes(id))] 
     : validWidgets;
   const setWidgetOrder = (newOrder: string[]) => updatePreferences({ expensesWidgetOrder: newOrder });
+  
+  const [mainWidgetVisibility, setMainWidgetVisibility] = useLocalStorage('expenses-main-widget-visibility', {
+    summary: true, fixed: true, variable: true
+  });
   const fixedExpensesOrder = (preferences?.fixedExpensesOrder) || [];
   const setFixedExpensesOrder = (newOrder: string[]) => updatePreferences({ fixedExpensesOrder: newOrder });
   const [isFixedExpensesLocked, setIsFixedExpensesLocked] = useState(preferences?.isFixedExpensesLocked ?? true);
@@ -134,6 +139,7 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
   const [showVariableHistory, setShowVariableHistory] = useState(false);
   const [variableSearchQuery, setVariableSearchQuery] = useState('');
   const [variableCategoryFilter, setVariableCategoryFilter] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
 
   const [expenseToDelete, setExpenseToDelete] = useState<ExpenseEntry | null>(null);
 
@@ -387,62 +393,6 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
         </div>
       </div>
       
-      {!showSettings && (
-        <div className="glass-panel p-4 rounded-3xl flex flex-col md:flex-row items-start md:items-center gap-4">
-          <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-semibold text-sm px-2">
-            <Settings2 className="w-4 h-4" />
-            {t.filter || 'ตัวกรอง'}
-          </div>
-          
-          <div className="flex-1 w-full relative">
-            <input 
-              type="text"
-              placeholder={t.search || 'ค้นหา...'}
-              value={variableSearchQuery}
-              onChange={(e) => setVariableSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 glass-input rounded-2xl text-sm"
-            />
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-              <Search className="w-4 h-4" />
-            </div>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setIsManagingCategories(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl text-sm font-medium hover:bg-indigo-100 transition-colors"
-            >
-              <Settings2 className="w-4 h-4" />
-              {t.manageCategories || 'จัดการหมวดหมู่'}
-            </button>
-
-            <select
-              value={variableCategoryFilter}
-              onChange={(e) => setVariableCategoryFilter(e.target.value)}
-              className="px-4 py-2 glass-input rounded-2xl text-sm min-w-[150px]"
-            >
-              <option value="all">{t.allCategories || 'ทุกหมวดหมู่'}</option>
-              {[...new Set(expenses.map(e => e.category))].map(cat => (
-                <option key={cat} value={cat}>{t[cat as keyof typeof t] || cat}</option>
-              ))}
-            </select>
-
-            {(variableSearchQuery || variableCategoryFilter !== 'all') && (
-              <button
-                onClick={() => {
-                  setVariableSearchQuery('');
-                  setVariableCategoryFilter('all');
-                }}
-                className="flex items-center gap-2 px-4 py-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-2xl transition-colors text-sm font-medium"
-              >
-                <X className="w-4 h-4" />
-                {t.clearFilters || 'ล้างตัวกรอง'}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
       <AnimatePresence>
         {showSettings && (
           <motion.div
@@ -452,16 +402,22 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
             className="overflow-hidden mb-6"
           >
             <div className="glass-panel p-4 rounded-[2rem] space-y-3 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10">
-              <h4 className="text-sm font-black text-slate-800 dark:text-white px-2 mb-2">จัดเรียงวิดเจ็ต (ลากเพื่อสลับตำแหน่ง)</h4>
-              <Reorder.Group axis="y" values={widgetOrder} onReorder={setWidgetOrder} className="space-y-4">
+              <h4 className="text-sm font-black text-slate-800 dark:text-white px-2 mb-2">ตั้งค่าวิดเจ็ตหลัก</h4>
+              <Reorder.Group axis="y" values={widgetOrder} onReorder={setWidgetOrder} className="space-y-2">
                 {widgetOrder.map(id => (
-                  <Reorder.Item key={id} value={id} className="glass-panel p-4 rounded-3xl flex items-center gap-4 cursor-grab active:cursor-grabbing">
-                    <GripVertical className="text-slate-400" />
-                    <span className="font-medium text-slate-700 dark:text-slate-200">
-                      {id === 'summary' && (t.budgetSummary || 'สรุปงบประมาณ')}
-                      {id === 'fixed' && (t.fixedCosts || 'รายจ่ายคงที่ (Fixed Costs)')}
-                      {id === 'variable' && (t.variableCosts || 'รายจ่ายผันแปร (Variable Costs)')}
-                    </span>
+                  <Reorder.Item key={id} value={id} className={`p-3 rounded-2xl flex items-center gap-3 transition-colors ${mainWidgetVisibility[id as keyof typeof mainWidgetVisibility] ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white' : 'bg-white/50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500'}`}>
+                    <div 
+                      onClick={() => setMainWidgetVisibility({...mainWidgetVisibility, [id]: !mainWidgetVisibility[id as keyof typeof mainWidgetVisibility]})}
+                      className="flex-1 flex items-center gap-3 cursor-pointer"
+                    >
+                      {mainWidgetVisibility[id as keyof typeof mainWidgetVisibility] ? <CheckCircle2 className="text-emerald-500 w-5 h-5"/> : <Circle className="text-slate-300 dark:text-slate-600 w-5 h-5"/>}
+                      <span className="font-medium text-sm">
+                        {id === 'summary' && (t.budgetSummary || 'สรุปงบประมาณ')}
+                        {id === 'fixed' && (t.fixedCosts || 'รายจ่ายคงที่ (Fixed Costs)')}
+                        {id === 'variable' && (t.variableCosts || 'รายจ่ายผันแปร (Variable Costs)')}
+                      </span>
+                    </div>
+                    <GripVertical className="text-slate-400 cursor-grab active:cursor-grabbing" />
                   </Reorder.Item>
                 ))}
               </Reorder.Group>
@@ -471,7 +427,9 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
       </AnimatePresence>
 
       <div className="space-y-6">
-          {widgetOrder.map(id => (
+          {widgetOrder.map(id => {
+            if (!mainWidgetVisibility[id as keyof typeof mainWidgetVisibility]) return null;
+            return (
             <div key={id}>
               {id === 'summary' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -600,17 +558,87 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
               {id === 'variable' && (
                 <div className="glass-panel p-6 rounded-3xl">
                   <div className="flex flex-col gap-3 mb-4">
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-                        {showVariableHistory ? t.history : t.variableCosts || 'รายจ่ายผันแปร (Variable Costs)'}
-                      </h3>
-                      <button 
-                        onClick={() => setShowVariableHistory(!showVariableHistory)}
-                        className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1 rounded-full"
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                          {showVariableHistory ? t.history : t.variableCosts || 'รายจ่ายผันแปร (Variable Costs)'}
+                        </h3>
+                        <button 
+                          onClick={() => setShowVariableHistory(!showVariableHistory)}
+                          className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1 rounded-full"
+                        >
+                          {showVariableHistory ? t.today : t.history}
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => setShowFilters(!showFilters)}
+                        title={t.filter || 'ตัวกรอง'}
+                        className={`p-2 shrink-0 flex items-center justify-center rounded-2xl transition-all border ${showFilters || variableSearchQuery || variableCategoryFilter !== 'all' ? 'border-indigo-200 dark:border-indigo-800 text-indigo-600 bg-indigo-50/50 dark:text-indigo-400 dark:bg-indigo-900/30' : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                       >
-                        {showVariableHistory ? t.today : t.history}
+                        <Filter className="w-5 h-5" />
                       </button>
                     </div>
+
+                    <AnimatePresence>
+                      {showFilters && (
+                        <motion.div 
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="glass-panel p-4 rounded-3xl flex flex-col md:flex-row items-start md:items-center gap-4 mb-2">
+                            <div className="flex-1 w-full relative">
+                              <input 
+                                type="text"
+                                placeholder={t.search || 'ค้นหา...'}
+                                value={variableSearchQuery}
+                                onChange={(e) => setVariableSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 glass-input rounded-2xl text-sm"
+                              />
+                              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                                <Search className="w-4 h-4" />
+                              </div>
+                            </div>
+                            
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                onClick={() => setIsManagingCategories(true)}
+                                className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl text-sm font-medium hover:bg-indigo-100 transition-colors"
+                              >
+                                <Settings2 className="w-4 h-4" />
+                                {t.manageCategories || 'จัดการหมวดหมู่'}
+                              </button>
+
+                              <select
+                                value={variableCategoryFilter}
+                                onChange={(e) => setVariableCategoryFilter(e.target.value)}
+                                className="px-4 py-2 glass-input rounded-2xl text-sm min-w-[150px]"
+                              >
+                                <option value="all">{t.allCategories || 'ทุกหมวดหมู่'}</option>
+                                {[...new Set(expenses.map(e => e.category))].map(cat => (
+                                  <option key={cat} value={cat}>{t[cat as keyof typeof t] || cat}</option>
+                                ))}
+                              </select>
+
+                              {(variableSearchQuery || variableCategoryFilter !== 'all') && (
+                                <button
+                                  onClick={() => {
+                                    setVariableSearchQuery('');
+                                    setVariableCategoryFilter('all');
+                                  }}
+                                  className="flex items-center gap-2 px-4 py-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-2xl transition-colors text-sm font-medium"
+                                >
+                                  <X className="w-4 h-4" />
+                                  {t.clearFilters || 'ล้างตัวกรอง'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
                     <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                       
                       {showVariableHistory ? (
@@ -722,7 +750,8 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
 
       {/* Reset Data Section */}

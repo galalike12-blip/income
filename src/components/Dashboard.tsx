@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { JobEntry, DailySummary, ExpenseEntry, Goal, UserPreferences } from '../types';
-import { Plus, Trash2, Calendar, DollarSign, TrendingUp, TrendingDown, Pencil, X, Settings2, Check, GripVertical, ChevronDown, ChevronUp, Gift, Target, BarChart2, ArrowUpCircle, Wallet } from 'lucide-react';
+import { Plus, Trash2, Calendar, DollarSign, TrendingUp, TrendingDown, Pencil, X, Settings2, Check, GripVertical, ChevronDown, ChevronUp, Gift, Target, BarChart2, ArrowUpCircle, Wallet, Circle, CheckCircle2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
@@ -31,17 +31,37 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
-  const validWidgets = ['goals', 'summary', 'list', 'expenses'];
+  const validWidgets = ['goals', 'netIncome', 'transfer', 'dailyAverage', 'incomeComparison', 'dailyIncentive', 'form', 'list'];
   const savedOrder = preferences?.dashboardWidgetOrder || [];
-  const widgetOrder = savedOrder.length > 0 
-    ? [...savedOrder.filter(id => validWidgets.includes(id)), ...validWidgets.filter(id => !savedOrder.includes(id))] 
-    : ['goals', 'summary', 'list'];
+  
+  let processedSavedOrder: string[] = [];
+  savedOrder.forEach(id => {
+    if (id === 'summary') {
+      processedSavedOrder.push('netIncome', 'transfer', 'dailyAverage', 'incomeComparison', 'dailyIncentive');
+    } else {
+      processedSavedOrder.push(id);
+    }
+  });
+
+  const widgetOrder = processedSavedOrder.length > 0 
+    ? [...processedSavedOrder.filter(id => validWidgets.includes(id)), ...validWidgets.filter(id => !processedSavedOrder.includes(id))] 
+    : ['goals', 'netIncome', 'transfer', 'dailyAverage', 'incomeComparison', 'dailyIncentive', 'list'];
   const setWidgetOrder = (newOrder: string[]) => updatePreferences({ dashboardWidgetOrder: newOrder });
-  const [cardVisibility, setCardVisibility] = useLocalStorage('dashboard-card-visibility', {
-    netIncome: true,
-    dailyIncentive: true,
-    dailyAverage: true,
-    incomeComparison: true,
+
+  const [mainWidgetVisibility, setMainWidgetVisibility] = useLocalStorage('dashboard-main-widget-visibility', {
+    goals: true, netIncome: true, dailyIncentive: true, dailyAverage: true, incomeComparison: true, list: true, transfer: true, form: true
+  });
+  
+  // Provide defaults for migrated keys if they are missing
+  const visibilitySafe = { ...mainWidgetVisibility };
+  ['goals', 'netIncome', 'dailyIncentive', 'dailyAverage', 'incomeComparison', 'list', 'transfer', 'form'].forEach(key => {
+    if (visibilitySafe[key as keyof typeof visibilitySafe] === undefined) {
+      if (['netIncome', 'dailyIncentive', 'dailyAverage', 'incomeComparison'].includes(key)) {
+         (visibilitySafe as any)[key] = (mainWidgetVisibility as any)['summary'] ?? true;
+      } else {
+         (visibilitySafe as any)[key] = true;
+      }
+    }
   });
 
   const totalUntransferred = useMemo(() => {
@@ -241,6 +261,13 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
   const isPositiveDiff = diffFromYesterday >= 0;
   const diffDisplay = `${isPositiveDiff ? t.moreThan : t.lessThan} ฿${Math.abs(diffFromYesterday).toFixed(2)}`;
 
+  // Variable aliases for the new summary widgets layout
+  const comparisonAmount = summary.netIncome - yesterdayGrossIncome;
+  const totalNet = summary.netIncome;
+  const totalIncentives = incentives[selectedDate] || 0;
+  const overallAverage = dailyAverage;
+
+
   const last7DaysData = useMemo(() => {
     const data = [];
     const [selYear, selMonth, selDay] = selectedDate.split('-').map(Number);
@@ -333,56 +360,59 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
             initial={{ opacity: 0, height: 0, scale: 0.95 }}
             animate={{ opacity: 1, height: 'auto', scale: 1 }}
             exit={{ opacity: 0, height: 0, scale: 0.95 }}
-            className="overflow-hidden space-y-6"
+            className="overflow-hidden space-y-6 mb-6"
           >
-            <div className="glass-panel p-4 rounded-[2rem] space-y-3 mb-2 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10">
-            <h4 className="text-sm font-black text-slate-800 dark:text-white px-2">ตั้งค่าการแสดงผลหน้ารายรับ</h4>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { key: 'netIncome', label: 'ยอดสุทธิ', icon: <DollarSign className="w-4 h-4" /> },
-                { key: 'dailyIncentive', label: 'โบนัสรายวัน', icon: <Gift className="w-4 h-4" /> },
-                { key: 'dailyAverage', label: 'ค่าเฉลี่ยรายวัน', icon: <BarChart2 className="w-4 h-4" /> },
-                { key: 'incomeComparison', label: 'เปรียบเทียบรายได้', icon: <TrendingUp className="w-4 h-4" /> },
-              ].map((item) => (
-                <button
-                  key={item.key}
-                  onClick={() => setCardVisibility({ ...cardVisibility, [item.key]: !cardVisibility[item.key as keyof typeof cardVisibility] })}
-                  className={`flex items-center gap-2 p-3 rounded-xl transition-all border ${cardVisibility[item.key as keyof typeof cardVisibility] ? 'bg-white dark:bg-slate-800 border-indigo-200 dark:border-indigo-800 shadow-sm text-slate-800 dark:text-white' : 'bg-slate-100/50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 opacity-60'}`}
-                >
-                  <div className={cardVisibility[item.key as keyof typeof cardVisibility] ? 'text-indigo-500' : ''}>
-                    {item.icon}
-                  </div>
-                  <span className="text-xs font-bold">{item.label}</span>
-                </button>
-              ))}
+            <div className="glass-panel p-4 rounded-[2rem] space-y-3 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10">
+              <h4 className="text-sm font-black text-slate-800 dark:text-white px-2">ตั้งค่าวิดเจ็ตและไพ่สรุปยอด</h4>
+              <Reorder.Group axis="y" values={widgetOrder} onReorder={setWidgetOrder} className="space-y-2">
+                {widgetOrder.map(id => (
+                  <Reorder.Item key={id} value={id} className={`p-3 rounded-2xl flex items-center gap-3 transition-colors ${visibilitySafe[id as keyof typeof visibilitySafe] ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white' : 'bg-white/50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500'}`}>
+                    <div 
+                      onClick={() => setMainWidgetVisibility({...visibilitySafe, [id]: !visibilitySafe[id as keyof typeof visibilitySafe]})}
+                      className="flex-1 flex items-center gap-3 cursor-pointer"
+                    >
+                      {visibilitySafe[id as keyof typeof visibilitySafe] ? <CheckCircle2 className="text-emerald-500 w-5 h-5"/> : <Circle className="text-slate-300 dark:text-slate-600 w-5 h-5"/>}
+                      <span className="font-medium text-sm flex items-center gap-2">
+                        {id === 'goals' && "เป้าหมายรายได้ (Goals)"}
+                        {id === 'netIncome' && <><DollarSign className="w-4 h-4 text-indigo-500" /> ยอดสุทธิ</>}
+                        {id === 'dailyIncentive' && <><Gift className="w-4 h-4 text-indigo-500" /> โบนัสรายวัน</>}
+                        {id === 'dailyAverage' && <><BarChart2 className="w-4 h-4 text-indigo-500" /> ค่าเฉลี่ยรายวัน</>}
+                        {id === 'incomeComparison' && <><TrendingUp className="w-4 h-4 text-indigo-500" /> เปรียบเทียบรายได้</>}
+                        {id === 'transfer' && "ตัดยอดเข้ารายจ่าย (Transfer)"}
+                        {id === 'form' && t.addJobEntry}
+                        {id === 'list' && t.todaysEntries}
+                      </span>
+                    </div>
+                    <GripVertical className="cursor-grab active:cursor-grabbing text-slate-400" />
+                  </Reorder.Item>
+                ))}
+              </Reorder.Group>
             </div>
-          </div>
-          
-          <div>
-            <h4 className="text-sm font-black text-slate-800 dark:text-white px-2 mb-3">เรียงลำดับวิดเจ็ต</h4>
-            <Reorder.Group axis="y" values={widgetOrder} onReorder={setWidgetOrder} className="space-y-4">
-              {widgetOrder.map(id => (
-                <Reorder.Item key={id} value={id} className="glass-panel p-4 rounded-3xl flex items-center gap-4 cursor-grab active:cursor-grabbing">
-                  <GripVertical className="text-slate-400" />
-                  <span className="font-medium text-slate-700 dark:text-slate-200">
-                    {id === 'goals' && "เป้าหมายรายได้ (Goals)"}
-                    {id === 'summary' && t.dailyEarnings}
-                    {id === 'transfer' && "ตัดยอดเข้ารายจ่าย (Transfer)"}
-                    {id === 'form' && t.addJobEntry}
-                    {id === 'list' && t.todaysEntries}
-                    {id === 'expenses' && "รายจ่าย (Expenses)"}
-                  </span>
-                </Reorder.Item>
-              ))}
-            </Reorder.Group>
-          </div>
-        </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       <div className="space-y-6">
-          {widgetOrder.map(id => (
-            <div key={id}>
+        {(() => {
+          const groupedWidgets: any[] = [];
+          let currentGroup: any = null;
+          widgetOrder.forEach(id => {
+            if (!visibilitySafe[id as keyof typeof visibilitySafe]) return;
+            if (['netIncome', 'transfer', 'dailyAverage', 'incomeComparison', 'dailyIncentive'].includes(id)) {
+              if (!currentGroup || currentGroup.type !== 'grid') {
+                currentGroup = { type: 'grid', items: [] };
+                groupedWidgets.push(currentGroup);
+              }
+              currentGroup.items.push(id);
+            } else {
+              currentGroup = null;
+              groupedWidgets.push({ type: 'full', id });
+            }
+          });
+
+          const renderWidget = (id: string) => {
+             return (
+               <div key={id}>
               {id === 'goals' && (
                 <div className="glass-panel p-6 rounded-3xl transition-colors">
                   <div className="flex justify-between items-center mb-4">
@@ -471,196 +501,120 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
                 </div>
               )}
 
-              {id === 'summary' && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {cardVisibility.netIncome && (
-                      <div className="p-5 rounded-3xl glass-panel-subtle transition-colors col-span-1 flex flex-col justify-between">
-                        <div>
-                          <div className="flex justify-between items-start mb-3">
-                            <h3 className="text-[25px] font-semibold text-emerald-700 dark:text-emerald-400 opacity-90">{t.netIncome}</h3>
-                            <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl">
-                              <DollarSign className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+              
+              {id === 'netIncome' && (
+                        <div className="p-5 rounded-3xl glass-panel-subtle transition-colors col-span-1 flex flex-col justify-between min-h-[140px] h-full">
+                          <div>
+                            <div className="flex justify-between items-start mb-3">
+                              <h3 className="text-base font-semibold text-emerald-700 dark:text-emerald-400 opacity-90 leading-tight block truncate pr-2 max-w-[80%]">{t.netIncome}</h3>
+                              <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl"><DollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /></div>
                             </div>
-                          </div>
-                          <div className="text-[23px] font-bold text-emerald-700 dark:text-emerald-400">฿{summary.netIncome.toFixed(2)}</div>
-                        </div>
-                        
-                        <div className="mt-4 pt-4 border-t border-emerald-100 dark:border-emerald-800/50">
-                          <div className="flex justify-between items-end">
-                            <div>
-                              <div className="text-[10px] font-bold text-emerald-600/60 dark:text-emerald-400/60 uppercase tracking-wider mb-0.5">ยอดสะสมรอตัด</div>
-                              <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400">฿{totalUntransferred.toFixed(2)}</div>
-                            </div>
-                            <button
-                              onClick={() => totalUntransferred > 0 && setShowTransferConfirm(true)}
-                              disabled={totalUntransferred <= 0}
-                              className={`p-2 rounded-xl transition-all ${totalUntransferred > 0 ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-200 dark:shadow-none active:scale-95' : 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed'}`}
-                              title="ตัดยอดเข้ารายจ่าย"
-                            >
-                              <ArrowUpCircle className="w-5 h-5" />
-                            </button>
+                            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">฿{totalNet.toLocaleString()}</div>
                           </div>
                         </div>
-                      </div>
-                    )}
-                    
-                    {cardVisibility.dailyIncentive && (
-                      <div className="p-5 rounded-3xl glass-panel-subtle transition-colors">
-                        <div className="flex justify-between items-start mb-2">
-                          <h3 className="text-[25px] font-semibold text-violet-700 dark:text-violet-400 opacity-90">{t.dailyIncentive}</h3>
-                          <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl"><Gift className="w-5 h-5 text-violet-600 dark:text-violet-400" /></div>
-                        </div>
-                        {isEditingIncentive ? (
-                          <form onSubmit={handleIncentiveSubmit} className="flex gap-2 mt-2 items-center">
-                            <span className="text-[23px] font-bold text-violet-700 dark:text-violet-400">฿</span>
-                            <input
-                              type="number"
-                              step="any"
-                              value={incentiveInput}
-                              onChange={(e) => setIncentiveInput(e.target.value)}
-                              placeholder="0.00"
-                              className="w-full bg-slate-100/50 dark:bg-slate-800/50 px-3 py-1 text-lg font-bold text-violet-700 dark:text-violet-400 outline-none rounded-xl"
-                              autoFocus
-                            />
-                            <button
-                              type="submit"
-                              className="p-1.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-lg hover:opacity-85 transition-opacity"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setIsEditingIncentive(false)}
-                              className="p-1.5 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 rounded-lg hover:opacity-85 transition-opacity"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </form>
-                        ) : (
-                          <div 
-                            className="mt-2 flex items-center justify-between cursor-pointer group hover:bg-violet-50/50 dark:hover:bg-violet-950/20 p-2 rounded-2xl transition-all"
-                            onClick={() => {
-                              setIncentiveInput((incentives[selectedDate] || 0).toString());
-                              setIsEditingIncentive(true);
-                            }}
-                          >
-                            <div className="flex items-center gap-1">
-                              <span className="text-[23px] font-black text-violet-700 dark:text-violet-400">
-                                ฿{(incentives[selectedDate] || 0).toLocaleString()}
-                              </span>
-                            </div>
-                            <Pencil className="w-4 h-4 text-violet-400 lg:opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        )}
-                      </div>
-                    )}
+              )}
 
-                    {cardVisibility.dailyAverage && (
-                      <SummaryCard 
-                        title={t.dailyAverage} 
-                        valueDisplay={`฿${dailyAverage.toFixed(2)}`}
-                        icon={<BarChart2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />} 
-                        bg="bg-indigo-50 dark:bg-indigo-900/30" 
-                        color="text-indigo-700 dark:text-indigo-400" 
-                      />
-                    )}
-                  </div>
-                  
-                  {cardVisibility.incomeComparison && (
-                    <div className="glass-panel p-6 rounded-3xl transition-colors">
-                      <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                        <BarChart2 className="w-5 h-5 text-indigo-500" />
-                        {t.incomeComparison || 'เปรียบเทียบรายได้ 7 วันล่าสุด'}
+              {id === 'dailyIncentive' && (
+                        <div className="p-5 rounded-3xl glass-panel-subtle transition-colors col-span-1 flex flex-col justify-between min-h-[140px] h-full">
+                          <div>
+                            <div className="flex justify-between items-start mb-3">
+                              <h3 className="text-base font-semibold text-indigo-700 dark:text-indigo-400 opacity-90 leading-tight block truncate pr-2 max-w-[80%]">{(t as any).dailyIncentive || 'อินเซนทีฟ'}</h3>
+                              <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl"><Gift className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /></div>
+                            </div>
+                            
+                            {!isEditingIncentive ? (
+                              <div className="group cursor-pointer inline-flex items-center gap-1" onClick={() => { setIncentiveInput(String(incentives[selectedDate] || 0)); setIsEditingIncentive(true); }}>
+                                <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">฿{totalIncentives.toLocaleString()}</span>
+                                <Pencil className="w-4 h-4 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            ) : (
+                              <form onSubmit={(e) => {
+                                e.preventDefault();
+                                setIncentive(selectedDate, Number(incentiveInput) || 0);
+                                setIsEditingIncentive(false);
+                              }} className="flex items-center gap-2">
+                                <input 
+                                  type="number" 
+                                  value={incentiveInput} 
+                                  onChange={(e) => setIncentiveInput(e.target.value)} 
+                                  className="w-24 px-2 py-1 text-lg font-bold rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                  autoFocus
+                                  onBlur={() => {
+                                    setIncentive(selectedDate, Number(incentiveInput) || 0);
+                                    setIsEditingIncentive(false);
+                                  }}
+                                />
+                              </form>
+                            )}
+                          </div>
+                        </div>
+              )}
+
+              {id === 'dailyAverage' && (
+                        <div className="p-5 rounded-3xl glass-panel-subtle transition-colors col-span-1 flex flex-col justify-between min-h-[140px] h-full">
+                          <div>
+                            <div className="flex justify-between items-start mb-3">
+                              <h3 className="text-base font-semibold text-sky-700 dark:text-sky-400 opacity-90 leading-tight block truncate pr-2 max-w-[80%]">{(t as any).average || 'ค่าเฉลี่ย'}</h3>
+                              <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl"><BarChart2 className="w-5 h-5 text-sky-600 dark:text-sky-400" /></div>
+                            </div>
+                            <div className="text-2xl font-bold text-sky-600 dark:text-sky-400">฿{overallAverage.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                          </div>
+                        </div>
+              )}
+
+              {id === 'incomeComparison' && (
+                        <div className="p-5 rounded-3xl glass-panel-subtle transition-colors col-span-1 flex flex-col justify-between min-h-[140px] h-full">
+                          <div>
+                            <div className="flex justify-between items-start mb-3">
+                              <h3 className="text-base font-semibold text-violet-700 dark:text-violet-400 opacity-90 leading-tight block truncate pr-2 max-w-[80%]">{(t as any).comparison || 'เปรียบเทียบ'}</h3>
+                              <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl"><TrendingUp className="w-5 h-5 text-violet-600 dark:text-violet-400" /></div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {comparisonAmount > 0 ? (
+                                <>
+                                  <div className="flex items-center text-emerald-500 font-bold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-lg text-lg">
+                                    <ArrowUpRight className="w-4 h-4 mr-1" />
+                                    <span>฿{Math.abs(comparisonAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                  </div>
+                                </>
+                              ) : comparisonAmount < 0 ? (
+                                <>
+                                  <div className="flex items-center text-rose-500 font-bold bg-rose-50 dark:bg-rose-500/10 px-2 py-1 rounded-lg text-lg">
+                                    <ArrowDownRight className="w-4 h-4 mr-1" />
+                                    <span>฿{Math.abs(comparisonAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                  </div>
+                                </>
+                              ) : (
+                                <span className="text-slate-500 font-bold px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-lg">{(t as any).equal || 'เท่ากัน'}</span>
+                              )}
+                              <span className="text-xs text-slate-400">vs {(t as any).yesterday || 'เมื่อวาน'}</span>
+                            </div>
+                          </div>
+                        </div>
+              )}
+
+
+              {id === 'transfer' && (
+                <div className="p-5 rounded-3xl glass-panel-subtle transition-colors col-span-1 flex flex-col justify-between min-h-[140px] h-full group cursor-pointer" onClick={() => totalUntransferred > 0 && setShowTransferConfirm(true)}>
+                  <div>
+                    <div className="flex justify-between items-start mb-3">
+                      <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300 opacity-90 leading-tight block truncate pr-2 max-w-[80%]" title={(t as any).transferIncomeToExpenses || 'ตัดยอดเข้ากระเป๋า'}>
+                        {(t as any).transferIncomeToExpenses || 'ตัดยอดเข้ากระเป๋า'}
                       </h3>
-                      <div className="h-[250px] w-full min-w-0 relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={last7DaysData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                            <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                            <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `฿${value}`} />
-                            <Tooltip 
-                              cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }}
-                              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                              formatter={(value: number) => [`฿${value.toFixed(2)}`, t.netIncome]}
-                            />
-                            <Bar dataKey="income" fill="#4f46e5" radius={[8, 8, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
+                      <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl shrink-0">
+                        <Wallet className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                       </div>
                     </div>
-                  )}
-                </div>
-              )}
-
-              {id === 'expenses' && (
-                <div className="glass-panel p-6 rounded-3xl transition-colors">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-medium text-slate-800 dark:text-white flex items-center gap-2">
-                      <Wallet className="w-5 h-5 text-rose-500" />
-                      {t.expenses || "รายจ่าย (Expenses)"}
-                    </h3>
-                  </div>
-                  
-                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl flex flex-col justify-between min-h-[96px]">
-                      <div>
-                        <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">ยอดเงินคงเหลือในบัญชีรายจ่าย</p>
-                        {isEditingBalance ? (
-                          <form onSubmit={handleBalanceSubmit} className="flex gap-1.5 mt-1 items-center">
-                            <span className="text-sm font-semibold text-slate-500">฿</span>
-                            <input
-                              type="number"
-                              step="any"
-                              value={balanceInput}
-                              onChange={(e) => setBalanceInput(e.target.value)}
-                              placeholder="0.00"
-                              className="w-full bg-white dark:bg-slate-800 px-2 py-0.5 text-sm font-bold text-slate-800 dark:text-white outline-none rounded-lg border border-slate-200 dark:border-slate-700"
-                              autoFocus
-                            />
-                            <button
-                              type="submit"
-                              className="p-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-md hover:opacity-85"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setIsEditingBalance(false)}
-                              className="p-1 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 rounded-md hover:opacity-85"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </form>
-                        ) : (
-                          <div 
-                            className="mt-1 flex items-center justify-between cursor-pointer group hover:bg-slate-100 dark:hover:bg-slate-700/50 px-2 py-1 rounded-xl transition-all"
-                            onClick={() => {
-                              setBalanceInput((preferences?.expenseBalance || 0).toString());
-                              setIsEditingBalance(true);
-                            }}
-                          >
-                            <p className="text-xl font-black text-slate-800 dark:text-white">
-                              ฿{(preferences?.expenseBalance || 0).toLocaleString()}
-                            </p>
-                            <Pencil className="w-3.5 h-3.5 text-slate-400 lg:opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        )}
-                      </div>
+                    <div className="text-2xl font-bold bg-gradient-to-r from-emerald-500 to-emerald-400 bg-clip-text text-transparent mb-1 shrink-0 whitespace-nowrap overflow-hidden text-ellipsis">
+                      ฿{totalUntransferred.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </div>
-                    <div className="bg-rose-50 dark:bg-rose-900/20 p-4 rounded-2xl flex flex-col justify-between min-h-[96px]">
-                      <div>
-                        <p className="text-[10px] sm:text-xs font-bold text-rose-400 uppercase tracking-widest mb-1">{t.totalExpensesThisMonth || 'รายจ่ายรวมเดือนนี้'}</p>
-                        <p className="text-xl font-black text-rose-600 dark:text-rose-400 mt-2 px-2">
-                          ฿{expenses.filter(e => e.date.startsWith(new Date().toISOString().substring(0, 7))).reduce((sum, e) => sum + e.amount, 0).toLocaleString()}
-                        </p>
-                      </div>
+                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 shrink-0">
+                      <span>ยอดค้างโอน</span>
+                      <ArrowUpCircle className="w-3 h-3 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
                   </div>
                 </div>
               )}
-
-              {id === 'transfer' && null}
 
               {id === 'form' && null}
 
@@ -740,9 +694,27 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
                   )}
                 </div>
               )}
-            </div>
-          ))}
-        </div>
+               </div>
+             );
+          };
+
+          return groupedWidgets.map((group, idx) => {
+             if (group.type === 'grid') {
+               return (
+                  <div key={`grid-${idx}`} className="grid grid-cols-2 gap-2">
+                    {group.items.map((id: string, i: number) => (
+                      <div key={id} className={(group.items.length % 2 !== 0 && i === group.items.length - 1) ? 'col-span-2' : ''}>
+                        {renderWidget(id)}
+                      </div>
+                    ))}
+                  </div>
+               );
+             } else {
+               return renderWidget(group.id);
+             }
+          });
+        })()}
+      </div>
 
       <AnimatePresence>
         {showTransferConfirm && (

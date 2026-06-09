@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -14,7 +14,9 @@ import {
   Coins,
   ChevronLeft,
   ChevronRight,
-  Settings2
+  Settings2,
+  GripVertical,
+  Circle
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -68,8 +70,11 @@ export function Summary({
     secondaryStats: true,
     dailyChart: true,
     categoryChart: true,
-    comparison: true // added this
+    comparison: true
   });
+  const [cardOrder, setCardOrder] = useLocalStorage('summary-card-order', [
+    'tips', 'offDays', 'workDays', 'secondaryStats', 'dailyChart', 'categoryChart', 'comparison'
+  ]);
   
   // Helper to get local date string YYYY-MM-DD
   const getLocalDateStr = (d: Date) => {
@@ -153,6 +158,15 @@ export function Summary({
     }
     return '';
   };
+
+  const earliestActivityDate = useMemo(() => {
+    let earliest = '9999-12-31';
+    jobs.forEach(j => { if (j.date < earliest) earliest = j.date; });
+    expenses.forEach(e => { if (e.date < earliest) earliest = e.date; });
+    Object.keys(incentives).forEach(d => { if (d < earliest) earliest = d; });
+    Object.keys(rawIncentives || {}).forEach(d => { if (d < earliest) earliest = d; });
+    return earliest === '9999-12-31' ? null : earliest;
+  }, [jobs, expenses, incentives, rawIncentives]);
 
   const rangeData = useMemo(() => {
     let startStr: string;
@@ -431,15 +445,17 @@ export function Summary({
       
       const isLeave = preferences?.leaveDays?.includes(d);
       
-      if (isLeave) {
-        leaveDays++;
-        // If they still worked and earned > 800 on a leave day, we count it as workDay too so stats aren't weird
-        if (s.income > 800) workDays++;
-      } else {
-        if (s.income > 800) {
-          workDays++;
+      if (earliestActivityDate && d >= earliestActivityDate) {
+        if (isLeave) {
+          leaveDays++;
+          // If they still worked and earned > 800 on a leave day, we count it as workDay too so stats aren't weird
+          if (s.income > 800) workDays++;
         } else {
-          offDays++;
+          if (s.income > 800) {
+            workDays++;
+          } else {
+            offDays++;
+          }
         }
       }
     });
@@ -668,11 +684,11 @@ export function Summary({
             initial={{ opacity: 0, height: 0, scale: 0.95 }}
             animate={{ opacity: 1, height: 'auto', scale: 1 }}
             exit={{ opacity: 0, height: 0, scale: 0.95 }}
-            className="overflow-hidden"
+            className="overflow-hidden space-y-6 mb-6"
           >
             <div className="glass-panel p-4 rounded-[2rem] space-y-3 mb-2 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10">
               <h4 className="text-sm font-black text-slate-800 dark:text-white px-2">ตั้งค่าการแสดงผลหน้าสรุป</h4>
-              <div className="grid grid-cols-2 gap-2">
+              <Reorder.Group axis="y" values={cardOrder} onReorder={setCardOrder} className="space-y-2">
                 {[
                   { key: 'tips', label: 'ทิปที่ได้', icon: <Coins className="w-4 h-4" /> },
                   { key: 'offDays', label: 'วันหยุด', icon: <XCircle className="w-4 h-4" /> },
@@ -681,27 +697,37 @@ export function Summary({
                   { key: 'dailyChart', label: 'กราฟรายวัน', icon: <Calendar className="w-4 h-4" /> },
                   { key: 'categoryChart', label: 'กราฟหมวดหมู่', icon: <Filter className="w-4 h-4" /> },
                   { key: 'comparison', label: 'เปรียบเทียบ', icon: <TrendingUp className="w-4 h-4" /> },
-                ].map((item) => (
-                  <button
-                    key={item.key}
-                    onClick={() => setCardVisibility({ ...cardVisibility, [item.key]: !cardVisibility[item.key as keyof typeof cardVisibility] })}
-                    className={`flex items-center gap-2 p-3 rounded-xl transition-all border ${cardVisibility[item.key as keyof typeof cardVisibility] ? 'bg-white dark:bg-slate-800 border-indigo-200 dark:border-indigo-800 shadow-sm text-slate-800 dark:text-white' : 'bg-slate-100/50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 opacity-60'}`}
-                  >
-                    <div className={cardVisibility[item.key as keyof typeof cardVisibility] ? 'text-indigo-500' : ''}>
-                      {item.icon}
+                ].sort((a,b) => cardOrder.indexOf(a.key) - cardOrder.indexOf(b.key)).map((item) => (
+                  <Reorder.Item key={item.key} value={item.key} className={`p-3 rounded-2xl flex items-center gap-3 transition-colors ${cardVisibility[item.key as keyof typeof cardVisibility] ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white' : 'bg-white/50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500'}`}>
+                    <div 
+                      onClick={() => setCardVisibility({...cardVisibility, [item.key]: !cardVisibility[item.key as keyof typeof cardVisibility]})}
+                      className="flex-1 flex items-center gap-3 cursor-pointer"
+                    >
+                      {cardVisibility[item.key as keyof typeof cardVisibility] ? <CheckCircle2 className="text-emerald-500 w-5 h-5"/> : <Circle className="text-slate-300 dark:text-slate-600 w-5 h-5"/>}
+                      <div className={cardVisibility[item.key as keyof typeof cardVisibility] ? 'text-indigo-500' : ''}>
+                        {item.icon}
+                      </div>
+                      <span className="text-xs font-bold">{item.label}</span>
                     </div>
-                    <span className="text-xs font-bold">{item.label}</span>
-                  </button>
+                    <GripVertical className="text-slate-400 cursor-grab active:cursor-grabbing" />
+                  </Reorder.Item>
                 ))}
-              </div>
+              </Reorder.Group>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Main Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        {cardVisibility.tips && (
+      
+      {/* Main Stat Cards Layout */}
+      <div className="grid grid-cols-2 gap-4">
+        {cardOrder.map(key => {
+          if (!cardVisibility[key as keyof typeof cardVisibility]) return null;
+          
+          if (key === 'tips' || key === 'offDays' || key === 'workDays') {
+            return (
+              <div key={key} className={key === 'tips' ? "col-span-2" : "col-span-1"}>
+                {key === 'tips' && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -721,8 +747,7 @@ export function Summary({
             </div>
           </motion.div>
         )}
-
-        {cardVisibility.offDays && (
+                {key === 'offDays' && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -748,8 +773,7 @@ export function Summary({
             </div>
           </motion.div>
         )}
-
-        {cardVisibility.workDays && (
+                {key === 'workDays' && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -771,10 +795,11 @@ export function Summary({
             </div>
           </motion.div>
         )}
-      </div>
+              </div>
+            );
+          }
 
-      {/* Secondary Stats Group */}
-      {cardVisibility.secondaryStats && (
+          if (key === 'secondaryStats') return <div key={key} className="col-span-2">
         <div className="grid grid-cols-2 gap-4">
           <div className="glass-panel p-4 rounded-3xl flex items-center justify-between">
             <div>
@@ -798,10 +823,10 @@ export function Summary({
             </div>
           </div>
         </div>
-      )}
-
-      {/* Comparison Group */}
-      {cardVisibility.comparison && (activeTab === 'monthly' || activeTab === 'yearly') && (
+      </div>;
+          
+          if (key === 'comparison') return <div key={key} className="col-span-2">
+{ (activeTab === 'monthly' || activeTab === 'yearly') && (
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -914,9 +939,10 @@ export function Summary({
           </div>
         </motion.div>
       )}
+</div>;
 
-      {/* Daily Income Chart */}
-      {activeTab !== 'daily' && cardVisibility.dailyChart && (
+          if (key === 'dailyChart') return <div key={key} className="col-span-2">
+{activeTab !== 'daily' && (
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -970,49 +996,9 @@ export function Summary({
           </div>
         </motion.div>
       )}
+</div>;
 
-      {/* Historical Overlap Line Chart */}
-      {(activeTab === 'monthly' || activeTab === 'yearly') && rangeData.overlappingData?.length > 0 && (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-panel p-6 rounded-[2rem] mt-6"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <h4 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2 uppercase tracking-widest">
-              <TrendingUp className="w-4 h-4 text-indigo-500" />
-              เปรียบเทียบย้อนหลัง (4 {activeTab === 'monthly' ? 'เดือน' : 'ปี'})
-            </h4>
-          </div>
-          <div className="h-[250px] w-full mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={rangeData.overlappingData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis 
-                  dataKey={activeTab === 'monthly' ? 'day' : 'month'} 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 9, fill: '#64748b', fontWeight: 'bold' }}
-                  minTickGap={15}
-                />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 'bold' }} width={45} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px' }}
-                  formatter={(value: number, name: string) => [`฿${value.toLocaleString()}`, name === 'v0' ? (activeTab === 'monthly' ? 'เดือนนี้' : 'ปีนี้') : name === 'v1' ? (activeTab === 'monthly' ? 'เดือนที่แล้ว' : 'ปีที่แล้ว') : name === 'v2' ? (activeTab === 'monthly' ? '2 เดือนที่แล้ว' : '2 ปีที่แล้ว') : (activeTab === 'monthly' ? '3 เดือนที่แล้ว' : '3 ปีที่แล้ว')]}
-                />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '15px' }} formatter={(value) => <span className="font-medium text-slate-600 dark:text-slate-300">{value === 'v0' ? (activeTab === 'monthly' ? 'เดือนนี้' : 'ปีนี้') : value === 'v1' ? (activeTab === 'monthly' ? 'เดือนที่แล้ว' : 'ปีที่แล้ว') : value === 'v2' ? (activeTab === 'monthly' ? '2 เดือนที่แล้ว' : '2 ปีที่แล้ว') : (activeTab === 'monthly' ? '3 เดือนที่แล้ว' : '3 ปีที่แล้ว')}</span> } />
-                <Line type="monotone" dataKey="v0" stroke="#4f46e5" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, fill: '#4f46e5', stroke: '#fff', strokeWidth: 2 }} />
-                <Line type="monotone" dataKey="v1" stroke="#0ea5e9" strokeWidth={2.5} dot={{ r: 0 }} activeDot={{ r: 4, fill: '#0ea5e9', stroke: '#fff', strokeWidth: 2 }} />
-                <Line type="monotone" dataKey="v2" stroke="#10b981" strokeWidth={2} strokeOpacity={0.7} dot={{ r: 0 }} activeDot={{ r: 4, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }} />
-                <Line type="monotone" dataKey="v3" stroke="#f43f5e" strokeWidth={1.5} strokeOpacity={0.6} strokeDasharray="4 4" dot={{ r: 0 }} activeDot={{ r: 4, fill: '#f43f5e', stroke: '#fff', strokeWidth: 2 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Category Expenses Chart */}
-      {cardVisibility.categoryChart && (
+          if (key === 'categoryChart') return <div key={key} className="col-span-2">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1049,6 +1035,51 @@ export function Summary({
               <p className="text-xs font-bold text-center">ไม่มีข้อมูลรายจ่ายในช่วงเวลานี้</p>
             </div>
           )}
+        </motion.div>
+      
+</div>;
+
+          return null;
+        })}
+      </div>
+      
+      {/* Historical Overlap Line Chart */}
+{ (activeTab === 'monthly' || activeTab === 'yearly') && rangeData.overlappingData?.length > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-panel p-6 rounded-[2rem] mt-6"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h4 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2 uppercase tracking-widest">
+              <TrendingUp className="w-4 h-4 text-indigo-500" />
+              เปรียบเทียบย้อนหลัง (4 {activeTab === 'monthly' ? 'เดือน' : 'ปี'})
+            </h4>
+          </div>
+          <div className="h-[250px] w-full mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={rangeData.overlappingData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis 
+                  dataKey={activeTab === 'monthly' ? 'day' : 'month'} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 9, fill: '#64748b', fontWeight: 'bold' }}
+                  minTickGap={15}
+                />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 'bold' }} width={45} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                  formatter={(value: number, name: string) => [`฿${value.toLocaleString()}`, name === 'v0' ? (activeTab === 'monthly' ? 'เดือนนี้' : 'ปีนี้') : name === 'v1' ? (activeTab === 'monthly' ? 'เดือนที่แล้ว' : 'ปีที่แล้ว') : name === 'v2' ? (activeTab === 'monthly' ? '2 เดือนที่แล้ว' : '2 ปีที่แล้ว') : (activeTab === 'monthly' ? '3 เดือนที่แล้ว' : '3 ปีที่แล้ว')]}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '15px' }} formatter={(value) => <span className="font-medium text-slate-600 dark:text-slate-300">{value === 'v0' ? (activeTab === 'monthly' ? 'เดือนนี้' : 'ปีนี้') : value === 'v1' ? (activeTab === 'monthly' ? 'เดือนที่แล้ว' : 'ปีที่แล้ว') : value === 'v2' ? (activeTab === 'monthly' ? '2 เดือนที่แล้ว' : '2 ปีที่แล้ว') : (activeTab === 'monthly' ? '3 เดือนที่แล้ว' : '3 ปีที่แล้ว')}</span> } />
+                <Line type="monotone" dataKey="v0" stroke="#4f46e5" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, fill: '#4f46e5', stroke: '#fff', strokeWidth: 2 }} />
+                <Line type="monotone" dataKey="v1" stroke="#0ea5e9" strokeWidth={2.5} dot={{ r: 0 }} activeDot={{ r: 4, fill: '#0ea5e9', stroke: '#fff', strokeWidth: 2 }} />
+                <Line type="monotone" dataKey="v2" stroke="#10b981" strokeWidth={2} strokeOpacity={0.7} dot={{ r: 0 }} activeDot={{ r: 4, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }} />
+                <Line type="monotone" dataKey="v3" stroke="#f43f5e" strokeWidth={1.5} strokeOpacity={0.6} strokeDasharray="4 4" dot={{ r: 0 }} activeDot={{ r: 4, fill: '#f43f5e', stroke: '#fff', strokeWidth: 2 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </motion.div>
       )}
     </div>
