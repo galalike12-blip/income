@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Calendar, Download, FileSpreadsheet, Layers, Info } from 'lucide-react';
+import { X, Calendar, Download, FileSpreadsheet, Layers, Info, Filter } from 'lucide-react';
 import { JobEntry, ExpenseEntry } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { toast } from 'sonner';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -14,11 +16,13 @@ interface ExportModalProps {
 }
 
 type RangeType = 'all' | 'month' | 'year';
+type PaidFilterType = 'all' | 'paid_only';
 
 export function ExportModal({ isOpen, onClose, jobs, expenses }: ExportModalProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang] as any;
   const [selectedRange, setSelectedRange] = useState<RangeType>('all');
+  const [paidFilter, setPaidFilter] = useState<PaidFilterType>('all');
 
   const filterByRange = <T extends { date: string }>(items: T[]): T[] => {
     const now = new Date();
@@ -44,101 +48,120 @@ export function ExportModal({ isOpen, onClose, jobs, expenses }: ExportModalProp
   };
 
   const filteredJobs = useMemo(() => filterByRange(jobs), [jobs, selectedRange]);
-  const filteredExpenses = useMemo(() => filterByRange(expenses), [expenses, selectedRange]);
+  const baseFilteredExpenses = useMemo(() => filterByRange(expenses), [expenses, selectedRange]);
+  
+  const filteredExpenses = useMemo(() => {
+    if (paidFilter === 'paid_only') {
+      return baseFilteredExpenses.filter(e => e.isPaid);
+    }
+    return baseFilteredExpenses;
+  }, [baseFilteredExpenses, paidFilter]);
 
-  const handleExportIncome = () => {
-    if (filteredJobs.length === 0) {
+  const handleExportExcel = async () => {
+    if (filteredJobs.length === 0 && filteredExpenses.length === 0) {
       toast.error(t.noDataToExport || 'ไม่มีข้อมูลที่จะส่งออกในเวลานี้');
       return;
     }
 
-    const headers = [
-      'Date (วันที่)',
-      'Customer Pay (ยอดลูกค้าต้องจ่าย)',
-      'Upfront Cost (สะสมสำรองจ่าย)',
-      'App Net Income (รายได้สุทธิระบบ)',
-      'Actual Received (รับจ่ายจริง)',
-      'Transferred Status (สถานะโอนตัดยอด)'
-    ];
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'App';
+      workbook.created = new Date();
 
-    const rows = filteredJobs.map(j => [
-      j.date,
-      j.customerMustPay,
-      j.upfrontCost,
-      j.appNetIncome,
-      j.actualReceived,
-      j.transferred ? 'Transferred (โอนแล้ว)' : 'Pending (รอดำเนินการ)'
-    ]);
+      // --- 1. Income Sheet ---
+      const incomeSheet = workbook.addWorksheet(currentLang === 'th' ? 'รายรับ (Income)' : 'Income', { views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }] });
+      incomeSheet.columns = [
+        { header: 'Date (วันที่)', key: 'date', width: 15 },
+        { header: 'Customer Pay (ยอดลูกค้าต้องจ่าย)', key: 'custPay', width: 25 },
+        { header: 'Upfront Cost (สะสมสำรองจ่าย)', key: 'upfront', width: 25 },
+        { header: 'App Net Income (รายได้สุทธิระบบ)', key: 'netIncome', width: 25 },
+        { header: 'Actual Received (รับจ่ายจริง)', key: 'actual', width: 25 },
+        { header: 'Transferred Status (สถานะโอนตัดยอด)', key: 'status', width: 25 },
+      ];
+      
+      const headerRow1 = incomeSheet.getRow(1);
+      headerRow1.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } }; // Indigo 600
+      
+      filteredJobs.forEach(j => {
+        incomeSheet.addRow({
+          date: j.date.split('T')[0],
+          custPay: j.customerMustPay,
+          upfront: j.upfrontCost,
+          netIncome: j.appNetIncome,
+          actual: j.actualReceived ?? (j.customerMustPay + j.upfrontCost),
+          status: j.transferred ? 'Transferred (โอนแล้ว)' : 'Pending (รอดำเนินการ)'
+        });
+      });
 
-    const formattedRangeName = selectedRange === 'all' 
-      ? 'all_time' 
-      : selectedRange === 'month' 
-        ? `month_${new Date().getMonth() + 1}_${new Date().getFullYear()}` 
-        : `year_${new Date().getFullYear()}`;
+      // --- 2. Expenses Sheet ---
+      const expenseSheet = workbook.addWorksheet(currentLang === 'th' ? 'รายจ่าย (Expenses)' : 'Expenses', { views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }] });
+      expenseSheet.columns = [
+        { header: 'Date (วันที่)', key: 'date', width: 15 },
+        { header: 'Category (หมวดหมู่)', key: 'category', width: 25 },
+        { header: 'Payee/Recipient (ผู้จ่าย/ผู้รับ)', key: 'payee', width: 25 },
+        { header: 'Amount (จำนวนเงิน)', key: 'amount', width: 20 },
+        { header: 'Cost Type (ประเภทรายจ่าย)', key: 'costType', width: 25 },
+        { header: 'Necessity (ความจำเป็น)', key: 'necessity', width: 20 },
+        { header: 'Paid Status (สถานะการจ่าย)', key: 'paidStatus', width: 20 },
+        { header: 'Notes (หมายเหตุ)', key: 'note', width: 35 },
+      ];
+      
+      const headerRow2 = expenseSheet.getRow(1);
+      headerRow2.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE11D48' } }; // Rose 600
 
-    downloadCSV(headers, rows, `income_report_${formattedRangeName}.csv`);
-    toast.success(t.exportSuccess || 'ส่งออกข้อมูลสำเร็จแล้ว!');
-  };
+      filteredExpenses.forEach(e => {
+        expenseSheet.addRow({
+          date: e.date,
+          category: t[e.category] || e.category,
+          payee: e.payee || '',
+          amount: e.amount,
+          costType: e.isFixed ? 'Fixed (รายจ่ายคงที่)' : 'Variable (รายจ่ายทั่วไป)',
+          necessity: e.necessity === 'necessary' ? 'Necessary (จำเป็น)' : e.necessity === 'luxury' ? 'Luxury (ฟุ่มเฟือย)' : '',
+          paidStatus: e.isPaid ? 'Paid (จ่ายแล้ว)' : 'Unpaid (ยังไม่จ่าย)',
+          note: e.note || ''
+        });
+      });
 
-  const handleExportExpenses = () => {
-    if (filteredExpenses.length === 0) {
-      toast.error(t.noDataToExport || 'ไม่มีข้อมูลที่จะส่งออกในเวลานี้');
-      return;
+      // --- 3. Summary Sheet ---
+      const summarySheet = workbook.addWorksheet(currentLang === 'th' ? 'สรุป (Summary)' : 'Summary', { views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }] });
+      summarySheet.columns = [
+        { header: 'Item (รายการ)', key: 'item', width: 35 },
+        { header: 'Amount (จำนวนเงิน)', key: 'amount', width: 25 },
+      ];
+      
+      const headerRow3 = summarySheet.getRow(1);
+      headerRow3.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF10B981' } }; // Emerald 500
+
+      const totalActualIncome = filteredJobs.reduce((sum, j) => sum + (j.actualReceived ?? (j.customerMustPay + j.upfrontCost)), 0);
+      const totalExpenseAmount = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+      const netBalance = totalActualIncome - totalExpenseAmount;
+
+      summarySheet.addRow({ item: 'Total Income (ยอดรับจริงทั้งหมด)', amount: totalActualIncome });
+      summarySheet.addRow({ item: 'Total Expenses (รายจ่ายทั้งหมด)', amount: totalExpenseAmount });
+      summarySheet.addRow({ item: 'Net Balance (คงเหลือสุทธิ)', amount: netBalance });
+
+      summarySheet.getRow(2).font = { bold: true };
+      summarySheet.getRow(3).font = { bold: true };
+      summarySheet.getRow(4).font = { bold: true };
+
+      // Generate & Download
+      const buffer = await workbook.xlsx.writeBuffer();
+      const formattedRangeName = selectedRange === 'all' 
+        ? 'all_time' 
+        : selectedRange === 'month' 
+          ? `month_${new Date().getMonth() + 1}_${new Date().getFullYear()}` 
+          : `year_${new Date().getFullYear()}`;
+          
+      saveAs(new Blob([buffer]), `financial_report_${formattedRangeName}.xlsx`);
+      toast.success(t.exportSuccess || 'ส่งออกข้อมูลสำเร็จแล้ว!');
+      
+    } catch (err) {
+      console.error("Export error", err);
+      toast.error('Export failed');
     }
-
-    const headers = [
-      'Date (วันที่)',
-      'Category (หมวดหมู่)',
-      'Payee/Recipient (ผู้จ่าย/ผู้รับ)',
-      'Amount (จำนวนเงิน)',
-      'Cost Type (ประเภทรายจ่าย)',
-      'Necessity (ความจำเป็น)',
-      'Paid Status (สถานะการจ่าย)',
-      'Notes (หมายเหตุ/บันทึก)',
-      'Balance After (ยอดคงเหลือหลังจากจ่าย)'
-    ];
-
-    const rows = filteredExpenses.map(e => [
-      e.date,
-      e.category,
-      e.payee || '',
-      e.amount,
-      e.isFixed ? 'Fixed (รายจ่ายคงที่)' : 'Variable (รายจ่ายทั่วไป)',
-      e.necessity === 'necessary' ? 'Necessary (จำเป็น)' : e.necessity === 'luxury' ? 'Luxury (ฟุ่มเฟือย)' : '',
-      e.isPaid ? 'Paid (จ่ายแล้ว)' : 'Unpaid (ยังไม่จ่าย)',
-      e.note || '',
-      e.balanceAfter !== undefined ? e.balanceAfter : ''
-    ]);
-
-    const formattedRangeName = selectedRange === 'all' 
-      ? 'all_time' 
-      : selectedRange === 'month' 
-        ? `month_${new Date().getMonth() + 1}_${new Date().getFullYear()}` 
-        : `year_${new Date().getFullYear()}`;
-
-    downloadCSV(headers, rows, `expenses_report_${formattedRangeName}.csv`);
-    toast.success(t.exportSuccess || 'ส่งออกข้อมูลสำเร็จแล้ว!');
-  };
-
-  const downloadCSV = (headers: string[], rows: any[][], fileName: string) => {
-    const BOM = "\uFEFF";
-    const csvContent = BOM + [
-      headers.map(h => `"${h.toString().replace(/"/g, '""')}"`).join(","),
-      ...rows.map(row => row.map(val => {
-        if (val === undefined || val === null) return '""';
-        const str = String(val);
-        return `"${str.replace(/"/g, '""')}"`;
-      }).join(","))
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   return (
@@ -215,55 +238,69 @@ export function ExportModal({ isOpen, onClose, jobs, expenses }: ExportModalProp
                 </div>
               </div>
 
+              {/* Expense Filter Selector */}
+              <div className="space-y-2.5">
+                <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block ml-1 flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5" />
+                  {currentLang === 'th' ? 'ตัวกรองรายจ่าย' : 'Expense Filter'}
+                </label>
+                <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100/80 dark:bg-slate-800/60 rounded-2xl">
+                  <button
+                    onClick={() => setPaidFilter('all')}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                      paidFilter === 'all'
+                        ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {currentLang === 'th' ? 'ทั้งหมด (จ่ายแล้วและยังไม่จ่าย)' : 'All (Paid & Unpaid)'}
+                  </button>
+                  <button
+                    onClick={() => setPaidFilter('paid_only')}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                      paidFilter === 'paid_only'
+                        ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {currentLang === 'th' ? 'เฉพาะที่จ่ายแล้ว' : 'Paid Only'}
+                  </button>
+                </div>
+              </div>
+
               {/* Informative banner */}
-              <div className="flex gap-3 p-4 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100/50 dark:border-emerald-900/30">
-                <Info className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                <p className="text-xs text-emerald-800/90 dark:text-emerald-300 font-medium leading-relaxed">
+              <div className="flex gap-3 p-4 bg-indigo-50 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100/50 dark:border-indigo-900/30">
+                <Info className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-indigo-800/90 dark:text-indigo-300 font-medium leading-relaxed">
                   {currentLang === 'th' 
-                    ? 'สลักรหัสอักษร UTF-8 BOM อัตโนมัติ ป้องกันปัญหาสระภาษาไทยเพี้ยนหรือเป็นต่างดาวเมื่อเปิดด้วยโปรแกรม Microsoft Excel'
-                    : 'Features auto-injected UTF-8 BOM encoding so Microsoft Excel displays non-English characters cleanly.'}
+                    ? 'รูปแบบไฟล์ Excel จะถูกแบ่งออกเป็น 3 Sheet อัตโนมัติ (รายรับ, รายจ่าย, สรุป) พร้อมตกแต่งสีสันให้สวยงามและอ่านง่าย'
+                    : 'Excel file will be generated with 3 tabs (Income, Expenses, Summary) and formatted nicely.'}
                 </p>
               </div>
 
               {/* Cards for Export Options */}
               <div className="space-y-4">
-                {/* Income card */}
+                {/* Export Excel card */}
                 <div className="p-4 bg-white/40 dark:bg-slate-800/40 rounded-3xl border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4 hover:border-slate-200/80 dark:hover:border-slate-700/80 transition-all">
                   <div className="space-y-1">
                     <h4 className="text-sm font-bold text-slate-800 dark:text-white">
-                      {t.exportIncome || 'ส่งออกรายรับ (CSV)'}
+                      {currentLang === 'th' ? 'ส่งออกข้อมูลทั้งหมดเป็น Excel' : 'Export All to Excel'}
                     </h4>
                     <p className="text-xs text-slate-400 dark:text-slate-500 block leading-normal pr-4">
-                      {t.exportIncomeDesc || 'ประกอบไปด้วยรายละเอียดส่วนงาน สลิป และรายได้สุทธิประจำเครื่อง'}
+                      {currentLang === 'th' ? 'ประกอบด้วยรายรับ รายจ่าย และหน้าสรุปยอดรวมตารางในไฟล์เดียว' : 'Combined Income, Expenses, and Summary sheets in a single file'}
                     </p>
-                    <span className="inline-block text-[10px] font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md mt-1">
-                      {filteredJobs.length} {currentLang === 'th' ? 'รายการในช่วงเวลานี้' : 'entries in range'}
-                    </span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="inline-block text-[10px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md">
+                        {filteredJobs.length} {currentLang === 'th' ? 'รายรับ' : 'incomes'}
+                      </span>
+                      <span className="inline-block text-[10px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-md">
+                        {filteredExpenses.length} {currentLang === 'th' ? 'รายจ่าย' : 'expenses'}
+                      </span>
+                    </div>
                   </div>
                   <button
-                    onClick={handleExportIncome}
-                    className="p-3.5 bg-indigo-50 hover:bg-indigo-100/80 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-2xl transition-all shadow-sm hover:shadow shrink-0 cursor-pointer"
-                  >
-                    <Download className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Expenses card */}
-                <div className="p-4 bg-white/40 dark:bg-slate-800/40 rounded-3xl border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4 hover:border-slate-200/80 dark:hover:border-slate-700/80 transition-all">
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-bold text-slate-800 dark:text-white">
-                      {t.exportExpenses || 'ส่งออกรายจ่าย (CSV)'}
-                    </h4>
-                    <p className="text-xs text-slate-400 dark:text-slate-400 block leading-normal pr-4">
-                      {t.exportExpensesDesc || 'ประกอบไปด้วยรายละเอียดรายการจ่ายคงที่และแปรผันทั้งหมด'}
-                    </p>
-                    <span className="inline-block text-[10px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-md mt-1">
-                      {filteredExpenses.length} {currentLang === 'th' ? 'รายการในช่วงเวลานี้' : 'entries in range'}
-                    </span>
-                  </div>
-                  <button
-                    onClick={handleExportExpenses}
-                    className="p-3.5 bg-rose-50 hover:bg-rose-100/80 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-2xl transition-all shadow-sm hover:shadow shrink-0 cursor-pointer"
+                    onClick={handleExportExcel}
+                    className="p-3.5 bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 rounded-2xl transition-all shadow-sm hover:shadow shrink-0 cursor-pointer"
                   >
                     <Download className="w-5 h-5" />
                   </button>
