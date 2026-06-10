@@ -105,6 +105,7 @@ export function ExportModal({ isOpen, onClose, jobs, expenses }: ExportModalProp
         { header: 'Necessity (ความจำเป็น)', key: 'necessity', width: 20 },
         { header: 'Paid Status (สถานะการจ่าย)', key: 'paidStatus', width: 20 },
         { header: 'Notes (หมายเหตุ)', key: 'note', width: 35 },
+        { header: 'Balance After (ยอดคงเหลือหลังจากจ่าย)', key: 'balanceAfter', width: 25 },
       ];
       
       const headerRow2 = expenseSheet.getRow(1);
@@ -120,7 +121,8 @@ export function ExportModal({ isOpen, onClose, jobs, expenses }: ExportModalProp
           costType: e.isFixed ? 'Fixed (รายจ่ายคงที่)' : 'Variable (รายจ่ายทั่วไป)',
           necessity: e.necessity === 'necessary' ? 'Necessary (จำเป็น)' : e.necessity === 'luxury' ? 'Luxury (ฟุ่มเฟือย)' : '',
           paidStatus: e.isPaid ? 'Paid (จ่ายแล้ว)' : 'Unpaid (ยังไม่จ่าย)',
-          note: e.note || ''
+          note: e.note || '',
+          balanceAfter: e.balanceAfter !== undefined ? e.balanceAfter : ''
         });
       });
 
