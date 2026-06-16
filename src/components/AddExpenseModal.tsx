@@ -134,6 +134,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         img.src = e.target?.result as string;
       };
       reader.onerror = reject;
+      img.onerror = reject;
       
       img.onload = () => {
         const canvas = document.createElement('canvas');
