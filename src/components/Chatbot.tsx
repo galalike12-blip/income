@@ -19,6 +19,7 @@ interface ChatbotProps {
   jobs: JobEntry[];
   expenses: ExpenseEntry[];
   incentives: Record<string, number>;
+  untransferredIncentivesAmount?: number;
   addExpense: (expense: Omit<ExpenseEntry, 'id'>) => void;
   setIncentive: (date: string, amount: number) => void;
   addJob?: (job: Omit<JobEntry, 'id'>) => void;
@@ -31,7 +32,7 @@ interface ChatbotProps {
   onClearSharedFile?: () => void;
 }
 
-export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, incentives, addExpense, setIncentive, addJob, updateJob, preferences, updatePreferences, isOpen, setIsOpen, sharedFile, onClearSharedFile }, ref) => {
+export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, incentives, addExpense, setIncentive, addJob, updateJob, preferences, updatePreferences, isOpen, setIsOpen, sharedFile, onClearSharedFile, untransferredIncentivesAmount }, ref) => {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
   
@@ -268,9 +269,75 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
           .slice(-60)
       );
 
+      // Calculate financial statistics requested by the user
+      const uniqueWorkedDates = new Set(jobs.map(j => j.date.split('T')[0]));
+      const totalWorkDaysActual = uniqueWorkedDates.size;
+      const totalLeaveDaysConfigured = preferences.leaveDays?.length || 0;
+
+      // 60 days time range calculations for workdays/offdays
+      const last60DaysList: string[] = [];
+      for (let i = 0; i < 60; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        last60DaysList.push(d.toISOString().split('T')[0]);
+      }
+      
+      let workDaysSummaryCount = 0;
+      let offDaysSummaryCount = 0;
+      
+      last60DaysList.forEach(dayStr => {
+        const dayJobs = jobs.filter(j => j.date.startsWith(dayStr));
+        const dayIncentive = incentives[dayStr] || 0;
+        
+        let appNet = dayJobs.reduce((sum, j) => sum + j.appNetIncome, 0);
+        let totalTipVal = 0;
+        let totalLossVal = 0;
+        
+        dayJobs.forEach(j => {
+          const diff = j.actualReceived - (j.customerMustPay + j.upfrontCost);
+          if (diff > 0) totalTipVal += diff;
+          if (diff < 0) totalLossVal += Math.abs(diff);
+        });
+        
+        const dailyIncomeSum = Math.max(0, (appNet - totalLossVal) + totalTipVal + dayIncentive);
+        const isLeave = preferences.leaveDays?.includes(dayStr);
+        
+        if (isLeave) {
+          if (dailyIncomeSum > 800) {
+            workDaysSummaryCount++;
+          }
+        } else {
+          if (dailyIncomeSum > 800) {
+            workDaysSummaryCount++;
+          } else if (dayJobs.length > 0 || dayIncentive > 0) {
+            offDaysSummaryCount++;
+          }
+        }
+      });
+
+      const untransferredJobsIncome = jobs
+        .filter(j => !j.transferred)
+        .reduce((sum, j) => {
+          const amountToCollect = j.customerMustPay + j.upfrontCost;
+          const diff = (j.actualReceived ?? amountToCollect) - amountToCollect;
+          return sum + j.appNetIncome + diff;
+        }, 0);
+
+      const untransferredIncentives = untransferredIncentivesAmount !== undefined ? untransferredIncentivesAmount : 0;
+      const totalUntransferred = untransferredJobsIncome + untransferredIncentives;
+
+      const totalJobsIncomeAllTime = jobs.reduce((sum, j) => sum + (j.appNetIncome || 0), 0);
+      let totalTipsAllTime = 0;
+      jobs.forEach(j => {
+        const amountToCollect = j.customerMustPay + j.upfrontCost;
+        const diff = (j.actualReceived ?? amountToCollect) - amountToCollect;
+        if (diff > 0) totalTipsAllTime += diff;
+      });
+      const totalIncentivesAllTime = Object.values(incentives).reduce((sum, amt) => sum + amt, 0);
+
       const jobsSummary = {
         total: jobs.length,
-        totalInc: jobs.reduce((sum, j) => sum + (j.appNetIncome || 0), 0),
+        totalInc: totalJobsIncomeAllTime,
         list: filteredJobs
       };
       
@@ -283,9 +350,19 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       const context = `You are an AI assistant for an income and tip tracking app. 
       Respond concisely and briefly.
       
-      CRITICAL: When performing calculations, you MUST use the provided data exactly. Do not hallucinate or estimate numbers.
+      CRITICAL: When performing calculations or stating balances/workdays/off-days/incentives, you MUST use the provided numbers below exactly. Do not hallucinate or estimate numbers.
       Always double-check your math before responding.
       
+      The user's direct live financial stats & metrics (Sourced directly from live database):
+      - เงินคงเหลือในบัญชีรายจ่าย (Expense Balance / wallet): ฿${(preferences.expenseBalance || 0).toLocaleString()}
+      - เงินสะสมรวมที่ยังไม่ได้โอนทั้งหมด (ยอดสะสม / Total Untransferred): ฿${totalUntransferred.toLocaleString()} (ประกอบด้วยรายได้จากงานค้างโอน ฿${untransferredJobsIncome.toLocaleString()} และอินเซนทีฟค้างโอน ฿${untransferredIncentives.toLocaleString()})
+      - รายได้สะสมจากงานทั้งหมดที่วิ่ง: ฿${totalJobsIncomeAllTime.toLocaleString()}
+      - ยอดทิปรวมสะสมทั้งหมด: ฿${totalTipsAllTime.toLocaleString()}
+      - เงินอินเซนทีฟสะสมทั้งหมด: ฿${totalIncentivesAllTime.toLocaleString()}
+      - จำนวนวันทำงานที่มีวิ่งงานจริง (Work Days with real jobs): ${totalWorkDaysActual} วัน
+      - วันหยุด/วันลาที่กำหนดไว้โดยผู้ใช้: ${totalLeaveDaysConfigured} วัน (รายชื่อวันลา: ${JSON.stringify(preferences.leaveDays || [])})
+      - เกณฑ์รอบ 60 วันล่าสุด: วันสู้ชีวิตทำงานจริง (รายได้รวม > 800บ.) = ${workDaysSummaryCount} วัน, วันหยุดงาน/วันสโลว์ไลฟ์ (รายได้ <= 800บ.) = ${offDaysSummaryCount} วัน
+
       The user's current data summary (Last 60 days):
       Jobs Summary (Note: 'dailyIndex' represents the sequence number of the job for that specific day. If the user says "งานที่ 4" (job 4), find the job with dailyIndex 4 for today. If they say "งานที่แล้ว" or "the last job", find the job with the highest dailyIndex for today. Use the job 'id' to call updateJobTool): ${safeStringify(jobsSummary)}
       Expenses Summary: ${safeStringify(expensesSummary)}
@@ -350,6 +427,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       const aiMsgId = (Date.now() + 1).toString();
       
       // Handle function calls
+      let duplicateAlertMessage = '';
       const functionCalls = response.functionCalls;
       if (functionCalls) {
         for (const call of functionCalls) {
@@ -373,15 +451,34 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               }
             }
 
+            const targetDate = args.date || (() => {
+              const d = new Date();
+              return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+            })();
+
+            // Programmatic check for duplicate expense entries
+            const isDuplicate = expenses.some(e => {
+              const sameAmount = Math.abs(e.amount - args.amount) < 0.01;
+              const p1 = (e.payee || '').trim().toLowerCase();
+              const p2 = (args.payee || '').trim().toLowerCase();
+              const samePayee = p1 === p2 || (p1 && p2 && (p1.includes(p2) || p2.includes(p1)));
+              const sameDay = e.date.substring(0, 10) === targetDate.substring(0, 10);
+              return sameAmount && samePayee && sameDay;
+            });
+
+            if (isDuplicate) {
+              const payeeLabel = args.payee || 'ร้านค้า/ผู้รับเงิน';
+              toast.warning(`ตรวจพบสลิปซ้ำ: ${payeeLabel} ฿${args.amount}`);
+              duplicateAlertMessage = `⚠️ **ตรวจพบรายการนี้ในระบบแล้ว!**\nรายการค่าใช้จ่ายจำนวน **฿${args.amount}** จ่ายให้กับ **${payeeLabel}** ในวันที่ **${targetDate.substring(0, 10)}** ได้ตอบรับการเพิ่มในระบบมาก่อนหน้าแล้ว ระบบจึงแจ้งเตือนและระงับการบันทึกรายการซ้ำเพื่อความถูกต้องของสมุดบัญชีครับ`;
+              continue;
+            }
+
             const res = await addExpense({
               amount: args.amount,
               category: finalCategory,
               payee: args.payee || '',
               note: args.note || '',
-              date: args.date || (() => {
-                const d = new Date();
-                return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
-              })(),
+              date: targetDate,
               isPaid: true
             });
             const bal = (res as any)?.balanceAfter;
@@ -437,10 +534,15 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         }
       }
 
+      let finalAiText = response.text || (functionCalls ? "รายละเอียดได้รับการบันทึกเรียบร้อยแล้วครับ" : "ฉันยังไม่เข้าใจสิ่งที่คุณพยายามถามอย่างแน่ชัด ลองถามข้อมูลวันทำงาน เงินสะสม หรืออัปโหลดสลิปได้เลยครับ");
+      if (duplicateAlertMessage) {
+        finalAiText = response.text ? `${response.text}\n\n${duplicateAlertMessage}` : duplicateAlertMessage;
+      }
+
       setMessages(prev => [...prev, { 
         id: aiMsgId, 
         role: 'model', 
-        text: response.text || (functionCalls ? "I've added that expense for you." : "I'm not sure how to help with that.") 
+        text: finalAiText 
       }]);
 
     } catch (error: any) {

@@ -344,9 +344,9 @@ function MainContent() {
             {activeTab === 'expenses' && (
               <motion.div
                 key="expenses"
-                initial={{ opacity: 0, x: activeTab === 'summary' ? -20 : 20 }}
+                initial={{ opacity: 0, x: (activeTab as string) === 'summary' ? -20 : 20 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: activeTab === 'summary' ? 20 : -20 }}
+                exit={{ opacity: 0, x: (activeTab as string) === 'summary' ? 20 : -20 }}
                 transition={{ duration: 0.3, ease: 'easeOut' }}
               >
                 <Expenses 
@@ -398,6 +398,7 @@ function MainContent() {
         jobs={jobs} 
         expenses={expenses}
         incentives={incentives} 
+        untransferredIncentivesAmount={untransferredIncentivesAmount}
         addExpense={addExpense} 
         setIncentive={setIncentive} 
         addJob={addJob} 
