@@ -180,7 +180,20 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         }
       };
 
-      const updateJobTool: FunctionDeclaration = {
+      const safeStringify = (obj: any): string => {
+    const cache = new Set();
+    return JSON.stringify(obj, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (cache.has(value)) {
+          return '[Circular]';
+        }
+        cache.add(value);
+      }
+      return value;
+    });
+  };
+
+  const updateJobTool: FunctionDeclaration = {
         name: "updateJob",
         description: "Edit/update an existing job entry. You MUST provide the id of the job. If the user mentions adding a tip, you should add it to actualReceived.",
         parameters: {
@@ -274,12 +287,12 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       Always double-check your math before responding.
       
       The user's current data summary (Last 60 days):
-      Jobs Summary (Note: 'dailyIndex' represents the sequence number of the job for that specific day. If the user says "งานที่ 4" (job 4), find the job with dailyIndex 4 for today. If they say "งานที่แล้ว" or "the last job", find the job with the highest dailyIndex for today. Use the job 'id' to call updateJobTool): ${JSON.stringify(jobsSummary)}
-      Expenses Summary: ${JSON.stringify(expensesSummary)}
-      Daily Incentives: ${JSON.stringify(filteredIncentives)}
+      Jobs Summary (Note: 'dailyIndex' represents the sequence number of the job for that specific day. If the user says "งานที่ 4" (job 4), find the job with dailyIndex 4 for today. If they say "งานที่แล้ว" or "the last job", find the job with the highest dailyIndex for today. Use the job 'id' to call updateJobTool): ${safeStringify(jobsSummary)}
+      Expenses Summary: ${safeStringify(expensesSummary)}
+      Daily Incentives: ${safeStringify(filteredIncentives)}
       
       Payee Category History Map (payee -> historically preferred category):
-      ${JSON.stringify(payeeToCategoryMap)}
+      ${safeStringify(payeeToCategoryMap)}
       
       CRITICAL FOR CATEGORIZATION:
       When scanning slips or adding an expense, extract the name of the payee (store/seller/merchant/recipient/person paid).

@@ -1,6 +1,19 @@
 export class GoogleSheetsService {
   private accessToken: string;
 
+  private safeStringify(obj: any): string {
+    const cache = new Set();
+    return JSON.stringify(obj, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (cache.has(value)) {
+          return '[Circular]';
+        }
+        cache.add(value);
+      }
+      return value;
+    });
+  }
+
   constructor(accessToken: string) {
     this.accessToken = accessToken;
   }
@@ -12,7 +25,7 @@ export class GoogleSheetsService {
         'Authorization': `Bearer ${this.accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
+      body: this.safeStringify({
         properties: {
           title: title,
         },
@@ -42,7 +55,7 @@ export class GoogleSheetsService {
         'Authorization': `Bearer ${this.accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
+      body: this.safeStringify({
         values: [values],
       }),
     });
@@ -92,7 +105,7 @@ export class GoogleSheetsService {
         'Authorization': `Bearer ${this.accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
+      body: this.safeStringify({
         values: valuesToAppend,
       }),
     });

@@ -133,8 +133,8 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
       reader.onload = (e) => {
         img.src = e.target?.result as string;
       };
-      reader.onerror = reject;
-      img.onerror = reject;
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      img.onerror = () => reject(new Error('Failed to load image'));
       
       img.onload = () => {
         const canvas = document.createElement('canvas');
@@ -186,12 +186,23 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
           }
         });
 
+      const safeStringify = (obj: any): string => {
+        const cache = new Set();
+        return JSON.stringify(obj, (key, value) => {
+          if (typeof value === 'object' && value !== null) {
+            if (cache.has(value)) { return '[Circular]'; }
+            cache.add(value);
+          }
+          return value;
+        });
+      };
+
       const response = await ai.models.generateContent({
         model: "gemini-3.5-flash",
         contents: [
           {
             parts: [
-              { text: "Extract receipt details: amount (number), payee (string), category, and date (string, in 'YYYY-MM-DDTHH:mm' local timezone format, extracting both the date and the time from the slip if available). You MUST choose a category from this list: [" + customCategories.join(', ') + "]. If no category matches, you MUST use 'อื่นๆ'. Here is a history map of payees and their matching categories: " + JSON.stringify(payeeToCategoryMap) + ". If the payee/recipient name detected matches or is highly similar to any in this history map, you MUST use its historical category. Return JSON only with fields: amount, payee, category, date." },
+              { text: "Extract receipt details: amount (number), payee (string), category, and date (string, in 'YYYY-MM-DDTHH:mm' local timezone format, extracting both the date and the time from the slip if available). You MUST choose a category from this list: [" + customCategories.join(', ') + "]. If no category matches, you MUST use 'อื่นๆ'. Here is a history map of payees and their matching categories: " + safeStringify(payeeToCategoryMap) + ". If the payee/recipient name detected matches or is highly similar to any in this history map, you MUST use its historical category. Return JSON only with fields: amount, payee, category, date." },
               { inlineData: { data: base64Data, mimeType: "image/jpeg" } }
             ]
           }
