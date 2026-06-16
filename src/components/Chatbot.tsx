@@ -127,7 +127,11 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
 
     try {
       if (!process.env.GEMINI_API_KEY) {
-        setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'model', text: "API Key is missing. Please check your environment variables." }]);
+        setMessages(prev => [...prev, { 
+          id: (Date.now() + 1).toString(), 
+          role: 'model', 
+          text: "❌ **ไม่พบ API Key สำหรับใช้ระบบ AI Chatbot (Gemini)**\n\nกรุณาตั้งค่าเซ็ตตัวแปร Environment Variable ชื่อ `GEMINI_API_KEY` ในหน้าตั้งค่าของ Vercel (Vercel Settings -> Environment Variables) หรือในไฟล์ `.env` สำหรับเครื่อง Local จากนั้นทำการ Redeploy หรือรันใหม่อีกครั้งครับ!" 
+        }]);
         setIsLoading(false);
         return;
       }

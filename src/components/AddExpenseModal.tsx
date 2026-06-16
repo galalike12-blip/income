@@ -5,6 +5,7 @@ import { ExpenseEntry } from '../types';
 import { translations } from '../i18n/translations';
 import { useSettings } from '../contexts/SettingsContext';
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
+import { toast } from 'sonner';
 
 interface AddExpenseModalProps {
   isOpen: boolean;
@@ -172,9 +173,14 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
   const scanFile = async (file: File) => {
     setIsScanning(true);
     try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("ไม่พบ API Key สำหรับใช้ระบบตรวจจับสลิป (Gemini) กรุณาตั้งค่า GEMINI_API_KEY ใน Vercel Dashboard หรือไฟล์ .env");
+      }
+
       const compressedDataUrl = await compressImage(file);
       const base64Data = compressedDataUrl.split(',')[1];
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       
       // Generate a distinct mapping of payee to their most frequent/recent category
       const payeeToCategoryMap: Record<string, string> = {};
@@ -239,8 +245,9 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
       if (result.date) {
         setExpenseDate(result.date);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Scan failed:", error);
+      toast.error(error?.message || "สแกนสลิปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
     } finally {
       setIsScanning(false);
     }
