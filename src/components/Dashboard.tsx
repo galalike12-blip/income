@@ -25,9 +25,10 @@ interface DashboardProps {
   transferIncomeToExpenses: () => void;
   untransferredIncentivesAmount: number;
   showSettings?: boolean;
+  onToggleSettings?: () => void;
 }
 
-export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDate, setSelectedDate, incentives, setIncentive, goals, setGoal, preferences, updatePreferences, transferIncomeToExpenses, untransferredIncentivesAmount, showSettings = false }: DashboardProps) {
+export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDate, setSelectedDate, incentives, setIncentive, goals, setGoal, preferences, updatePreferences, transferIncomeToExpenses, untransferredIncentivesAmount, showSettings = false, onToggleSettings }: DashboardProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
@@ -331,18 +332,18 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
               const today = new Date();
               setSelectedDate(new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0]);
             }}
-            className="px-4 h-[38px] flex items-center justify-center text-sm font-medium text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100/80 dark:text-indigo-400 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 rounded-2xl transition-colors backdrop-blur-sm"
+            className="px-4 h-[38px] flex items-center justify-center text-sm font-medium text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100/80 dark:text-indigo-400 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 rounded-2xl transition-colors backdrop-blur-sm shrink-0"
           >
             {t.today}
           </button>
           
-          <div className="bg-white/90 dark:bg-slate-800/90 border border-slate-200/50 dark:border-slate-700/50 p-1 px-3 rounded-2xl flex items-center justify-between min-h-[38px] shrink-0">
+          <div className="bg-white/90 dark:bg-slate-800/90 border border-slate-200/50 dark:border-slate-700/50 p-1 px-2 rounded-2xl flex items-center justify-between min-h-[38px] flex-1 min-w-0">
             <button onClick={() => {
               const d = new Date(selectedDate);
               d.setDate(d.getDate() - 1);
               setSelectedDate(d.toISOString().split('T')[0]);
             }} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
-            <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate px-2 min-w-[100px] text-center">
+            <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate px-2 min-w-0 text-center">
               {new Date(selectedDate).toLocaleDateString(currentLang === 'th' ? 'th-TH' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
             <button disabled={selectedDate === new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().split('T')[0]} onClick={() => {
@@ -351,6 +352,13 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
               setSelectedDate(d.toISOString().split('T')[0]);
             }} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
           </div>
+
+          <button 
+            onClick={onToggleSettings}
+            className={`w-[38px] h-[38px] rounded-2xl flex items-center justify-center transition-all shrink-0 border cursor-pointer ${showSettings ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600' : 'bg-white/80 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750'}`}
+          >
+            <Settings2 className="w-5 h-5" />
+          </button>
         </div>
       </div>
 

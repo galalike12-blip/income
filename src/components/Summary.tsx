@@ -44,6 +44,7 @@ interface SummaryProps {
   expenseBalance: number;
   logs?: ActivityLog[];
   showSettings?: boolean;
+  onToggleSettings?: () => void;
   preferences?: any;
 }
 
@@ -57,6 +58,7 @@ export function Summary({
   expenseBalance, 
   logs = [],
   showSettings = false,
+  onToggleSettings,
   preferences = {}
 }: SummaryProps) {
   const { currentLang } = useSettings();
@@ -593,87 +595,98 @@ export function Summary({
   return (
     <div className="max-w-4xl mx-auto px-4 pt-2 pb-24 space-y-6">
       {/* Search Filter Header with Dropdown Interval selector */}
-      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-slate-50/50 dark:bg-slate-900/30 p-3 rounded-3xl border border-slate-100 dark:border-slate-800">
-        {/* Dropdown Menu block */}
-        <div className="relative shrink-0 w-full sm:w-48">
-          <select
-            value={activeTab}
-            onChange={(e) => setActiveTab(e.target.value as SubTab)}
-            className="w-full bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-indigo-600 dark:text-indigo-400 font-black py-2.5 pl-4 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all text-xs"
-          >
-            {subTabs.map(tab => (
-              <option key={tab.id} value={tab.id} className="text-slate-800 dark:text-slate-200 font-bold">
-                {tab.label}
-              </option>
-            ))}
-          </select>
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-indigo-600 dark:text-indigo-400">
-            <ChevronDown className="w-3.5 h-3.5 stroke-[3px]" />
-          </div>
-        </div>
-
-        {/* Date and Period Navigators directly embedded */}
-        <div className="flex-1 min-w-0">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              className="bg-white/90 dark:bg-slate-800/90 border border-slate-200/50 dark:border-slate-700/50 p-1 px-3 rounded-2xl flex items-center justify-between min-h-[44px]"
+      <div className="flex flex-col gap-3 glass-panel p-4 rounded-3xl transition-colors">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{t.summary || 'ภาพรวมและรายงาน'}</h1>
+        
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {/* Dropdown Menu block */}
+          <div className="relative shrink-0 w-28 sm:w-40">
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value as SubTab)}
+              className="w-full bg-indigo-50/50 hover:bg-indigo-100/80 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 font-bold py-2 px-3 pr-8 rounded-2xl border-none appearance-none focus:outline-none focus:ring-0 cursor-pointer transition-colors text-sm backdrop-blur-sm h-[38px]"
             >
-              {activeTab === 'daily' && (
-                <>
-                  <button onClick={() => navigateDate(-1)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
-                  <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate px-2">{getDisplayLabel()}</span>
-                  <button disabled={new Date(selectedDay).toDateString() === new Date().toDateString()} onClick={() => navigateDate(1)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
-                </>
-              )}
-              {activeTab === 'monthly' && (
-                <>
-                  <button onClick={() => navigateDate(-1)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
-                  <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate px-2">{getDisplayLabel()}</span>
-                  <button disabled={selectedMonth === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`} onClick={() => navigateDate(1)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
-                </>
-              )}
-              {activeTab === 'yearly' && (
-                <>
-                  <button onClick={() => navigateDate(-1)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
-                  <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate px-2">{getDisplayLabel()}</span>
-                  <button disabled={selectedYear === new Date().getFullYear().toString()} onClick={() => navigateDate(1)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
-                </>
-              )}
-              {activeTab === 'weekly' && (
-                <>
-                  <button onClick={() => navigateDate(-1)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
-                  <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate px-2">{getDisplayLabel()}</span>
-                  <button disabled={weekOffset === 0} onClick={() => navigateDate(1)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
-                </>
-              )}
-              {activeTab === 'custom' && (
-                <div className="grid grid-cols-2 gap-2 w-full py-0.5">
-                  <div className="flex items-center gap-1.5 bg-slate-100/60 dark:bg-slate-700/50 px-2.5 py-1 rounded-xl">
-                    <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider shrink-0">{currentLang === 'th' ? 'เริ่ม' : 'Start'}</span>
-                    <input 
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full bg-transparent border-none p-0 text-[10px] font-bold text-slate-700 dark:text-slate-200 focus:ring-0 outline-none hover:cursor-pointer"
-                    />
+              {subTabs.map(tab => (
+                <option key={tab.id} value={tab.id} className="text-slate-800 dark:text-slate-200 font-bold">
+                  {tab.label}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-indigo-600 dark:text-indigo-400">
+              <ChevronDown className="w-4 h-4 stroke-[2.5px]" />
+            </div>
+          </div>
+
+          {/* Date and Period Navigators directly embedded */}
+          <div className="flex-1 min-w-0">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                className="bg-white/90 dark:bg-slate-800/90 border border-slate-200/50 dark:border-slate-700/50 p-1 px-3 rounded-2xl flex items-center justify-between min-h-[38px]"
+              >
+                {activeTab === 'daily' && (
+                  <>
+                    <button onClick={() => navigateDate(-1)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
+                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate px-2 text-center">{getDisplayLabel()}</span>
+                    <button disabled={new Date(selectedDay).toDateString() === new Date().toDateString()} onClick={() => navigateDate(1)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
+                  </>
+                )}
+                {activeTab === 'monthly' && (
+                  <>
+                    <button onClick={() => navigateDate(-1)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
+                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate px-2 text-center">{getDisplayLabel()}</span>
+                    <button disabled={selectedMonth === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`} onClick={() => navigateDate(1)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
+                  </>
+                )}
+                {activeTab === 'yearly' && (
+                  <>
+                    <button onClick={() => navigateDate(-1)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
+                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate px-2 text-center">{getDisplayLabel()}</span>
+                    <button disabled={selectedYear === new Date().getFullYear().toString()} onClick={() => navigateDate(1)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
+                  </>
+                )}
+                {activeTab === 'weekly' && (
+                  <>
+                    <button onClick={() => navigateDate(-1)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
+                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 truncate px-2 text-center">{getDisplayLabel()}</span>
+                    <button disabled={weekOffset === 0} onClick={() => navigateDate(1)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
+                  </>
+                )}
+                {activeTab === 'custom' && (
+                  <div className="grid grid-cols-2 gap-2 w-full py-0">
+                    <div className="flex items-center gap-1.5 bg-slate-100/60 dark:bg-slate-700/50 px-2 py-0.5 rounded-lg flex-1">
+                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider shrink-0">{currentLang === 'th' ? 'เริ่ม' : 'Start'}</span>
+                      <input 
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full bg-transparent border-none p-0 text-[10px] font-bold text-slate-700 dark:text-slate-200 focus:ring-0 outline-none hover:cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-slate-100/60 dark:bg-slate-700/50 px-2 py-0.5 rounded-lg flex-1">
+                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider shrink-0">{currentLang === 'th' ? 'ถึง' : 'End'}</span>
+                      <input 
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-full bg-transparent border-none p-0 text-[10px] font-bold text-slate-700 dark:text-slate-200 focus:ring-0 outline-none hover:cursor-pointer"
+                      />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 bg-slate-100/60 dark:bg-slate-700/50 px-2.5 py-1 rounded-xl">
-                    <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider shrink-0">{currentLang === 'th' ? 'ถึง' : 'End'}</span>
-                    <input 
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full bg-transparent border-none p-0 text-[10px] font-bold text-slate-700 dark:text-slate-200 focus:ring-0 outline-none hover:cursor-pointer"
-                    />
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          <button 
+            onClick={onToggleSettings}
+            className={`w-[38px] h-[38px] rounded-2xl flex items-center justify-center transition-all shrink-0 border cursor-pointer ${showSettings ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600' : 'bg-white/80 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750'}`}
+          >
+            <Settings2 className="w-5 h-5" />
+          </button>
         </div>
       </div>
 

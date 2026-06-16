@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Dashboard } from './components/Dashboard';
 import { Expenses } from './components/Expenses';
 import { Summary } from './components/Summary';
@@ -25,7 +26,6 @@ import { GoogleSheetsService } from './services/googleSheets';
 import { translations } from './i18n/translations';
 import { JobEntry, ExpenseEntry } from './types';
 import { Toaster } from 'sonner';
-import { Settings2 } from 'lucide-react';
 
 function MainContent() {
   const { currentLang } = useSettings();
@@ -311,78 +311,85 @@ function MainContent() {
           </div>
         )}
         
-        <div className="max-w-5xl mx-auto px-4 mt-3 mb-2 flex justify-center sticky top-0 z-20">
-          <div className="flex items-center gap-2 w-full max-w-md">
-            <div className="flex-1 flex glass-panel-subtle p-1 rounded-full overflow-hidden shadow-lg">
-              <button onClick={() => setActiveTab('dashboard')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-                {t.income || 'รายรับ'}
-              </button>
-              <button onClick={() => setActiveTab('expenses')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'expenses' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-                {t.expenses || 'รายจ่าย'}
-              </button>
-              <button onClick={() => setActiveTab('summary')} className={`flex-1 px-2 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'summary' ? 'bg-white/80 dark:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 shadow-sm backdrop-blur-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-                {t.summary || 'สรุป'}
-              </button>
-            </div>
-            <button 
-              onClick={() => setShowLayoutSettings(!showLayoutSettings)}
-              className={`p-2.5 rounded-full transition-all shadow-lg border flex-shrink-0 cursor-pointer ${showLayoutSettings ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600' : 'bg-white/80 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750'}`}
-            >
-              <Settings2 className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        <div className="max-w-5xl mx-auto">
-          {activeTab === 'dashboard' && (
-            <Dashboard 
-              jobs={jobs} 
-              expenses={expenses}
-              editJob={handleEditJob}
-              deleteJob={deleteJob} 
-              selectedDate={selectedDate}
-              setSelectedDate={setSelectedDate}
-              incentives={incentives}
-              setIncentive={setIncentive}
-              goals={goals}
-              setGoal={setGoal}
-              preferences={preferences}
-              updatePreferences={updatePreferences}
-              transferIncomeToExpenses={transferIncomeToExpenses}
-              untransferredIncentivesAmount={untransferredIncentivesAmount}
-              showSettings={showLayoutSettings}
-            />
-          )}
-          {activeTab === 'expenses' && (
-            <Expenses 
-              jobs={jobs}
-              expenses={expenses}
-              incentives={incentives}
-              onEditExpense={handleEditExpense}
-              updateExpense={updateExpense}
-              deleteExpense={deleteExpense}
-              preferences={preferences}
-              updatePreferences={updatePreferences}
-              showResetConfirm={showResetConfirm}
-              setShowResetConfirm={setShowResetConfirm}
-              resetInput={resetInput}
-              setResetInput={setResetInput}
-              handleResetData={handleResetData}
-              showSettings={showLayoutSettings}
-            />
-          )}
-          {activeTab === 'summary' && (
-            <Summary 
-              jobs={jobs}
-              expenses={expenses}
-              incentives={incentives}
-              rawIncentives={rawIncentives}
-              expenseBalance={preferences?.expenseBalance || 0}
-              logs={logs}
-              showSettings={showLayoutSettings}
-              preferences={preferences}
-            />
-          )}
+        <div className="max-w-5xl mx-auto overflow-hidden">
+          <AnimatePresence mode="wait">
+            {activeTab === 'dashboard' && (
+              <motion.div
+                key="dashboard"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+              >
+                <Dashboard 
+                  jobs={jobs} 
+                  expenses={expenses}
+                  editJob={handleEditJob}
+                  deleteJob={deleteJob} 
+                  selectedDate={selectedDate}
+                  setSelectedDate={setSelectedDate}
+                  incentives={incentives}
+                  setIncentive={setIncentive}
+                  goals={goals}
+                  setGoal={setGoal}
+                  preferences={preferences}
+                  updatePreferences={updatePreferences}
+                  transferIncomeToExpenses={transferIncomeToExpenses}
+                  untransferredIncentivesAmount={untransferredIncentivesAmount}
+                  showSettings={showLayoutSettings}
+                  onToggleSettings={() => setShowLayoutSettings(!showLayoutSettings)}
+                />
+              </motion.div>
+            )}
+            {activeTab === 'expenses' && (
+              <motion.div
+                key="expenses"
+                initial={{ opacity: 0, x: activeTab === 'summary' ? -20 : 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: activeTab === 'summary' ? 20 : -20 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+              >
+                <Expenses 
+                  jobs={jobs}
+                  expenses={expenses}
+                  incentives={incentives}
+                  onEditExpense={handleEditExpense}
+                  updateExpense={updateExpense}
+                  deleteExpense={deleteExpense}
+                  preferences={preferences}
+                  updatePreferences={updatePreferences}
+                  showResetConfirm={showResetConfirm}
+                  setShowResetConfirm={setShowResetConfirm}
+                  resetInput={resetInput}
+                  setResetInput={setResetInput}
+                  handleResetData={handleResetData}
+                  showSettings={showLayoutSettings}
+                  onToggleSettings={() => setShowLayoutSettings(!showLayoutSettings)}
+                />
+              </motion.div>
+            )}
+            {activeTab === 'summary' && (
+              <motion.div
+                key="summary"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+              >
+                <Summary 
+                  jobs={jobs}
+                  expenses={expenses}
+                  incentives={incentives}
+                  rawIncentives={rawIncentives}
+                  expenseBalance={preferences?.expenseBalance || 0}
+                  logs={logs}
+                  showSettings={showLayoutSettings}
+                  onToggleSettings={() => setShowLayoutSettings(!showLayoutSettings)}
+                  preferences={preferences}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </main>
 
@@ -437,6 +444,8 @@ function MainContent() {
           setEditingExpense(null);
           setIsExpenseModalOpen(true);
         }}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
         onOpenAI={() => setIsChatOpen(prev => !prev)}
         onLongPressAI={() => {
           if (!isChatOpen) setIsChatOpen(true);
