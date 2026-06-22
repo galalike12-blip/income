@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { JobEntry, DailySummary, ExpenseEntry, Goal, UserPreferences } from '../types';
-import { Plus, Trash2, Calendar, DollarSign, TrendingUp, TrendingDown, Pencil, X, Settings2, Check, GripVertical, ChevronDown, ChevronUp, Gift, Target, BarChart2, ArrowUpCircle, Wallet, Circle, CheckCircle2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Plus, Trash2, Calendar, DollarSign, TrendingUp, TrendingDown, Pencil, X, Settings2, Check, GripVertical, ChevronDown, ChevronUp, Gift, Target, BarChart2, ArrowUpCircle, Wallet, Circle, CheckCircle2, ArrowUpRight, ArrowDownRight, Briefcase, Laptop, Bike } from 'lucide-react';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
@@ -370,28 +370,50 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
             exit={{ opacity: 0, height: 0, scale: 0.95 }}
             className="overflow-hidden space-y-6 mb-6"
           >
-            <div className="glass-panel p-4 rounded-[2rem] space-y-3 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10">
-              <h4 className="text-sm font-black text-slate-800 dark:text-white px-2">ตั้งค่าวิดเจ็ตและไพ่สรุปยอด</h4>
+            <div className="glass-panel p-5 rounded-[2rem] space-y-4 border border-indigo-150 dark:border-indigo-900/40 bg-gradient-to-br from-indigo-50/70 to-violet-50/70 dark:from-indigo-950/10 dark:to-violet-950/10 backdrop-blur-md shadow-lg">
+              <div className="flex items-center gap-2 px-1">
+                <Settings2 className="w-4 h-4 text-indigo-500 animate-[spin_8s_linear_infinite]" />
+                <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">จัดระเบียบองค์ประกอบหน้าจอ (Widget Settings)</h4>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 px-1 leading-relaxed">
+                ลากเพื่อสลับลำดับการแสดงผล หรือแตะไอคอนเพื่อเปิด/ปิดกล่องสรุปผลยอดเงินตามความชอบของคุณ
+              </p>
               <Reorder.Group axis="y" values={widgetOrder} onReorder={setWidgetOrder} className="space-y-2">
                 {widgetOrder.map(id => (
-                  <Reorder.Item key={id} value={id} className={`p-3 rounded-2xl flex items-center gap-3 transition-colors ${visibilitySafe[id as keyof typeof visibilitySafe] ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white' : 'bg-white/50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500'}`}>
+                  <Reorder.Item 
+                    key={id} 
+                    value={id} 
+                    className={`p-3.5 rounded-2xl flex items-center gap-3 transition-all border shadow-sm ${
+                      visibilitySafe[id as keyof typeof visibilitySafe] 
+                        ? 'bg-white/95 dark:bg-slate-800/95 border-indigo-100/50 dark:border-indigo-900/40 text-slate-800 dark:text-white' 
+                        : 'bg-white/40 dark:bg-slate-800/20 border-slate-200/40 dark:border-slate-800/40 text-slate-400 dark:text-slate-500'
+                    }`}
+                  >
                     <div 
                       onClick={() => setMainWidgetVisibility({...visibilitySafe, [id]: !visibilitySafe[id as keyof typeof visibilitySafe]})}
-                      className="flex-1 flex items-center gap-3 cursor-pointer"
+                      className="flex-1 flex items-center gap-3 cursor-pointer select-none"
                     >
-                      {visibilitySafe[id as keyof typeof visibilitySafe] ? <CheckCircle2 className="text-emerald-500 w-5 h-5"/> : <Circle className="text-slate-300 dark:text-slate-600 w-5 h-5"/>}
-                      <span className="font-medium text-sm flex items-center gap-2">
-                        {id === 'goals' && "เป้าหมายรายได้ (Goals)"}
-                        {id === 'netIncome' && <><DollarSign className="w-4 h-4 text-indigo-500" /> ยอดสุทธิ</>}
-                        {id === 'dailyIncentive' && <><Gift className="w-4 h-4 text-indigo-500" /> โบนัสรายวัน</>}
-                        {id === 'dailyAverage' && <><BarChart2 className="w-4 h-4 text-indigo-500" /> ค่าเฉลี่ยรายวัน</>}
-                        {id === 'incomeComparison' && <><TrendingUp className="w-4 h-4 text-indigo-500" /> เปรียบเทียบรายได้</>}
-                        {id === 'transfer' && "ตัดยอดเข้ารายจ่าย (Transfer)"}
-                        {id === 'form' && t.addJobEntry}
-                        {id === 'list' && t.todaysEntries}
+                      {visibilitySafe[id as keyof typeof visibilitySafe] ? (
+                        <div className="w-5 h-5 rounded-full bg-indigo-600 dark:bg-indigo-500 flex items-center justify-center text-white shadow-sm">
+                          <Check className="w-3 h-3 stroke-[3px]" />
+                        </div>
+                      ) : (
+                        <div className="w-5 h-5 rounded-full border-[2px] border-slate-300 dark:border-slate-600" />
+                      )}
+                      <span className="font-bold text-xs sm:text-sm flex items-center gap-2">
+                        {id === 'goals' && <>🎯 เป้าหมายของวันนั้น (Goal & Targets)</>}
+                        {id === 'netIncome' && <><DollarSign className="w-4 h-4 text-emerald-500" /> สรุปรายรับสุทธิ (Net Earnings)</>}
+                        {id === 'dailyIncentive' && <><Gift className="w-4 h-4 text-indigo-500" /> เงินโบนัส / อินเซนทีฟ (Bonus & Incentives)</>}
+                        {id === 'dailyAverage' && <><BarChart2 className="w-4 h-4 text-sky-500" /> รายได้เฉลี่ยต่อวันทำงาน (Daily Average)</>}
+                        {id === 'incomeComparison' && <><TrendingUp className="w-4 h-4 text-purple-500" /> เปรียบเทียบรายได้ (VS Yesterday)</>}
+                        {id === 'transfer' && <>💼 บัญชีพักกระเป๋าโอนเข้ากองกลาง (Wallet Transfer)</>}
+                        {id === 'form' && <>✍️ {t.addJobEntry}</>}
+                        {id === 'list' && <>📋 {t.todaysEntries}</>}
                       </span>
                     </div>
-                    <GripVertical className="cursor-grab active:cursor-grabbing text-slate-400" />
+                    <div className="p-1 cursor-grab active:cursor-grabbing hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors">
+                      <GripVertical className="text-slate-400 w-4 h-4" />
+                    </div>
                   </Reorder.Item>
                 ))}
               </Reorder.Group>
@@ -422,53 +444,82 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
              return (
                <div key={id}>
               {id === 'goals' && (
-                <div className="glass-panel p-6 rounded-3xl transition-colors">
+                <div className="glass-panel p-6 rounded-3xl transition-all shadow-md relative overflow-hidden bg-gradient-to-br from-indigo-500/[0.02] to-violet-500/[0.04] dark:from-indigo-950/10 dark:to-violet-950/15 border border-indigo-100/40 dark:border-indigo-900/20">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 dark:bg-indigo-400/5 rounded-full blur-xl pointer-events-none" />
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-medium text-slate-800 dark:text-white flex items-center gap-2">
-                      <Target className="w-5 h-5 text-indigo-500" />
+                    <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-sm sm:text-base">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center">
+                        <Target className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-pulse" />
+                      </div>
                       {t.goalProgress}
                     </h3>
                   </div>
                   
                   {effectiveDailyTarget > 0 ? (
-                    <div>
-                      <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-1 items-end">
-                        <span className="text-slate-500 dark:text-slate-400">
-                          {monthlyGoal ? t.dailyGoalNeeded : (t.daily || 'รายวัน')}
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider mb-2 items-end">
+                        <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5 bg-slate-100/80 dark:bg-slate-800/60 px-2 py-0.5 rounded-lg border border-slate-200/25">
+                          {monthlyGoal ? t.dailyGoalNeeded : (t.daily || 'เป้าหมายรายวัน')}
                         </span>
                         <div className="text-right">
                            <span className="text-slate-400">{t.done || 'ทำได้แล้ว'} </span>
-                           <span className="text-indigo-600 dark:text-indigo-400 font-black">฿{summary.grossIncome.toLocaleString()}</span>
-                           <span className="text-slate-400"> / ฿{effectiveDailyTarget.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                           <span className="text-indigo-600 dark:text-indigo-400 font-black text-sm">฿{summary.grossIncome.toLocaleString()}</span>
+                           <span className="text-slate-400/80"> / ฿{effectiveDailyTarget.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                         </div>
                       </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-700/50 rounded-full h-4 overflow-hidden shadow-inner border border-slate-200/50 dark:border-slate-700/50 p-0.5">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${Math.min(100, (summary.grossIncome / effectiveDailyTarget) * 100)}%` }}
-                          className={`h-full rounded-full transition-all duration-1000 relative overflow-hidden ${summary.grossIncome >= effectiveDailyTarget ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-gradient-to-r from-indigo-500 to-violet-500 shadow-[0_0_15px_rgba(79,70,229,0.3)]'}`}
-                        >
-                          <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                        </motion.div>
+                      
+                      <div className="relative">
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-5 overflow-hidden shadow-inner border border-slate-200/50 dark:border-slate-700/50 p-0.5">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min(100, (summary.grossIncome / effectiveDailyTarget) * 100)}%` }}
+                            className={`h-full rounded-full transition-all duration-1000 relative overflow-hidden ${
+                              summary.grossIncome >= effectiveDailyTarget 
+                                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]' 
+                                : 'bg-gradient-to-r from-indigo-500 to-violet-500 shadow-[0_0_15px_rgba(79,70,229,0.25)]'
+                            }`}
+                          >
+                            <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] bg-[length:16px_16px] animate-[pulse_10s_infinite_linear] opacity-35" />
+                          </motion.div>
+                        </div>
+                        <div className="absolute -top-7 right-0 text-[10px] font-black bg-indigo-600 dark:bg-indigo-500 text-white px-2 py-0.5 rounded-full shadow-md animate-bounce">
+                          {((summary.grossIncome / effectiveDailyTarget) * 100).toFixed(0)}%
+                        </div>
                       </div>
-                      <div className="text-right text-[10px] mt-2 font-black uppercase tracking-widest">
-                        {summary.grossIncome >= effectiveDailyTarget 
-                          ? <span className="text-emerald-600 dark:text-emerald-400">{t.goalReached}</span>
-                          : <span className="text-slate-400">
-                              {t.shortBy} <span className="text-rose-500">฿{Math.max(0, effectiveDailyTarget - summary.grossIncome).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                            </span>}
+
+                      <div className="flex justify-between items-center text-[10px] sm:text-xs">
+                        {summary.grossIncome >= effectiveDailyTarget ? (
+                          <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50/60 dark:bg-emerald-950/20 px-2.5 py-1 rounded-xl border border-emerald-200/40 dark:border-emerald-800/30">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                            <span>{t.goalReached}</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 font-medium">
+                            {t.shortBy} <span className="text-rose-500 font-bold bg-rose-50/50 dark:bg-rose-950/20 px-2 py-1 rounded-xl border border-rose-200/30">฿{Math.max(0, effectiveDailyTarget - summary.grossIncome).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                          </span>
+                        )}
+                        
+                        <span className="text-slate-400 font-medium text-xs">
+                          {summary.grossIncome >= effectiveDailyTarget 
+                            ? "🚀 ยอดเยี่ยมมากครับพี่!" 
+                            : summary.grossIncome >= effectiveDailyTarget * 0.7 
+                            ? "💪 อีกนิดเดียวจะเป้าแล้ว!" 
+                            : summary.grossIncome > 0 
+                            ? "🏍️ สู้ๆ ครับ เริ่มสะสมยอดต่อ" 
+                            : "💤 เริ่มต้นทริปแรกของวันนี้กัน!"}
+                        </span>
                       </div>
 
                       {remainingGoalMessage && (
-                        <div className="mt-4 p-4 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-[1.5rem] border border-indigo-100/50 dark:border-indigo-800/30">
+                        <div className="mt-4 p-4 bg-indigo-50/30 dark:bg-indigo-950/10 rounded-[1.5rem] border border-indigo-100/40 dark:border-indigo-900/20">
                           <div className="flex items-start gap-3">
-                             <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center flex-shrink-0 animate-bounce">
-                                <Target className="w-4 h-4 text-indigo-500" />
+                             <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center flex-shrink-0">
+                                <Target className="w-4 h-4 text-indigo-500 animate-bounce" />
                              </div>
                              <div>
                                 <p className="text-[10px] font-black text-indigo-600/60 dark:text-indigo-400/60 uppercase tracking-widest mb-1">{t.monthlyGoalStatus}</p>
-                                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-relaxed">
-                                   {t.remaining || 'เหลือเีก'} <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{remainingGoalMessage.totalRemaining.toLocaleString()} ฿</span> {t.remainingToGoal} <br/>
+                                <p className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 leading-relaxed">
+                                   {t.remaining || 'เหลืออีก'} <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{remainingGoalMessage.totalRemaining.toLocaleString()} ฿</span> {t.remainingToGoal} <br/>
                                    (<span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{remainingGoalMessage.daysRemaining} {t.lastDaysOfMonth || 'วันสุดท้าย'}</span>)
                                 </p>
                              </div>
@@ -485,15 +536,15 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
                         </div>
                       </div>
                       {remainingGoalMessage && (
-                        <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-[1.5rem] border border-indigo-100/50 dark:border-indigo-800/30">
+                        <div className="p-4 bg-indigo-50/30 dark:bg-indigo-950/10 rounded-[1.5rem] border border-indigo-100/40 dark:border-indigo-900/20">
                           <div className="flex items-start gap-3">
-                             <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center flex-shrink-0 animate-bounce">
+                             <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center flex-shrink-0">
                                 <Target className="w-4 h-4 text-indigo-500" />
                              </div>
                              <div>
                                 <p className="text-[10px] font-black text-indigo-600/60 dark:text-indigo-400/60 uppercase tracking-widest mb-1">{t.monthlyGoalStatus}</p>
-                                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-relaxed">
-                                   {t.remaining || 'เหลือเีก'} <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{remainingGoalMessage.totalRemaining.toLocaleString()} ฿</span> {t.remainingToGoal} <br/>
+                                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                                   {t.remaining || 'เหลืออีก'} <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{remainingGoalMessage.totalRemaining.toLocaleString()} ฿</span> {t.remainingToGoal} <br/>
                                    (<span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{remainingGoalMessage.daysRemaining} {t.lastDaysOfMonth || 'วันสุดท้าย'}</span>)
                                 </p>
                              </div>
@@ -502,123 +553,129 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
                       )}
                     </div>
                   ) : (
-                    <div className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center glass-panel-subtle rounded-2xl border-dashed">
-                      {t.setGoalsInMenu}
+                    <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 py-6 text-center glass-panel-subtle rounded-2xl border-dashed">
+                      💡 {t.setGoalsInMenu}
                     </div>
                   )}
                 </div>
               )}
 
-              
+
               {id === 'netIncome' && (
-                        <div className="p-5 rounded-3xl glass-panel-subtle transition-colors col-span-1 flex flex-col justify-between min-h-[140px] h-full">
-                          <div>
-                            <div className="flex justify-between items-start mb-3">
-                              <h3 className="text-base font-semibold text-emerald-700 dark:text-emerald-400 opacity-90 leading-tight block truncate pr-2 max-w-[80%]">{t.netIncome}</h3>
-                              <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl"><DollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /></div>
-                            </div>
-                            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">฿{totalNet.toLocaleString()}</div>
-                          </div>
-                        </div>
+                <div className="p-5 rounded-3xl glass-panel-subtle transition-all duration-300 col-span-1 flex flex-col justify-between min-h-[140px] h-full relative overflow-hidden bg-gradient-to-br from-emerald-500/[0.03] to-teal-500/[0.06] dark:from-emerald-950/10 dark:to-teal-950/15 border border-emerald-500/10 dark:border-emerald-500/20 hover:scale-[1.02] hover:shadow-emerald-500/5">
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full blur-xl pointer-events-none" />
+                  <div>
+                    <div className="flex justify-between items-start mb-3">
+                      <h3 className="text-xs sm:text-sm font-bold text-emerald-800 dark:text-emerald-400 opacity-95 leading-tight block truncate pr-2 max-w-[80%]">{t.netIncome}</h3>
+                      <div className="p-1.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl"><DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /></div>
+                    </div>
+                    <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">฿{totalNet.toLocaleString()}</div>
+                  </div>
+                </div>
               )}
 
               {id === 'dailyIncentive' && (
-                        <div className="p-5 rounded-3xl glass-panel-subtle transition-colors col-span-1 flex flex-col justify-between min-h-[140px] h-full">
-                          <div>
-                            <div className="flex justify-between items-start mb-3">
-                              <h3 className="text-base font-semibold text-indigo-700 dark:text-indigo-400 opacity-90 leading-tight block truncate pr-2 max-w-[80%]">{(t as any).dailyIncentive || 'อินเซนทีฟ'}</h3>
-                              <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl"><Gift className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /></div>
-                            </div>
-                            
-                            {!isEditingIncentive ? (
-                              <div className="group cursor-pointer inline-flex items-center gap-1" onClick={() => { setIncentiveInput(String(incentives[selectedDate] || 0)); setIsEditingIncentive(true); }}>
-                                <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">฿{totalIncentives.toLocaleString()}</span>
-                                <Pencil className="w-4 h-4 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </div>
-                            ) : (
-                              <form onSubmit={(e) => {
-                                e.preventDefault();
-                                setIncentive(selectedDate, Number(incentiveInput) || 0);
-                                setIsEditingIncentive(false);
-                              }} className="flex items-center gap-2">
-                                <input 
-                                  type="number" 
-                                  value={incentiveInput} 
-                                  onChange={(e) => setIncentiveInput(e.target.value)} 
-                                  className="w-24 px-2 py-1 text-lg font-bold rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                                  autoFocus
-                                  onBlur={() => {
-                                    setIncentive(selectedDate, Number(incentiveInput) || 0);
-                                    setIsEditingIncentive(false);
-                                  }}
-                                />
-                              </form>
-                            )}
-                          </div>
+                <div className="p-5 rounded-3xl glass-panel-subtle transition-all duration-300 col-span-1 flex flex-col justify-between min-h-[140px] h-full relative overflow-hidden bg-gradient-to-br from-indigo-500/[0.03] to-violet-500/[0.06] dark:from-indigo-950/10 dark:to-violet-950/15 border border-indigo-500/10 dark:border-indigo-500/20 hover:scale-[1.02] hover:shadow-indigo-500/5">
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-500/5 dark:bg-indigo-400/5 rounded-full blur-xl pointer-events-none" />
+                  <div>
+                    <div className="flex justify-between items-start mb-3">
+                      <h3 className="text-xs sm:text-sm font-bold text-indigo-800 dark:text-indigo-400 opacity-95 leading-tight block truncate pr-2 max-w-[80%]">{(t as any).dailyIncentive || 'อินเซนทีฟ'}</h3>
+                      <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl"><Gift className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /></div>
+                    </div>
+                    
+                    {!isEditingIncentive ? (
+                      <div className="group cursor-pointer inline-flex items-center gap-1.5" onClick={() => { setIncentiveInput(String(incentives[selectedDate] || 0)); setIsEditingIncentive(true); }}>
+                        <span className="text-2xl sm:text-3xl font-black text-indigo-600 dark:text-indigo-400">฿{totalIncentives.toLocaleString()}</span>
+                        <div className="p-1 bg-indigo-100/50 dark:bg-indigo-900/30 rounded-lg group-hover:scale-110 transition-transform">
+                          <Pencil className="w-3 h-3 text-indigo-500 dark:text-indigo-400" />
                         </div>
+                      </div>
+                    ) : (
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        setIncentive(selectedDate, Number(incentiveInput) || 0);
+                        setIsEditingIncentive(false);
+                      }} className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          value={incentiveInput} 
+                          onChange={(e) => setIncentiveInput(e.target.value)} 
+                          className="w-full px-2 py-1 text-lg font-black rounded-xl bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700/50 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-indigo-600 dark:text-indigo-400"
+                          autoFocus
+                          onBlur={() => {
+                            setIncentive(selectedDate, Number(incentiveInput) || 0);
+                            setIsEditingIncentive(false);
+                          }}
+                        />
+                      </form>
+                    )}
+                  </div>
+                </div>
               )}
 
               {id === 'dailyAverage' && (
-                        <div className="p-5 rounded-3xl glass-panel-subtle transition-colors col-span-1 flex flex-col justify-between min-h-[140px] h-full">
-                          <div>
-                            <div className="flex justify-between items-start mb-3">
-                              <h3 className="text-base font-semibold text-sky-700 dark:text-sky-400 opacity-90 leading-tight block truncate pr-2 max-w-[80%]">{(t as any).average || 'ค่าเฉลี่ย'}</h3>
-                              <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl"><BarChart2 className="w-5 h-5 text-sky-600 dark:text-sky-400" /></div>
-                            </div>
-                            <div className="text-2xl font-bold text-sky-600 dark:text-sky-400">฿{overallAverage.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                          </div>
-                        </div>
+                <div className="p-5 rounded-3xl glass-panel-subtle transition-all duration-300 col-span-1 flex flex-col justify-between min-h-[140px] h-full relative overflow-hidden bg-gradient-to-br from-sky-500/[0.01] to-cyan-500/[0.04] dark:from-sky-950/10 dark:to-cyan-950/15 border border-sky-500/10 dark:border-sky-500/20 hover:scale-[1.02] hover:shadow-sky-500/5">
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-sky-500/5 dark:bg-sky-400/5 rounded-full blur-xl pointer-events-none" />
+                  <div>
+                    <div className="flex justify-between items-start mb-3">
+                      <h3 className="text-xs sm:text-sm font-bold text-sky-800 dark:text-sky-400 opacity-95 leading-tight block truncate pr-2 max-w-[80%]">{(t as any).average || 'ค่าเฉลี่ย'}</h3>
+                      <div className="p-1.5 bg-sky-50 dark:bg-sky-950/40 rounded-xl"><BarChart2 className="w-4 h-4 text-sky-600 dark:text-sky-400" /></div>
+                    </div>
+                    <div className="text-2xl sm:text-3xl font-black text-sky-600 dark:text-sky-400">฿{overallAverage.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                  </div>
+                </div>
               )}
 
               {id === 'incomeComparison' && (
-                        <div className="p-5 rounded-3xl glass-panel-subtle transition-colors col-span-1 flex flex-col justify-between min-h-[140px] h-full">
-                          <div>
-                            <div className="flex justify-between items-start mb-3">
-                              <h3 className="text-base font-semibold text-violet-700 dark:text-violet-400 opacity-90 leading-tight block truncate pr-2 max-w-[80%]">{(t as any).comparison || 'เปรียบเทียบ'}</h3>
-                              <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl"><TrendingUp className="w-5 h-5 text-violet-600 dark:text-violet-400" /></div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {comparisonAmount > 0 ? (
-                                <>
-                                  <div className="flex items-center text-emerald-500 font-bold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-lg text-lg">
-                                    <ArrowUpRight className="w-4 h-4 mr-1" />
-                                    <span>฿{Math.abs(comparisonAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                  </div>
-                                </>
-                              ) : comparisonAmount < 0 ? (
-                                <>
-                                  <div className="flex items-center text-rose-500 font-bold bg-rose-50 dark:bg-rose-500/10 px-2 py-1 rounded-lg text-lg">
-                                    <ArrowDownRight className="w-4 h-4 mr-1" />
-                                    <span>฿{Math.abs(comparisonAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                  </div>
-                                </>
-                              ) : (
-                                <span className="text-slate-500 font-bold px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-lg">{(t as any).equal || 'เท่ากัน'}</span>
-                              )}
-                              <span className="text-xs text-slate-400">vs {(t as any).yesterday || 'เมื่อวาน'}</span>
-                            </div>
+                <div className="p-5 rounded-3xl glass-panel-subtle transition-all duration-300 col-span-1 flex flex-col justify-between min-h-[140px] h-full relative overflow-hidden bg-gradient-to-br from-purple-500/[0.01] to-violet-500/[0.04] dark:from-purple-950/10 dark:to-violet-950/15 border border-purple-500/10 dark:border-purple-500/20 hover:scale-[1.02] hover:shadow-purple-500/5">
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-purple-500/5 dark:bg-purple-400/5 rounded-full blur-xl pointer-events-none" />
+                  <div>
+                    <div className="flex justify-between items-start mb-3">
+                      <h3 className="text-xs sm:text-sm font-bold text-violet-800 dark:text-violet-400 opacity-95 leading-tight block truncate pr-2 max-w-[80%]">{(t as any).comparison || 'เปรียบเทียบ'}</h3>
+                      <div className="p-1.5 bg-violet-50 dark:bg-violet-950/40 rounded-xl"><TrendingUp className="w-4 h-4 text-violet-600 dark:text-violet-400" /></div>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {comparisonAmount > 0 ? (
+                        <>
+                          <div className="flex items-center text-emerald-600 dark:text-emerald-400 font-extrabold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg text-sm">
+                            <ArrowUpRight className="w-3.5 h-3.5 mr-0.5 stroke-[3px]" />
+                            <span>฿{Math.abs(comparisonAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                           </div>
-                        </div>
+                        </>
+                      ) : comparisonAmount < 0 ? (
+                        <>
+                          <div className="flex items-center text-rose-600 dark:text-rose-400 font-extrabold bg-rose-50 dark:bg-rose-500/10 px-2 py-0.5 rounded-lg text-sm">
+                            <ArrowDownRight className="w-3.5 h-3.5 mr-0.5 stroke-[3px]" />
+                            <span>฿{Math.abs(comparisonAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-slate-500 dark:text-slate-400 font-bold px-2 py-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg text-sm">{(t as any).equal || 'เท่ากัน'}</span>
+                      )}
+                      <span className="text-[10px] text-slate-400 font-semibold whitespace-nowrap">vs เมื่อวาน</span>
+                    </div>
+                  </div>
+                </div>
               )}
 
 
               {id === 'transfer' && (
-                <div className="p-5 rounded-3xl glass-panel-subtle transition-colors col-span-1 flex flex-col justify-between min-h-[140px] h-full group cursor-pointer" onClick={() => totalUntransferred > 0 && setShowTransferConfirm(true)}>
+                <div className="p-5 rounded-3xl glass-panel-subtle transition-all duration-300 col-span-1 flex flex-col justify-between min-h-[140px] h-full group cursor-pointer relative overflow-hidden bg-gradient-to-br from-indigo-500/[0.01] to-slate-500/[0.04] dark:from-slate-900/10 dark:to-slate-800/15 border border-slate-200/60 dark:border-slate-800/80 hover:scale-[1.02]" onClick={() => totalUntransferred > 0 && setShowTransferConfirm(true)}>
                   <div>
                     <div className="flex justify-between items-start mb-3">
-                      <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300 opacity-90 leading-tight block truncate pr-2 max-w-[80%]" title={(t as any).transferIncomeToExpenses || 'ตัดยอดเข้ากระเป๋า'}>
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 opacity-95 leading-tight block truncate pr-2 max-w-[80%]" title={(t as any).transferIncomeToExpenses || 'ตัดยอดเข้ากระเป๋า'}>
                         {(t as any).transferIncomeToExpenses || 'ตัดยอดเข้ากระเป๋า'}
                       </h3>
-                      <div className="p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl shrink-0">
-                        <Wallet className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                      <div className="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-xl shrink-0">
+                        <Wallet className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                       </div>
                     </div>
-                    <div className="text-2xl font-bold bg-gradient-to-r from-emerald-500 to-emerald-400 bg-clip-text text-transparent mb-1 shrink-0 whitespace-nowrap overflow-hidden text-ellipsis">
+                    <div className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent mb-1 shrink-0 whitespace-nowrap overflow-hidden text-ellipsis">
                       ฿{totalUntransferred.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </div>
-                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 shrink-0">
-                      <span>ยอดค้างโอน</span>
-                      <ArrowUpCircle className="w-3 h-3 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-slate-400 shrink-0">
+                      <span>ค้างตัดยอดเข้ากองกลาง</span>
+                      <ArrowUpCircle className="w-3.5 h-3.5 text-indigo-500 animate-bounce" />
                     </div>
                   </div>
                 </div>
@@ -771,11 +828,11 @@ function SummaryCard({ title, amount, valueDisplay, subtitle, icon, bg, color, c
   return (
     <div className={`p-5 rounded-3xl glass-panel-subtle transition-colors ${className}`}>
       <div className="flex justify-between items-start mb-3">
-        <h3 className={`text-[25px] font-semibold ${color} opacity-90`}>{title}</h3>
-        <div className={`p-2 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl`}>{icon}</div>
+        <h3 className={`text-xs sm:text-sm font-bold ${color} opacity-95 leading-tight`}>{title}</h3>
+        <div className={`p-1.5 bg-white/80 dark:bg-black/40 backdrop-blur-md rounded-xl`}>{icon}</div>
       </div>
-      <div className={`text-[23px] font-bold ${color}`}>{valueDisplay || `฿${amount?.toFixed(2)}`}</div>
-      {subtitle && <div className={`text-sm mt-1 ${color} opacity-70`}>{subtitle}</div>}
+      <div className={`text-2xl sm:text-3xl font-bold ${color}`}>{valueDisplay || `฿${amount?.toFixed(2)}`}</div>
+      {subtitle && <div className={`text-[10px] mt-1 ${color} opacity-70 font-semibold`}>{subtitle}</div>}
     </div>
   );
 }
@@ -792,28 +849,42 @@ function JobItem({ job, index, handleEditClick, deleteJob, t, expandedJobId, set
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border transition-all duration-200 overflow-hidden h-full flex flex-col bg-white/60 dark:bg-slate-800/60 border-white/40 dark:border-slate-700/50 shadow-md hover:shadow-lg"
+      className={`rounded-2xl border transition-all duration-300 overflow-hidden h-full flex flex-col bg-white/70 dark:bg-slate-800/80 shadow-sm hover:shadow-md ${isExpanded ? 'border-indigo-200/80 dark:border-indigo-800/50 ring-1 ring-indigo-100/55 dark:ring-indigo-950/20' : 'border-slate-150/80 dark:border-slate-800/90'}`}
     >
       <div 
-        className="p-4 flex justify-between items-center cursor-pointer hover:bg-white/40 dark:hover:bg-slate-800/40 transition-colors flex-1"
+        className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50/40 dark:hover:bg-slate-800/40 transition-colors flex-1"
         onClick={() => isExpanded ? setExpandedJobId(null) : setExpandedJobId(job.id)}
       >
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="bg-indigo-100/50 dark:bg-indigo-900/30 backdrop-blur-sm text-indigo-700 dark:text-indigo-300 w-10 h-10 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0">
-            {index + 1}
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          <div className="bg-indigo-50 dark:bg-indigo-950/40 w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 border border-indigo-100/30 dark:border-indigo-900/30 font-bold">
+            {job.workType === 'salary' ? (
+              <Briefcase className="w-5 h-5 text-emerald-500" />
+            ) : job.workType === 'freelance' ? (
+              <Laptop className="w-5 h-5 text-indigo-500" />
+            ) : (
+              <div className="flex flex-col items-center justify-center">
+                <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 leading-none">รอบ</span>
+                <span className="text-sm font-bold mt-0.5 text-indigo-600 dark:text-indigo-400">{index + 1}</span>
+              </div>
+            )}
           </div>
           <div className="min-w-0">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5 flex justify-between">
-              <span>{t.jobSequence} {index + 1}</span>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 flex items-center gap-1.5 flex-wrap">
+              <span>{job.jobTitle || (job.workType === 'salary' ? 'รายได้ประจำ' : job.workType === 'freelance' ? 'งานรับจ้างอิสระ' : `${t.jobSequence} ${index + 1}`)}</span>
               {job.date.includes('T') && (
-                <span>{job.date.split('T')[1]}</span>
+                <span className="bg-slate-100/80 dark:bg-slate-900/40 px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-500">{job.date.split('T')[1]} น.</span>
               )}
             </div>
             <div className="text-lg font-bold text-slate-800 dark:text-slate-100 truncate flex items-center gap-2">
               ฿{net.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               {job.transferred && (
-                <span className="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-md font-bold uppercase tracking-tighter">
-                  {t.transferred || 'โอนแล้ว'}
+                <span className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/20 rounded-md font-extrabold uppercase tracking-widest leading-none">
+                  โอนแล้ว
+                </span>
+              )}
+              {job.upfrontCost > 0 && (
+                <span className="text-[9px] px-1.5 py-0.5 bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-100 dark:border-amber-900/20 rounded-md font-extrabold uppercase tracking-widest leading-none animate-pulse">
+                  สำรองจ่าย
                 </span>
               )}
             </div>
@@ -821,66 +892,123 @@ function JobItem({ job, index, handleEditClick, deleteJob, t, expandedJobId, set
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
-            <div className="text-[10px] font-bold uppercase tracking-tighter text-slate-400 mb-0.5">{t.liveNetIncome}</div>
-            <div className="font-black text-emerald-600 dark:text-emerald-400">฿{net.toFixed(2)}</div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">ยอดสุทธิรอบนี้</div>
+            <div className="font-extrabold text-emerald-600 dark:text-emerald-450 text-sm">฿{net.toFixed(2)}</div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
             {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
           </div>
         </div>
       </div>
 
       {isExpanded && (
-        <div className="p-4 bg-slate-50/80 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-700">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 mb-4">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-400 font-medium">{t.customerMustPay}</span>
-              <span className="text-slate-700 dark:text-slate-200 font-semibold">฿{job.customerMustPay.toLocaleString()}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-400 font-medium">{t.upfrontCost}</span>
-              <span className="text-slate-700 dark:text-slate-200 font-semibold">฿{job.upfrontCost.toLocaleString()}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-400 font-medium">{t.appNetIncome}</span>
-              <span className="text-slate-700 dark:text-slate-200 font-semibold">฿{job.appNetIncome.toLocaleString()}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-400 font-medium">{t.actualReceived}</span>
-              <span className="text-slate-700 dark:text-slate-200 font-semibold">฿{job.actualReceived.toLocaleString()}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm border-t border-slate-200/50 dark:border-slate-700/50 pt-2 sm:col-span-2">
-              <div className="flex gap-4">
+        <div className="p-4 bg-slate-50/50 dark:bg-slate-900/30 border-t border-dashed border-slate-250/60 dark:border-slate-800/60">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2.5 mb-4 text-xs">
+            {job.workType === 'salary' ? (
+              <>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/30">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold">💵 รายรับต้นทางบัญชี</span>
+                  <span className="text-slate-700 dark:text-slate-200 font-bold">฿{job.appNetIncome.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/30">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold">💳 เงินรับจริงเข้าบัญชี</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">฿{job.actualReceived.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/30">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold">🏢 ประเภทรายรับ</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-bold">รายรับประจำ/พนักงานออฟฟิศ</span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/30">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold">🏥 ประมาณการหักประกันสังคม (5%)</span>
+                  <span className="text-slate-600 dark:text-slate-300 font-bold">~฿{Math.min(750, job.appNetIncome * 0.05).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              </>
+            ) : job.workType === 'freelance' ? (
+              <>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/30">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold">💵 ค่าจ้างโปรเจกต์ (ตกลงไว้)</span>
+                  <span className="text-slate-700 dark:text-slate-200 font-bold">฿{job.appNetIncome.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/30">
+                  <span className="text-slate-500 dark:text-slate-400 font-medium">💸 ต้นทุนดำเนินงาน/ส่วนตัว</span>
+                  <span className={`font-bold ${job.upfrontCost > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}`}>
+                    ฿{job.upfrontCost.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/30">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold">🧾 หัก ณ ที่จ่ายสะสม (WHT 3%)</span>
+                  <span className="text-rose-500 dark:text-rose-400 font-bold">฿{(job.appNetIncome * 0.03).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/30">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold">📈 กำไรขั้นต้นของโปรเจกต์</span>
+                  <span className="text-emerald-600 dark:text-emerald-450 font-extrabold">฿{(job.appNetIncome - (job.upfrontCost || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/30 sm:col-span-2">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold">💳 ความคืบหน้าการรับยอดเงิน</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">💡 รับยอดจริงแล้ว 100% (฿{job.actualReceived.toLocaleString()})</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/30">
+                  <span className="text-slate-500 dark:text-slate-400 font-medium">💵 ยอดเก็บจากลูกค้า (หน้างาน)</span>
+                  <span className="text-slate-700 dark:text-slate-200 font-bold">฿{job.customerMustPay.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/30">
+                  <span className="text-slate-500 dark:text-slate-400 font-medium">💸 เงินสำรองส่วนตัวจ่ายก่อน</span>
+                  <span className={`font-bold ${job.upfrontCost > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}`}>
+                    ฿{job.upfrontCost.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/30">
+                  <span className="text-slate-500 dark:text-slate-400 font-medium">🏍️ ส่วนต่าง / รายได้เข้าระบบค่าย</span>
+                  <span className="text-slate-700 dark:text-slate-200 font-bold">฿{job.appNetIncome.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/30">
+                  <span className="text-slate-500 dark:text-slate-400 font-medium">💳 ยอดรวมที่ได้รับจริงทั้งหมด</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">฿{job.actualReceived.toLocaleString()}</span>
+                </div>
+              </>
+            )}
+
+            <div className="flex items-center justify-between pt-3 sm:col-span-2 flex-wrap gap-3">
+              <div className="flex gap-2.5 flex-wrap">
                 {tip > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs">{t.tip}: ฿{tip.toLocaleString()}</span>
+                  <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/20 px-2.5 py-1 rounded-lg border border-emerald-100 dark:border-emerald-900/30 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span className="text-emerald-700 dark:text-emerald-400 font-bold text-[10px]">✨ ได้ทิปพิเศษ: +฿{tip.toLocaleString()}</span>
                   </div>
                 )}
                 {loss > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-rose-500"></div>
-                    <span className="text-rose-600 dark:text-rose-400 font-bold text-xs">{t.loss}: ฿{loss.toLocaleString()}</span>
+                  <div className="flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/20 px-2.5 py-1 rounded-lg border border-rose-100 dark:border-rose-900/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    <span className="text-rose-700 dark:text-rose-400 font-bold text-[10px]">📉 ติบลบ / ขาดทุนสะสม: -฿{loss.toLocaleString()}</span>
+                  </div>
+                )}
+                {job.upfrontCost > 0 && (
+                  <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/20 px-2.5 py-1 rounded-lg border border-amber-100 dark:border-amber-900/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    <span className="text-amber-700 dark:text-amber-400 font-bold text-[10px]">⚠️ ยอดสำรองคืนครบแล้ว</span>
                   </div>
                 )}
               </div>
-              <div className="text-right">
-                <span className="text-slate-400 text-xs mr-2">{t.liveNetIncome}:</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-black">฿{net.toLocaleString()}</span>
+              <div className="text-right flex items-center gap-2 ml-auto">
+                <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">รายรับสุทธิรอบนี้:</span>
+                <span className="text-emerald-600 dark:text-emerald-450 font-bold text-base">฿{net.toLocaleString()}</span>
               </div>
             </div>
           </div>
           <div className="flex gap-2">
             <button 
               onClick={(e) => { e.stopPropagation(); handleEditClick(job); }} 
-              className="flex-1 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 py-2 px-3 bg-white dark:bg-slate-850 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
             >
               <Pencil className="w-3.5 h-3.5" />
               {t.edit}
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); deleteJob(job.id); }} 
-              className="flex-1 py-2 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800/30 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-bold hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 py-2 px-3 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/10 dark:hover:bg-rose-950/25 border border-rose-100/50 dark:border-rose-900/30 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
               {t.delete}

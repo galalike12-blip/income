@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Moon, Sun, Monitor, Globe, LogIn, LogOut, Menu, X, Download, Trash2, History, Wallet, Target, FileSpreadsheet, Calendar } from 'lucide-react';
+import { Moon, Sun, Monitor, Globe, LogIn, LogOut, Menu, X, Download, Trash2, History, Wallet, Target, FileSpreadsheet, Calendar, Briefcase } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { useAuth } from '../contexts/AuthContext';
+import { UserPreferences } from '../types';
 
 export function Header({ 
   onInstall, 
@@ -10,7 +11,9 @@ export function Header({
   setShowActivityLog,
   setShowGoalModal,
   setShowExportModal,
-  setShowLeaveModal
+  setShowLeaveModal,
+  preferences,
+  updatePreferences
 }: { 
   onInstall?: () => void; 
   setShowResetConfirm: (show: boolean) => void; 
@@ -18,6 +21,8 @@ export function Header({
   setShowGoalModal: (show: boolean) => void;
   setShowExportModal: (show: boolean) => void;
   setShowLeaveModal: (show: boolean) => void;
+  preferences: UserPreferences;
+  updatePreferences: (updates: Partial<UserPreferences>) => void;
 }) {
   const { theme, setTheme, language, setLanguage, currentLang } = useSettings();
   const t = translations[currentLang];
@@ -191,6 +196,33 @@ export function Header({
                 <option value="dark" className="text-slate-900">{t.dark}</option>
               </select>
             </div>
+
+            {/* Work Type Profile Selector */}
+            {preferences?.workType && (
+              <div className="flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors">
+                <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                  <Briefcase className="w-4 h-4 text-indigo-500" />
+                  <span className="text-sm font-medium">
+                    {currentLang === 'th' ? 'รูปแบบงานหลัก' : currentLang === 'zh' ? '工作性质' : 'Work Profile'}
+                  </span>
+                </div>
+                <select
+                  value={preferences.workType}
+                  onChange={(e) => updatePreferences({ workType: e.target.value as any })}
+                  className="bg-transparent text-sm font-medium text-slate-900 dark:text-white outline-none cursor-pointer text-right max-w-[140px] truncate"
+                >
+                  <option value="rider" className="text-slate-900">
+                    {currentLang === 'th' ? '🏍️ ไรเดอร์' : '🏍️ Rider'}
+                  </option>
+                  <option value="freelance" className="text-slate-900">
+                    {currentLang === 'th' ? '💻 ฟรีแลนซ์' : '💻 Freelancer'}
+                  </option>
+                  <option value="salary" className="text-slate-900">
+                    {currentLang === 'th' ? '💼 งานประจำ' : '💼 Salary'}
+                  </option>
+                </select>
+              </div>
+            )}
 
             {/* Install App */}
             {onInstall && (

@@ -64,6 +64,9 @@ export function Summary({
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
+  const workType = preferences?.workType || 'rider';
+  const riderMinDaily = preferences?.riderMinDailyTarget ?? 800;
+
   const [activeTab, setActiveTab] = useState<SubTab>('monthly');
   const [cardVisibility, setCardVisibility] = useLocalStorage('summary-card-visibility', {
     tips: true,
@@ -440,6 +443,30 @@ export function Summary({
     let offDays = 0;
     let leaveDays = 0;
 
+    const workType = preferences?.workType || 'rider';
+    const riderMinDaily = preferences?.riderMinDailyTarget ?? 800;
+
+    const activeFreelanceDates = new Set<string>();
+    filteredJobs.forEach(j => {
+      if (j.workType === 'freelance' && j.isMultiDay && j.endDate) {
+        const startStr = j.date.split('T')[0];
+        const endStr = j.endDate;
+        if (startStr <= endStr) {
+          let currentDt = new Date(startStr);
+          const endDt = new Date(endStr);
+          let limit = 0;
+          while (currentDt <= endDt && limit < 1000) {
+            const yr = currentDt.getFullYear();
+            const mo = String(currentDt.getMonth() + 1).padStart(2, '0');
+            const dy = String(currentDt.getDate()).padStart(2, '0');
+            activeFreelanceDates.add(`${yr}-${mo}-${dy}`);
+            currentDt.setDate(currentDt.getDate() + 1);
+            limit++;
+          }
+        }
+      }
+    });
+
     Object.keys(dailyStats).forEach(d => {
       const s = dailyStats[d];
       s.income = Math.max(0, s.jobs + s.tips + s.incentive);
@@ -448,15 +475,44 @@ export function Summary({
       const isLeave = preferences?.leaveDays?.includes(d);
       
       if (earliestActivityDate && d >= earliestActivityDate) {
-        if (isLeave) {
-          leaveDays++;
-          // If they still worked and earned > 800 on a leave day, we count it as workDay too so stats aren't weird
-          if (s.income > 800) workDays++;
-        } else {
-          if (s.income > 800) {
+        if (workType === 'salary') {
+          const dateObj = new Date(d);
+          const dayOfWeek = dateObj.getDay(); // 0 = Sun, 6 = Sat
+          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+          
+          if (isLeave) {
+            leaveDays++;
+          } else if (isWeekend) {
+            if (s.income > 0) {
+              workDays++;
+            } else {
+              offDays++;
+            }
+          } else {
+            // week days default to workDay
+            workDays++;
+          }
+        } else if (workType === 'freelance') {
+          if (s.income > 0 || activeFreelanceDates.has(d)) {
             workDays++;
           } else {
-            offDays++;
+            if (isLeave) {
+              leaveDays++;
+            } else {
+              offDays++;
+            }
+          }
+        } else {
+          // rider
+          if (isLeave) {
+            leaveDays++;
+            if (s.income > riderMinDaily) workDays++;
+          } else {
+            if (s.income > riderMinDaily) {
+              workDays++;
+            } else {
+              offDays++;
+            }
           }
         }
       }
@@ -580,7 +636,8 @@ export function Summary({
       prevTotalExpenses,
       prevBalance,
       currentBalance: currentBalanceAtEndStr,
-      overlappingData
+      overlappingData,
+      activeFreelanceDates
     };
   }, [activeTab, jobs, expenses, incentives, rawIncentives, expenseBalance, selectedDay, selectedMonth, selectedYear, startDate, endDate, weekOffset]);
 
@@ -773,14 +830,22 @@ export function Summary({
                 <XCircle className="w-6 h-6" />
               </div>
               <div>
-                <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">หยุดไปกี่วัน</p>
+                <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">{workType === 'salary' ? 'วันหยุด/วันลาสะสม' : 'หยุดไปกี่วัน'}</p>
                 <h3 className="text-3xl font-black text-slate-800 dark:text-white mt-1">
                   {rangeData.offDays + rangeData.leaveDays} <span className="text-sm font-bold text-slate-400 ml-1">วัน</span>
                 </h3>
                 {rangeData.leaveDays > 0 ? (
-                  <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 font-bold bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">(ไม่ได้ขับ {rangeData.offDays} / ลา {rangeData.leaveDays})</p>
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 font-bold bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">
+                    {workType === 'salary' ? `(วันลาสะสม ${rangeData.leaveDays} วัน)` : `(ไม่ได้ขับ ${rangeData.offDays} / ลา ${rangeData.leaveDays})`}
+                  </p>
                 ) : (
-                  <p className="text-[10px] text-slate-400 mt-1 font-bold">(รายได้ {'<='} 800)</p>
+                  <p className="text-[10px] text-slate-400 mt-1 font-bold">
+                    {workType === 'salary' 
+                      ? '(วันหยุดเสาร์-อาทิตย์/ไม่มีงานนอก)' 
+                      : workType === 'freelance' 
+                      ? '(ไม่มีงาน/ไม่มีรายจับ)' 
+                      : `(รายได้ <= ฿${riderMinDaily})`}
+                  </p>
                 )}
               </div>
             </div>
@@ -799,11 +864,17 @@ export function Summary({
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <div>
-                <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">ทำงานกี่วัน</p>
+                <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">{workType === 'salary' ? 'วันทำงานปฏิบัติงาน' : 'ทำงานกี่วัน'}</p>
                 <h3 className="text-3xl font-black text-slate-800 dark:text-white mt-1">
                   {rangeData.workDays} <span className="text-sm font-bold text-slate-400 ml-1">วัน</span>
                 </h3>
-                <p className="text-[10px] text-slate-400 mt-1 font-bold">(รายได้ {'>'} 800)</p>
+                <p className="text-[10px] text-slate-400 mt-1 font-bold">
+                  {workType === 'salary' 
+                    ? '(วันทำงานปกติ/รับรายได้นอกเวลา)' 
+                    : workType === 'freelance' 
+                    ? '(มีรายรับจากโครงการจริง)' 
+                    : `(รายได้ > ฿${riderMinDaily})`}
+                </p>
               </div>
             </div>
           </motion.div>
@@ -967,7 +1038,9 @@ export function Summary({
               แนวโน้มรายได้รายวัน
             </h4>
             <div className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/40 rounded-full">
-              <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">เป้าหมาย 800+</span>
+              <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                {workType === 'salary' ? 'เกณฑ์ปฏิบัติงานประจำ' : workType === 'freelance' ? 'เกณฑ์ฟรีแลนซ์' : `เป้าหมาย ฿${riderMinDaily}+`}
+              </span>
             </div>
           </div>
           <div className="h-[250px] w-full mt-4">
@@ -987,12 +1060,30 @@ export function Summary({
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px' }}
                 />
                 <Bar dataKey="income" name="รายได้รวม" radius={[4, 4, 0, 0]}>
-                  {rangeData.dailyStatsList.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={entry.income > 800 ? '#10b981' : '#f43f5e'} 
-                    />
-                  ))}
+                  {rangeData.dailyStatsList.map((entry, index) => {
+                    const isWorked = (() => {
+                      if (workType === 'salary') {
+                        const dateObj = new Date(entry.date);
+                        const dayOfWeek = dateObj.getDay();
+                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                        const isLeave = preferences?.leaveDays?.includes(entry.date);
+                        if (isLeave) return false;
+                        if (isWeekend) return entry.income > 0;
+                        return true;
+                      } else if (workType === 'freelance') {
+                        return entry.income > 0 || (rangeData.activeFreelanceDates && rangeData.activeFreelanceDates.has(entry.date));
+                      } else {
+                        // rider
+                        return entry.income > riderMinDaily;
+                      }
+                    })();
+                    return (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={isWorked ? '#10b981' : '#f43f5e'} 
+                      />
+                    );
+                  })}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -1000,11 +1091,15 @@ export function Summary({
           <div className="flex items-center justify-center gap-6 mt-4">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#10b981' }} />
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">ทำงาน ({'>'}800)</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center">
+                {workType === 'salary' ? 'วันปฏิบัติงาน' : workType === 'freelance' ? 'วันรับยอด' : `วันวิ่งงานจริง (>฿${riderMinDaily})`}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#f43f5e' }} />
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">หยุด ({'<='}800)</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center">
+                {workType === 'salary' ? 'วันลา/เสาร์เสาร์อาทิตย์' : workType === 'freelance' ? 'วันว่างรับงาน' : `วันว่าง/ยอดไม่ถึง (<=฿${riderMinDaily})`}
+              </span>
             </div>
           </div>
         </motion.div>

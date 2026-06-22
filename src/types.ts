@@ -6,6 +6,10 @@ export interface JobEntry {
   appNetIncome: number;
   actualReceived: number;
   transferred?: boolean;
+  jobTitle?: string;
+  workType?: 'rider' | 'freelance' | 'salary';
+  isMultiDay?: boolean;
+  endDate?: string;
 }
 
 export interface ExpenseEntry {
@@ -45,6 +49,11 @@ export interface UserPreferences {
   expenseBalance?: number;
   leaveDays?: string[];
   leaveReasons?: Record<string, string>;
+  workType?: 'rider' | 'freelance' | 'salary';
+  baseSalary?: number;
+  salaryPayday?: number;
+  hasCompletedOnboarding?: boolean;
+  riderMinDailyTarget?: number;
 }
 
 export interface Goal {

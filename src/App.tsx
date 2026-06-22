@@ -13,6 +13,7 @@ import { FloatingNav } from './components/FloatingNav';
 import { AddIncomeModal } from './components/AddIncomeModal';
 import { AddExpenseModal } from './components/AddExpenseModal';
 import { Header } from './components/Header';
+import { OnboardingModal } from './components/OnboardingModal';
 import { GoalModal } from './components/GoalModal';
 import { LeaveModal } from './components/LeaveModal';
 import { ActivityLogModal } from './components/ActivityLogModal';
@@ -32,7 +33,7 @@ function MainContent() {
   const { user, googleAccessToken, spreadsheetId } = useAuth();
   const t = translations[currentLang];
   
-  const { rawJobs, incentives, rawIncentives, expenses, goals, preferences, updatePreferences, addJob: firestoreAddJob, editJob: firestoreEditJob, deleteJob: firestoreDeleteJob, setIncentive, addExpense, updateExpense, deleteExpense, setGoal, clearAllData, transferIncomeToExpenses, untransferredIncentivesAmount, logs } = useUserData(user);
+  const { rawJobs, incentives, rawIncentives, expenses, goals, preferences, loading, updatePreferences, addJob: firestoreAddJob, editJob: firestoreEditJob, deleteJob: firestoreDeleteJob, setIncentive, addExpense, updateExpense, deleteExpense, setGoal, clearAllData, transferIncomeToExpenses, untransferredIncentivesAmount, logs } = useUserData(user);
   
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
@@ -287,6 +288,8 @@ function MainContent() {
         setShowGoalModal={setIsGoalModalOpen}
         setShowExportModal={setIsExportOpen}
         setShowLeaveModal={setIsLeaveModalOpen}
+        preferences={preferences}
+        updatePreferences={updatePreferences}
       />
       
       {/* Main Content Area (Scrollable) */}
@@ -420,6 +423,7 @@ function MainContent() {
         onEdit={editJob}
         selectedDate={selectedDate}
         editingJob={editingJob}
+        workType={preferences?.workType || 'rider'}
       />
       <AddExpenseModal 
         isOpen={isExpenseModalOpen}
@@ -465,6 +469,8 @@ function MainContent() {
         onClose={() => setIsGoalModalOpen(false)}
         goals={goals}
         onSetGoal={setGoal}
+        preferences={preferences}
+        updatePreferences={updatePreferences}
       />
       {isLeaveModalOpen && (
         <LeaveModal
@@ -479,6 +485,12 @@ function MainContent() {
         onClose={() => setIsExportOpen(false)}
         jobs={jobs}
         expenses={expenses}
+      />
+      <OnboardingModal
+        isOpen={!loading && !preferences?.workType}
+        onComplete={(onboardingPrefs) => {
+          updatePreferences(onboardingPrefs);
+        }}
       />
       <IosInstallPrompt />
       <Toaster position="top-center" richColors />

@@ -235,6 +235,42 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         }
       };
 
+      const addLeaveDaysTool: FunctionDeclaration = {
+        name: "addLeaveDays",
+        description: "Add one or more dates to the user's leave/holiday list with an optional reason.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            dates: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: "Array of dates in YYYY-MM-DD format to add."
+            },
+            reason: {
+              type: Type.STRING,
+              description: "Optional holiday/leave-of-absence reason (e.g. 'ลาป่วย', 'พักผ่อน', 'ไปเที่ยวต่างจังหวัด', 'ทำธุระ')."
+            }
+          },
+          required: ["dates"]
+        }
+      };
+
+      const removeLeaveDaysTool: FunctionDeclaration = {
+        name: "removeLeaveDays",
+        description: "Remove one or more dates from the user's leave/holiday list.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            dates: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: "Array of dates in YYYY-MM-DD format to remove."
+            }
+          },
+          required: ["dates"]
+        }
+      };
+
       const sixtyDaysAgo = new Date();
       sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
       const cutoffStr = sixtyDaysAgo.toISOString().split('T')[0];
@@ -278,6 +314,30 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       const totalWorkDaysActual = uniqueWorkedDates.size;
       const totalLeaveDaysConfigured = preferences.leaveDays?.length || 0;
 
+      const workType = preferences?.workType || 'rider';
+      const riderMinDaily = preferences?.riderMinDailyTarget ?? 800;
+
+      const activeFreelanceDates = new Set<string>();
+      jobs.forEach(j => {
+        if (j.workType === 'freelance' && j.isMultiDay && j.endDate) {
+          const startStr = j.date.split('T')[0];
+          const endStr = j.endDate;
+          if (startStr <= endStr) {
+            let currentDt = new Date(startStr);
+            const endDt = new Date(endStr);
+            let limit = 0;
+            while (currentDt <= endDt && limit < 1000) {
+              const yr = currentDt.getFullYear();
+              const mo = String(currentDt.getMonth() + 1).padStart(2, '0');
+              const dy = String(currentDt.getDate()).padStart(2, '0');
+              activeFreelanceDates.add(`${yr}-${mo}-${dy}`);
+              currentDt.setDate(currentDt.getDate() + 1);
+              limit++;
+            }
+          }
+        }
+      });
+
       // 60 days time range calculations for workdays/offdays
       const last60DaysList: string[] = [];
       for (let i = 0; i < 60; i++) {
@@ -305,16 +365,44 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         
         const dailyIncomeSum = Math.max(0, (appNet - totalLossVal) + totalTipVal + dayIncentive);
         const isLeave = preferences.leaveDays?.includes(dayStr);
-        
-        if (isLeave) {
-          if (dailyIncomeSum > 800) {
+
+        if (workType === 'salary') {
+          const dateObj = new Date(dayStr);
+          const dayOfWeek = dateObj.getDay();
+          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+          if (isLeave) {
+            // is leave
+          } else if (isWeekend) {
+            if (dailyIncomeSum > 0) {
+              workDaysSummaryCount++;
+            } else {
+              offDaysSummaryCount++;
+            }
+          } else {
             workDaysSummaryCount++;
           }
-        } else {
-          if (dailyIncomeSum > 800) {
+        } else if (workType === 'freelance') {
+          if (dailyIncomeSum > 0 || activeFreelanceDates.has(dayStr)) {
             workDaysSummaryCount++;
-          } else if (dayJobs.length > 0 || dayIncentive > 0) {
-            offDaysSummaryCount++;
+          } else {
+            if (isLeave) {
+              // is leave
+            } else {
+              offDaysSummaryCount++;
+            }
+          }
+        } else {
+          // rider
+          if (isLeave) {
+            if (dailyIncomeSum > riderMinDaily) {
+              workDaysSummaryCount++;
+            }
+          } else {
+            if (dailyIncomeSum > riderMinDaily) {
+              workDaysSummaryCount++;
+            } else {
+              offDaysSummaryCount++;
+            }
           }
         }
       });
@@ -353,6 +441,8 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
 
       const context = `You are an AI assistant for an income and tip tracking app. 
       Respond concisely and briefly.
+
+      Today's date is: ${new Date(Date.now() - (new Date().getTimezoneOffset() * 60000)).toISOString().split('T')[0]} (In YYYY-MM-DD local format)
       
       CRITICAL: When performing calculations or stating balances/workdays/off-days/incentives, you MUST use the provided numbers below exactly. Do not hallucinate or estimate numbers.
       Always double-check your math before responding.
@@ -365,7 +455,13 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       - เงินอินเซนทีฟสะสมทั้งหมด: ฿${totalIncentivesAllTime.toLocaleString()}
       - จำนวนวันทำงานที่มีวิ่งงานจริง (Work Days with real jobs): ${totalWorkDaysActual} วัน
       - วันหยุด/วันลาที่กำหนดไว้โดยผู้ใช้: ${totalLeaveDaysConfigured} วัน (รายชื่อวันลา: ${JSON.stringify(preferences.leaveDays || [])})
-      - เกณฑ์รอบ 60 วันล่าสุด: วันสู้ชีวิตทำงานจริง (รายได้รวม > 800บ.) = ${workDaysSummaryCount} วัน, วันหยุดงาน/วันสโลว์ไลฟ์ (รายได้ <= 800บ.) = ${offDaysSummaryCount} วัน
+      - เกณฑ์รอบ 60 วันล่าสุด (ประเภทงาน: ${workType}, เกณฑ์เป้าหมายไรเดอร์: ฿${riderMinDaily}): ${
+        workType === 'salary' 
+          ? `วันทำงานจริง (วันธรรมดาและวันหยุดที่วิ่งงานนอกเสริม) = ${workDaysSummaryCount} วัน, วันหยุดสัปดาห์ที่ไม่มีรายรับ = ${offDaysSummaryCount} วัน` 
+          : workType === 'freelance' 
+          ? `วันที่รับรายได้จริง = ${workDaysSummaryCount} วัน, วันว่างงาน/ไม่มีรายจับ = ${offDaysSummaryCount} วัน` 
+          : `วันสู้ชีวิตทำงานจริง (รายได้รวม > ฿${riderMinDaily}) = ${workDaysSummaryCount} วัน, วันหยุดงาน/วันสโลว์ไลฟ์ (รายได้ <= ฿${riderMinDaily}) = ${offDaysSummaryCount} วัน`
+      }
 
       The user's current data summary (Last 60 days):
       Jobs Summary (Note: 'dailyIndex' represents the sequence number of the job for that specific day. If the user says "งานที่ 4" (job 4), find the job with dailyIndex 4 for today. If they say "งานที่แล้ว" or "the last job", find the job with the highest dailyIndex for today. Use the job 'id' to call updateJobTool): ${safeStringify(jobsSummary)}
@@ -399,6 +495,8 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       If the user provides JSON data, process it by calling the appropriate tools (addExpense, addJob, setIncentive) for each entry in the JSON.
       If the user mentions adding a job or income, use the 'addJob' tool.
       If the user mentions a daily incentive, use the 'setIncentive' tool.
+      If the user wants to add or set leave/holiday days (e.g., "ลาพักร้อนพรุ่งนี้กระทันหัน", "วันที่ 12 มีนาคม จะลาเพราะติดธุระ", "เพิ่มวันลาวันที่ 2026-06-25"), use the 'addLeaveDays' tool with the list of dates and the optional reason string.
+      If the user wants to remove or cancel leave/holiday days (e.g., "ลบวันลาเมื่อวานด้วย", "ขอยกเลิกวันลาวันที่ 12"), use the 'removeLeaveDays' tool with the list of dates.
       Always confirm with the user before adding if the details are not 100% clear.`;
 
       const history = messages.slice(-10).map(m => ({
@@ -423,7 +521,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         contents: [...history, { role: 'user', parts }],
         config: {
           systemInstruction: context,
-          tools: [{ functionDeclarations: [addExpenseTool, setIncentiveTool, addJobTool, updateJobTool, updatePreferencesTool] }],
+          tools: [{ functionDeclarations: [addExpenseTool, setIncentiveTool, addJobTool, updateJobTool, updatePreferencesTool, addLeaveDaysTool, removeLeaveDaysTool] }],
           thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL }
         }
       });
@@ -534,6 +632,46 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               updatePreferences(updates);
               toast.success('อัปเดตวิดเจ็ตสำเร็จ');
             }
+          } else if (call.name === 'addLeaveDays' && updatePreferences) {
+            const args = call.args as any;
+            const datesToAdd = args.dates as string[];
+            const reason = args.reason || '';
+
+            const currentLeaveDays = preferences.leaveDays || [];
+            const currentLeaveReasons = preferences.leaveReasons || {};
+
+            const newLeaveDays = [...new Set([...currentLeaveDays, ...datesToAdd])];
+            const newLeaveReasons = { ...currentLeaveReasons };
+
+            if (reason) {
+              datesToAdd.forEach(d => {
+                newLeaveReasons[d] = reason;
+              });
+            }
+
+            updatePreferences({
+              leaveDays: newLeaveDays,
+              leaveReasons: newLeaveReasons
+            });
+            toast.success('บันทึกวันลาสำเร็จ');
+          } else if (call.name === 'removeLeaveDays' && updatePreferences) {
+            const args = call.args as any;
+            const datesToRemove = args.dates as string[];
+
+            const currentLeaveDays = preferences.leaveDays || [];
+            const currentLeaveReasons = preferences.leaveReasons || {};
+
+            const newLeaveDays = currentLeaveDays.filter(d => !datesToRemove.includes(d));
+            const newLeaveReasons = { ...currentLeaveReasons };
+            datesToRemove.forEach(d => {
+              delete newLeaveReasons[d];
+            });
+
+            updatePreferences({
+              leaveDays: newLeaveDays,
+              leaveReasons: newLeaveReasons
+            });
+            toast.success('ลบวันลาสำเร็จ');
           }
         }
       }

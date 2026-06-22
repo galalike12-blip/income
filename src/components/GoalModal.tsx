@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Target, X, Calendar, CalendarDays, Check, TrendingUp } from 'lucide-react';
-import { Goal } from '../types';
+import { Goal, UserPreferences } from '../types';
 import { translations } from '../i18n/translations';
 import { useSettings } from '../contexts/SettingsContext';
 
@@ -10,14 +10,17 @@ interface GoalModalProps {
   onClose: () => void;
   goals: Goal[];
   onSetGoal: (goal: Omit<Goal, 'id'>) => void;
+  preferences?: UserPreferences;
+  updatePreferences?: (updates: Partial<UserPreferences>) => Promise<any>;
 }
 
-export function GoalModal({ isOpen, onClose, goals, onSetGoal }: GoalModalProps) {
+export function GoalModal({ isOpen, onClose, goals, onSetGoal, preferences, updatePreferences }: GoalModalProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
   const [activeType, setActiveType] = useState<'daily' | 'monthly'>('daily');
   const [amount, setAmount] = useState('');
+  const [riderMinTargetInput, setRiderMinTargetInput] = useState('800');
 
   const dailyGoal = goals.find(g => g.type === 'daily');
   const monthlyGoal = goals.find(g => g.type === 'monthly');
@@ -30,13 +33,27 @@ export function GoalModal({ isOpen, onClose, goals, onSetGoal }: GoalModalProps)
     }
   }, [activeType, dailyGoal, monthlyGoal]);
 
+  useEffect(() => {
+    if (preferences?.riderMinDailyTarget !== undefined) {
+      setRiderMinTargetInput(preferences.riderMinDailyTarget.toString());
+    } else {
+      setRiderMinTargetInput('800');
+    }
+  }, [preferences?.riderMinDailyTarget]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseFloat(amount);
     if (!isNaN(val) && val >= 0) {
       onSetGoal({ type: activeType, targetAmount: val });
-      // Keep modal open or close? User might want to set both. 
-      // Let's show a success feedback instead of closing immediately.
+    }
+    
+    // Save rider custom threshold if worker is rider and updating daily goal
+    if (activeType === 'daily' && preferences?.workType === 'rider' && updatePreferences) {
+      const minVal = parseFloat(riderMinTargetInput);
+      if (!isNaN(minVal) && minVal >= 0) {
+        updatePreferences({ riderMinDailyTarget: minVal });
+      }
     }
   };
 
@@ -124,6 +141,28 @@ export function GoalModal({ isOpen, onClose, goals, onSetGoal }: GoalModalProps)
                   </p>
                 )}
               </div>
+
+              {/* Custom Rider holiday threshold input */}
+              {activeType === 'daily' && preferences?.workType === 'rider' && (
+                <div className="p-4 bg-amber-500/5 dark:bg-amber-400/5 rounded-3xl border border-amber-200/30 dark:border-amber-800/20 space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 block pl-1">
+                    ☕ กำหนดเป้าหมายขั้นต่ำเพื่อไม่ให้ถูกนับเป็นวันหยุด
+                  </label>
+                  <p className="text-[10px] text-slate-400 pb-1 pl-1">
+                     หากยอดรายรับวันใดไม่ถึงค่านี้ จะถูกสรุปเป็น "วันหยุด/วันไม่ได้วิ่งงาน" ในหน้าสรุปรายได้
+                  </p>
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black text-slate-400">฿</div>
+                    <input
+                      type="number"
+                      value={riderMinTargetInput}
+                      onChange={(e) => setRiderMinTargetInput(e.target.value)}
+                      placeholder="800"
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-8 pr-4 text-sm font-bold text-amber-600 focus:ring-2 focus:ring-amber-500/25 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+              )}
 
               <button
                 type="submit"
