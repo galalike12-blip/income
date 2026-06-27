@@ -1069,115 +1069,28 @@ async function callOpenAiCompatible(
   currentImages: string[],
   declarations: any[]
 ) {
-  // Map Gemini-style tools to OpenAI-compatible tools
-  const openAiTools = declarations.map(decl => {
-    const formattedProperties: Record<string, any> = {};
-    const originalProps = decl.parameters?.properties || {};
-    
-    Object.keys(originalProps).forEach(key => {
-      const prop = originalProps[key];
-      const pType = typeof prop.type === 'string' ? prop.type.toLowerCase() : 'string';
-      formattedProperties[key] = {
-        type: pType === 'object' ? 'object' : pType,
-        description: prop.description || ''
-      };
-      if (prop.items) {
-        const itemType = typeof prop.items.type === 'string' ? prop.items.type.toLowerCase() : 'string';
-        formattedProperties[key].items = {
-          type: itemType
-        };
-      }
-    });
-
-    return {
-      type: "function",
-      function: {
-        name: decl.name,
-        description: decl.description || '',
-        parameters: {
-          type: "object",
-          properties: formattedProperties,
-          required: decl.parameters?.required || []
-        }
-      }
-    };
-  });
-
-  // Build messages
-  const formattedMessages: any[] = [
-    { role: "system", content: systemInstruction }
-  ];
-
-  // Add history
-  messages.forEach(m => {
-    formattedMessages.push({
-      role: m.role === 'model' ? 'assistant' : 'user',
-      content: m.text
-    });
-  });
-
-  // Add current message with images if supported
-  let content: any = currentInput || "Please process these slips.";
-  if (currentImages && currentImages.length > 0) {
-    const contentArray: any[] = [{ type: "text", text: currentInput || "Please process these slips." }];
-    currentImages.forEach(img => {
-      contentArray.push({
-        type: "image_url",
-        image_url: {
-          url: img
-        }
-      });
-    });
-    content = contentArray;
-  }
-
-  formattedMessages.push({
-    role: "user",
-    content: content
-  });
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${apiKey}`
-  };
-
-  const body: any = {
-    model: model,
-    messages: formattedMessages,
-    tools: openAiTools,
-    tool_choice: "auto"
-  };
-
-  const url = baseUrl.endsWith('/') ? `${baseUrl}chat/completions` : `${baseUrl}/chat/completions`;
-
-  const res = await fetch(url, {
+  const res = await fetch("/api/chat", {
     method: "POST",
-    headers,
-    body: JSON.stringify(body)
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      baseUrl,
+      apiKey,
+      model,
+      systemInstruction,
+      messages,
+      currentInput,
+      currentImages,
+      declarations
+    })
   });
 
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`API Error (${res.status}): ${errorText || res.statusText}`);
+    const errorJson = await res.json().catch(() => ({}));
+    const errorMsg = errorJson.error || res.statusText;
+    throw new Error(`API Proxy Error (${res.status}): ${errorMsg}`);
   }
 
-  const data = await res.json();
-  const choice = data.choices?.[0];
-  const message = choice?.message;
-
-  // Map response back to Gemini-like format
-  const text = message?.content || "";
-  let functionCalls: any[] | undefined = undefined;
-
-  if (message?.tool_calls && message.tool_calls.length > 0) {
-    functionCalls = message.tool_calls.map((tc: any) => ({
-      name: tc.function.name,
-      args: JSON.parse(tc.function.arguments)
-    }));
-  }
-
-  return {
-    text,
-    functionCalls
-  };
+  return await res.json();
 }
