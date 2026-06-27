@@ -54,6 +54,10 @@ export interface UserPreferences {
   salaryPayday?: number;
   hasCompletedOnboarding?: boolean;
   riderMinDailyTarget?: number;
+  aiProvider?: 'gemini' | 'deepseek' | 'custom';
+  customAiApiKey?: string;
+  customAiBaseUrl?: string;
+  customAiModel?: string;
 }
 
 export interface Goal {

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, ThinkingLevel, Type, FunctionDeclaration } from '@google/genai';
-import { MessageCircle, X, Send, Bot, Loader2, Camera, Image as ImageIcon, FileJson, Mic, MicOff } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, Loader2, Camera, Image as ImageIcon, FileJson, Mic, MicOff, Settings2, Key, Cpu, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { JobEntry, ExpenseEntry, UserPreferences } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
@@ -41,6 +41,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [showAiSettings, setShowAiSettings] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -126,18 +127,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
     setIsLoading(true);
 
     try {
-      if (!process.env.GEMINI_API_KEY) {
-        setMessages(prev => [...prev, { 
-          id: (Date.now() + 1).toString(), 
-          role: 'model', 
-          text: "❌ **ไม่พบ API Key สำหรับใช้ระบบ AI Chatbot (Gemini)**\n\nกรุณาตั้งค่าเซ็ตตัวแปร Environment Variable ชื่อ `GEMINI_API_KEY` ในหน้าตั้งค่าของ Vercel (Vercel Settings -> Environment Variables) หรือในไฟล์ `.env` สำหรับเครื่อง Local จากนั้นทำการ Redeploy หรือรันใหม่อีกครั้งครับ!" 
-        }]);
-        setIsLoading(false);
-        return;
-      }
-
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
+      const provider = preferences.aiProvider || 'gemini';
       const customCategories = preferences.customCategories || ['food', 'fuel', 'rent', 'utilities', 'shopping', 'maintenance', 'other'];
       
       const addExpenseTool: FunctionDeclaration = {
@@ -504,33 +494,80 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         parts: [{ text: m.text }]
       }));
 
-      const parts: any[] = [{ text: currentInput || "Please process these slips." }];
-      if (currentImages && currentImages.length > 0) {
-        currentImages.forEach(img => {
-          parts.push({
-            inlineData: {
-              data: img.split(',')[1],
-              mimeType: "image/jpeg"
-            }
-          });
-        });
-      }
+      let aiResultText = '';
+      let functionCalls: any[] | undefined = undefined;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: [...history, { role: 'user', parts }],
-        config: {
-          systemInstruction: context,
-          tools: [{ functionDeclarations: [addExpenseTool, setIncentiveTool, addJobTool, updateJobTool, updatePreferencesTool, addLeaveDaysTool, removeLeaveDaysTool] }],
-          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL }
+      if (provider === 'gemini') {
+        if (!process.env.GEMINI_API_KEY) {
+          setMessages(prev => [...prev, { 
+            id: (Date.now() + 1).toString(), 
+            role: 'model', 
+            text: "❌ **ไม่พบ API Key สำหรับใช้ระบบ AI Chatbot (Gemini)**\n\nกรุณาตั้งค่าเซ็ตตัวแปร Environment Variable ชื่อ `GEMINI_API_KEY` ในหน้าตั้งค่าของ Vercel (Vercel Settings -> Environment Variables) หรือในไฟล์ `.env` สำหรับเครื่อง Local จากนั้นทำการ Redeploy หรือรันใหม่อีกครั้งครับ!" 
+          }]);
+          setIsLoading(false);
+          return;
         }
-      });
+
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+        const parts: any[] = [{ text: currentInput || "Please process these slips." }];
+        if (currentImages && currentImages.length > 0) {
+          currentImages.forEach(img => {
+            parts.push({
+              inlineData: {
+                data: img.split(',')[1],
+                mimeType: "image/jpeg"
+              }
+            });
+          });
+        }
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.5-flash',
+          contents: [...history, { role: 'user', parts }],
+          config: {
+            systemInstruction: context,
+            tools: [{ functionDeclarations: [addExpenseTool, setIncentiveTool, addJobTool, updateJobTool, updatePreferencesTool, addLeaveDaysTool, removeLeaveDaysTool] }],
+            thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL }
+          }
+        });
+
+        aiResultText = response.text || '';
+        functionCalls = response.functionCalls;
+      } else {
+        // DeepSeek or Custom AI
+        const apiKey = preferences.customAiApiKey;
+        if (!apiKey) {
+          throw new Error("กรุณาระบุ API Key สำหรับผู้ให้บริการ AI ในเมนูตั้งค่า Chatbot (ปุ่มรูปฟันเฟืองด้านบน) เพื่อใช้งานครับ");
+        }
+
+        let baseUrl = "https://api.deepseek.com/v1";
+        let model = preferences.customAiModel || "deepseek-chat";
+
+        if (provider === 'custom') {
+          baseUrl = preferences.customAiBaseUrl || "https://api.openai.com/v1";
+          model = preferences.customAiModel || "gpt-4o";
+        }
+
+        const openAiRes = await callOpenAiCompatible(
+          baseUrl,
+          apiKey,
+          model,
+          context,
+          messages,
+          currentInput,
+          currentImages,
+          [addExpenseTool, setIncentiveTool, addJobTool, updateJobTool, updatePreferencesTool, addLeaveDaysTool, removeLeaveDaysTool]
+        );
+
+        aiResultText = openAiRes.text;
+        functionCalls = openAiRes.functionCalls;
+      }
 
       const aiMsgId = (Date.now() + 1).toString();
       
       // Handle function calls
       let duplicateAlertMessage = '';
-      const functionCalls = response.functionCalls;
       if (functionCalls) {
         for (const call of functionCalls) {
           if (call.name === 'addExpense') {
@@ -676,9 +713,9 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         }
       }
 
-      let finalAiText = response.text || (functionCalls ? "รายละเอียดได้รับการบันทึกเรียบร้อยแล้วครับ" : "ฉันยังไม่เข้าใจสิ่งที่คุณพยายามถามอย่างแน่ชัด ลองถามข้อมูลวันทำงาน เงินสะสม หรืออัปโหลดสลิปได้เลยครับ");
+      let finalAiText = aiResultText || (functionCalls ? "รายละเอียดได้รับการบันทึกเรียบร้อยแล้วครับ" : "ฉันยังไม่เข้าใจสิ่งที่คุณพยายามถามอย่างแน่ชัด ลองถามข้อมูลวันทำงาน เงินสะสม หรืออัปโหลดสลิปได้เลยครับ");
       if (duplicateAlertMessage) {
-        finalAiText = response.text ? `${response.text}\n\n${duplicateAlertMessage}` : duplicateAlertMessage;
+        finalAiText = aiResultText ? `${aiResultText}\n\n${duplicateAlertMessage}` : duplicateAlertMessage;
       }
 
       setMessages(prev => [...prev, { 
@@ -772,106 +809,248 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                 <Bot className="w-5 h-5" />
                 <h3 className="font-semibold">{t.aiAssistant}</h3>
               </div>
-            </div>
-
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 bg-transparent transition-colors">
-              {messages.length === 0 && (
-                <div className="text-center text-slate-500 dark:text-slate-400 mt-10">
-                  <Bot className="w-12 h-12 mx-auto mb-3 text-slate-400 dark:text-slate-500 opacity-50" />
-                  <p>{t.aiWelcome}</p>
-                </div>
-              )}
-              {messages.map((msg) => (
-                <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] p-3.5 rounded-2xl ${msg.role === 'user' ? 'bg-indigo-600/90 backdrop-blur-sm text-white rounded-tr-sm shadow-md shadow-indigo-500/20' : 'glass-panel-subtle text-slate-800 dark:text-slate-200 rounded-tl-sm'}`}>
-                    {msg.images && msg.images.length > 0 && (
-                      <div className={`grid gap-2 mb-2 ${msg.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                        {msg.images.map((img, idx) => (
-                          <img key={idx} src={img} alt={`Uploaded ${idx + 1}`} className="w-full h-auto object-cover max-h-48 rounded-lg border border-white/20" referrerPolicy="no-referrer" />
-                        ))}
-                      </div>
-                    )}
-                    {msg.image && !msg.images && (
-                      <img src={msg.image} alt="Uploaded" className="w-full h-auto rounded-lg mb-2 border border-white/20" referrerPolicy="no-referrer" />
-                    )}
-                    <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-                  </div>
-                </div>
-              ))}
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className="glass-panel-subtle p-3.5 rounded-2xl rounded-tl-sm flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-spin" />
-                    <span className="text-sm text-slate-500 dark:text-slate-400">{t.thinking}</span>
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input */}
-            <div className="p-3 sm:p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border-t border-white/40 dark:border-white/10 transition-colors">
-              {selectedImages.length > 0 && (
-                <div className="mb-3 flex flex-wrap gap-2 max-h-24 overflow-y-auto py-1">
-                  {selectedImages.map((img, idx) => (
-                    <div key={idx} className="relative inline-block shrink-0">
-                      <img src={img} alt={`Preview ${idx}`} className="w-12 h-12 object-cover rounded-xl border border-indigo-500" referrerPolicy="no-referrer" />
-                      <button 
-                        onClick={() => setSelectedImages(prev => prev.filter((_, i) => i !== idx))}
-                        className="absolute -top-1.5 -right-1.5 bg-rose-500 hover:bg-rose-650 text-white p-0.5 rounded-full shadow-lg cursor-pointer animate-fade-in"
-                      >
-                        <X className="w-2.5 h-2.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleImageSelect}
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                />
+              <div className="flex items-center gap-1.5">
                 <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-3 glass-button rounded-full text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                  onClick={() => setShowAiSettings(!showAiSettings)}
+                  className={`p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer ${showAiSettings ? 'bg-white/20' : ''}`}
+                  title="AI Provider Settings"
                 >
-                  <Camera className="w-4 h-4" />
+                  <Settings2 className="w-4 h-4" />
                 </button>
-                <button
-                  onClick={toggleListening}
-                  className={`p-3 glass-button rounded-full transition-colors cursor-pointer ${isListening ? 'text-rose-500 animate-pulse' : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
-                  title="Voice Input"
+                <button 
+                  onClick={() => setIsOpen(false)}
+                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer"
                 >
-                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                </button>
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  placeholder={t.askAbout}
-                  rows={1}
-                  className="flex-1 px-4 py-3 glass-input rounded-2xl text-sm resize-none min-h-[44px] max-h-32 overflow-y-auto"
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={(!input.trim() && selectedImages.length === 0) || isLoading}
-                  className="p-3 glass-button rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <Send className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
+
+            {showAiSettings ? (
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-slate-50 dark:bg-slate-900 transition-colors">
+                <div className="flex items-center gap-2 mb-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+                  <Settings2 className="w-4 h-4 text-indigo-500" />
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">ตั้งค่า AI Assistant (เลือกสลับโมเดล)</h4>
+                </div>
+                
+                {/* Select AI Provider */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400">ผู้ให้บริการ AI (AI Provider)</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'gemini', label: 'Gemini', desc: 'ผู้จัดเตรียม (ฟรี)' },
+                      { id: 'deepseek', label: 'DeepSeek', desc: 'คุ้มค่าและเก่ง' },
+                      { id: 'custom', label: 'Custom', desc: 'ตั้งค่าเอง' }
+                    ].map(p => {
+                      const isSelected = (preferences.aiProvider || 'gemini') === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => updatePreferences?.({ aiProvider: p.id as any })}
+                          className={`p-2.5 rounded-xl border flex flex-col items-center text-center justify-center transition-all cursor-pointer ${
+                            isSelected 
+                              ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500 text-indigo-600 dark:text-indigo-400 shadow-sm font-black' 
+                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750'
+                          }`}
+                        >
+                          <span className="text-xs font-bold">{p.label}</span>
+                          <span className="text-[9px] opacity-65 mt-0.5">{p.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Gemini Info */}
+                {(preferences.aiProvider || 'gemini') === 'gemini' && (
+                  <div className="p-3.5 bg-indigo-50/50 dark:bg-indigo-950/10 rounded-2xl border border-indigo-100/50 dark:border-indigo-900/20 text-xs text-slate-500 dark:text-slate-400 space-y-1.5 leading-relaxed">
+                    <p className="font-bold text-indigo-600 dark:text-indigo-400">Google Gemini 3.5 Flash (เริ่มต้น)</p>
+                    <p>ใช้โมเดลของระบบที่ทำงานได้ทันที ไม่จำเป็นต้องป้อน API Key เหมาะสำหรับการใช้งานทั่วไป อ่านสลิป และบุกเบิกการบันทึกบัญชีขับรถครับ</p>
+                  </div>
+                )}
+
+                {/* DeepSeek Key Input */}
+                {(preferences.aiProvider || 'gemini') === 'deepseek' && (
+                  <div className="space-y-3 p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                        <Key className="w-3.5 h-3.5 text-indigo-500" />
+                        DeepSeek API Key
+                      </label>
+                      <input
+                        type="password"
+                        value={preferences.customAiApiKey || ''}
+                        onChange={(e) => updatePreferences?.({ customAiApiKey: e.target.value })}
+                        placeholder="sk-..."
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <p className="text-[10px] text-slate-400">สมัครรับคีย์และราคาถูกมากได้ที่ <a href="https://platform.deepseek.com" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline font-bold">platform.deepseek.com</a> (มีฟรีโค้ดต้อนรับเมื่อเปิดบัญชี)</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                        <Cpu className="w-3.5 h-3.5 text-indigo-500" />
+                        โมเดล (Model Selection)
+                      </label>
+                      <select
+                        value={preferences.customAiModel || 'deepseek-chat'}
+                        onChange={(e) => updatePreferences?.({ customAiModel: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="deepseek-chat">DeepSeek-V3 (แชทบอทความเร็วสูง คุยไหลลื่น แนะนำ)</option>
+                        <option value="deepseek-reasoner">DeepSeek-R1 (คิดลึกซึ้ง เหมาะสำหรับคิดโจทย์ซับซ้อน)</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* Custom OpenAI-Compatible Settings */}
+                {(preferences.aiProvider || 'gemini') === 'custom' && (
+                  <div className="space-y-3 p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-600 dark:text-slate-400">API Base URL</label>
+                      <input
+                        type="text"
+                        value={preferences.customAiBaseUrl || ''}
+                        onChange={(e) => updatePreferences?.({ customAiBaseUrl: e.target.value })}
+                        placeholder="https://api.openai.com/v1"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-600 dark:text-slate-400">API Key</label>
+                      <input
+                        type="password"
+                        value={preferences.customAiApiKey || ''}
+                        onChange={(e) => updatePreferences?.({ customAiApiKey: e.target.value })}
+                        placeholder="sk-..."
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-600 dark:text-slate-400">Model Name</label>
+                      <input
+                        type="text"
+                        value={preferences.customAiModel || ''}
+                        onChange={(e) => updatePreferences?.({ customAiModel: e.target.value })}
+                        placeholder="gpt-4o / qwen-plus / claude-3-5-sonnet"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setShowAiSettings(false)}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center gap-1 mt-4"
+                >
+                  <Check className="w-4 h-4 stroke-[2.5px]" /> ยืนยันการตั้งค่าและกลับไปคุยแชท
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 bg-transparent transition-colors">
+                  {messages.length === 0 && (
+                    <div className="text-center text-slate-500 dark:text-slate-400 mt-10">
+                      <Bot className="w-12 h-12 mx-auto mb-3 text-slate-400 dark:text-slate-500 opacity-50" />
+                      <p>{t.aiWelcome}</p>
+                    </div>
+                  )}
+                  {messages.map((msg) => (
+                    <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] p-3.5 rounded-2xl ${msg.role === 'user' ? 'bg-indigo-600/90 backdrop-blur-sm text-white rounded-tr-sm shadow-md shadow-indigo-500/20' : 'glass-panel-subtle text-slate-800 dark:text-slate-200 rounded-tl-sm'}`}>
+                        {msg.images && msg.images.length > 0 && (
+                          <div className={`grid gap-2 mb-2 ${msg.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                            {msg.images.map((img, idx) => (
+                              <img key={idx} src={img} alt={`Uploaded ${idx + 1}`} className="w-full h-auto object-cover max-h-48 rounded-lg border border-white/20" referrerPolicy="no-referrer" />
+                            ))}
+                          </div>
+                        )}
+                        {msg.image && !msg.images && (
+                          <img src={msg.image} alt="Uploaded" className="w-full h-auto rounded-lg mb-2 border border-white/20" referrerPolicy="no-referrer" />
+                        )}
+                        <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {isLoading && (
+                    <div className="flex justify-start">
+                      <div className="glass-panel-subtle p-3.5 rounded-2xl rounded-tl-sm flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-spin" />
+                        <span className="text-sm text-slate-500 dark:text-slate-400">{t.thinking}</span>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                {/* Input */}
+                <div className="p-3 sm:p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border-t border-white/40 dark:border-white/10 transition-colors">
+                  {selectedImages.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-2 max-h-24 overflow-y-auto py-1">
+                      {selectedImages.map((img, idx) => (
+                        <div key={idx} className="relative inline-block shrink-0">
+                          <img src={img} alt={`Preview ${idx}`} className="w-12 h-12 object-cover rounded-xl border border-indigo-500" referrerPolicy="no-referrer" />
+                          <button 
+                            onClick={() => setSelectedImages(prev => prev.filter((_, i) => i !== idx))}
+                            className="absolute -top-1.5 -right-1.5 bg-rose-500 hover:bg-rose-650 text-white p-0.5 rounded-full shadow-lg cursor-pointer animate-fade-in"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleImageSelect}
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-3 glass-button rounded-full text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={toggleListening}
+                      className={`p-3 glass-button rounded-full transition-colors cursor-pointer ${isListening ? 'text-rose-500 animate-pulse' : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
+                      title="Voice Input"
+                    >
+                      {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    </button>
+                    <textarea
+                      ref={inputRef}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
+                      placeholder={t.askAbout}
+                      rows={1}
+                      className="flex-1 px-4 py-3 glass-input rounded-2xl text-sm resize-none min-h-[44px] max-h-32 overflow-y-auto"
+                    />
+                    <button
+                      onClick={handleSend}
+                      disabled={(!input.trim() && selectedImages.length === 0) || isLoading}
+                      className="p-3 glass-button rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </motion.div>
         </>
       )}
@@ -879,3 +1058,126 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
     </>
   );
 });
+
+async function callOpenAiCompatible(
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  systemInstruction: string,
+  messages: any[],
+  currentInput: string,
+  currentImages: string[],
+  declarations: any[]
+) {
+  // Map Gemini-style tools to OpenAI-compatible tools
+  const openAiTools = declarations.map(decl => {
+    const formattedProperties: Record<string, any> = {};
+    const originalProps = decl.parameters?.properties || {};
+    
+    Object.keys(originalProps).forEach(key => {
+      const prop = originalProps[key];
+      const pType = typeof prop.type === 'string' ? prop.type.toLowerCase() : 'string';
+      formattedProperties[key] = {
+        type: pType === 'object' ? 'object' : pType,
+        description: prop.description || ''
+      };
+      if (prop.items) {
+        const itemType = typeof prop.items.type === 'string' ? prop.items.type.toLowerCase() : 'string';
+        formattedProperties[key].items = {
+          type: itemType
+        };
+      }
+    });
+
+    return {
+      type: "function",
+      function: {
+        name: decl.name,
+        description: decl.description || '',
+        parameters: {
+          type: "object",
+          properties: formattedProperties,
+          required: decl.parameters?.required || []
+        }
+      }
+    };
+  });
+
+  // Build messages
+  const formattedMessages: any[] = [
+    { role: "system", content: systemInstruction }
+  ];
+
+  // Add history
+  messages.forEach(m => {
+    formattedMessages.push({
+      role: m.role === 'model' ? 'assistant' : 'user',
+      content: m.text
+    });
+  });
+
+  // Add current message with images if supported
+  let content: any = currentInput || "Please process these slips.";
+  if (currentImages && currentImages.length > 0) {
+    const contentArray: any[] = [{ type: "text", text: currentInput || "Please process these slips." }];
+    currentImages.forEach(img => {
+      contentArray.push({
+        type: "image_url",
+        image_url: {
+          url: img
+        }
+      });
+    });
+    content = contentArray;
+  }
+
+  formattedMessages.push({
+    role: "user",
+    content: content
+  });
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${apiKey}`
+  };
+
+  const body: any = {
+    model: model,
+    messages: formattedMessages,
+    tools: openAiTools,
+    tool_choice: "auto"
+  };
+
+  const url = baseUrl.endsWith('/') ? `${baseUrl}chat/completions` : `${baseUrl}/chat/completions`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`API Error (${res.status}): ${errorText || res.statusText}`);
+  }
+
+  const data = await res.json();
+  const choice = data.choices?.[0];
+  const message = choice?.message;
+
+  // Map response back to Gemini-like format
+  const text = message?.content || "";
+  let functionCalls: any[] | undefined = undefined;
+
+  if (message?.tool_calls && message.tool_calls.length > 0) {
+    functionCalls = message.tool_calls.map((tc: any) => ({
+      name: tc.function.name,
+      args: JSON.parse(tc.function.arguments)
+    }));
+  }
+
+  return {
+    text,
+    functionCalls
+  };
+}

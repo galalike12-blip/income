@@ -33,7 +33,34 @@ export function useUserData(user: User | null) {
       return;
     }
 
-    setLoading(true);
+    // Load from local cache instantly to prevent 0 or empty screen
+    try {
+      const cachedJobs = localStorage.getItem(`online-cache-jobs-${user.uid}`);
+      if (cachedJobs) setFirestoreJobs(JSON.parse(cachedJobs));
+
+      const cachedIncentives = localStorage.getItem(`online-cache-incentives-${user.uid}`);
+      if (cachedIncentives) setFirestoreIncentives(JSON.parse(cachedIncentives));
+
+      const cachedExpenses = localStorage.getItem(`online-cache-expenses-${user.uid}`);
+      if (cachedExpenses) setFirestoreExpenses(JSON.parse(cachedExpenses));
+
+      const cachedGoals = localStorage.getItem(`online-cache-goals-${user.uid}`);
+      if (cachedGoals) setFirestoreGoals(JSON.parse(cachedGoals));
+
+      const cachedPref = localStorage.getItem(`online-cache-preferences-${user.uid}`);
+      if (cachedPref) {
+        setFirestorePreferences(JSON.parse(cachedPref));
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+
+      const cachedLogs = localStorage.getItem(`online-cache-logs-${user.uid}`);
+      if (cachedLogs) setFirestoreLogs(JSON.parse(cachedLogs));
+    } catch (e) {
+      console.warn("Failed to load cached online data:", e);
+      setLoading(true);
+    }
     
     let unsubscribes: (() => void)[] = [];
     
@@ -44,6 +71,7 @@ export function useUserData(user: User | null) {
       unsubscribes.push(onSnapshot(qLogs, (snapshot) => {
         const logsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ActivityLog[];
         setFirestoreLogs(logsData);
+        localStorage.setItem(`online-cache-logs-${user.uid}`, JSON.stringify(logsData));
       }, (error) => {
         console.error("Error fetching logs:", error);
       }));
@@ -54,6 +82,7 @@ export function useUserData(user: User | null) {
       unsubscribes.push(onSnapshot(qJobs, (snapshot) => {
         const jobsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setFirestoreJobs(jobsData);
+        localStorage.setItem(`online-cache-jobs-${user.uid}`, JSON.stringify(jobsData));
       }, (error) => {
         console.error("Error fetching jobs:", error);
       }));
@@ -69,6 +98,7 @@ export function useUserData(user: User | null) {
           }
         });
         setFirestoreIncentives(incData);
+        localStorage.setItem(`online-cache-incentives-${user.uid}`, JSON.stringify(incData));
       }, (error) => {
         console.error("Error fetching incentives:", error);
       }));
@@ -79,6 +109,7 @@ export function useUserData(user: User | null) {
       unsubscribes.push(onSnapshot(qExpenses, (snapshot) => {
         const expensesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ExpenseEntry[];
         setFirestoreExpenses(expensesData);
+        localStorage.setItem(`online-cache-expenses-${user.uid}`, JSON.stringify(expensesData));
       }, (error) => {
         console.error("Error fetching expenses:", error);
       }));
@@ -88,6 +119,7 @@ export function useUserData(user: User | null) {
       unsubscribes.push(onSnapshot(goalsRef, (snapshot) => {
         const goalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Goal[];
         setFirestoreGoals(goalsData);
+        localStorage.setItem(`online-cache-goals-${user.uid}`, JSON.stringify(goalsData));
       }, (error) => {
         console.error("Error fetching goals:", error);
       }));
@@ -96,9 +128,12 @@ export function useUserData(user: User | null) {
       const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
       unsubscribes.push(onSnapshot(prefRef, (docSnap) => {
         if (docSnap.exists()) {
-          setFirestorePreferences(docSnap.data() as UserPreferences);
+          const prefData = docSnap.data() as UserPreferences;
+          setFirestorePreferences(prefData);
+          localStorage.setItem(`online-cache-preferences-${user.uid}`, JSON.stringify(prefData));
         } else {
           setFirestorePreferences({});
+          localStorage.setItem(`online-cache-preferences-${user.uid}`, JSON.stringify({}));
         }
         setLoading(false);
       }, (error) => {
