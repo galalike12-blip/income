@@ -541,7 +541,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
           throw new Error("กรุณาระบุ API Key สำหรับผู้ให้บริการ AI ในเมนูตั้งค่า Chatbot (ปุ่มรูปฟันเฟืองด้านบน) เพื่อใช้งานครับ");
         }
 
-        let baseUrl = "https://api.deepseek.com/v1";
+        let baseUrl = "https://api.deepseek.com";
         let model = preferences.customAiModel || "deepseek-chat";
 
         if (provider === 'custom') {
