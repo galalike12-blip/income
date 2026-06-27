@@ -727,10 +727,13 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
     } catch (error: any) {
       console.error(error);
       const isQuotaError = error?.message?.includes('429') || error?.status === 429;
+      const errorDetail = error?.message || String(error);
       const errorMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'model',
-        text: isQuotaError ? "โควต้าการใช้งาน AI เต็มแล้ว กรุณาลองใหม่ในภายหลัง หรือตรวจสอบการตั้งค่า API Key" : t.errorAi,
+        text: isQuotaError 
+          ? "โควต้าการใช้งาน AI เต็มแล้ว กรุณาลองใหม่ในภายหลัง หรือตรวจสอบการตั้งค่า API Key" 
+          : `${t.errorAi || "AI เกิดข้อผิดพลาด"}\n\n⚠️ **รายละเอียด:** ${errorDetail}`,
       };
       setMessages(prev => [...prev, errorMsg]);
     } finally {

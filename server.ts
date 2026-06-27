@@ -85,12 +85,17 @@ async function startServer() {
         "Authorization": `Bearer ${apiKey}`
       };
 
+      const isReasoner = model.toLowerCase().includes('reasoner') || model.toLowerCase().includes('-r1');
+
       const body: any = {
         model: model,
-        messages: formattedMessages,
-        tools: openAiTools,
-        tool_choice: "auto"
+        messages: formattedMessages
       };
+
+      if (openAiTools && openAiTools.length > 0 && !isReasoner) {
+        body.tools = openAiTools;
+        body.tool_choice = "auto";
+      }
 
       const url = baseUrl.endsWith('/') ? `${baseUrl}chat/completions` : `${baseUrl}/chat/completions`;
 
