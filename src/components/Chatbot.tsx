@@ -528,7 +528,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       }
 
       const response = await ai.models.generateContent({
-        model: preferences.geminiModel || 'gemini-3.5-flash',
+        model: preferences.geminiModel || 'gemini-2.5-flash',
         contents: [...history, { role: 'user', parts }],
         config: {
           systemInstruction: context,
@@ -796,14 +796,14 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               </div>
               <div className="flex items-center gap-2">
                 <select
-                  value={preferences?.geminiModel || 'gemini-3.5-flash'}
+                  value={preferences?.geminiModel || 'gemini-2.5-flash'}
                   onChange={(e) => updatePreferences?.({ geminiModel: e.target.value })}
                   className="bg-indigo-500/50 hover:bg-indigo-500/70 text-white text-xs font-medium px-2 py-1.5 rounded-lg outline-none cursor-pointer transition-colors max-w-[120px] sm:max-w-[140px] truncate border border-white/10"
                 >
-                  <option value="gemini-3.5-flash" className="text-slate-900">3.5 Flash</option>
-                  <option value="gemini-2.5-flash" className="text-slate-900">2.5 Flash</option>
-                  <option value="gemini-2.5-pro" className="text-slate-900">2.5 Pro</option>
-                  <option value="gemini-3.1-pro-preview" className="text-slate-900">3.1 Pro</option>
+                  <option value="gemini-2.5-flash" className="text-slate-900">Gemini 2.5 Flash</option>
+                  <option value="gemini-2.5-pro" className="text-slate-900">Gemini 2.5 Pro</option>
+                  <option value="gemini-1.5-flash" className="text-slate-900">Gemini 1.5 Flash</option>
+                  <option value="gemini-1.5-pro" className="text-slate-900">Gemini 1.5 Pro</option>
                 </select>
                 <button 
                   onClick={() => setIsOpen(false)}
