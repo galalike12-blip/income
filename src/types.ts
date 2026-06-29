@@ -32,7 +32,7 @@ export interface ExpenseEntry {
 
 export interface ActivityLog {
   id: string;
-  type: 'add_job' | 'edit_job' | 'delete_job' | 'add_expense' | 'edit_expense' | 'delete_expense' | 'reset_data' | 'transfer_income';
+  type: 'add_job' | 'edit_job' | 'delete_job' | 'add_expense' | 'edit_expense' | 'delete_expense' | 'reset_data' | 'transfer_income' | 'edit_balance' | 'edit_incentive';
   timestamp: string; // ISO string
   details: string;
   amount?: number;
@@ -54,6 +54,7 @@ export interface UserPreferences {
   salaryPayday?: number;
   hasCompletedOnboarding?: boolean;
   riderMinDailyTarget?: number;
+  geminiModel?: string;
 }
 
 export interface Goal {

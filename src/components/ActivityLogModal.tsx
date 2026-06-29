@@ -22,6 +22,8 @@ export function ActivityLogModal({ isOpen, onClose, logs }: ActivityLogModalProp
         return <Plus className="w-4 h-4 text-emerald-500" />;
       case 'edit_job':
       case 'edit_expense':
+      case 'edit_balance':
+      case 'edit_incentive':
         return <Edit2 className="w-4 h-4 text-indigo-500" />;
       case 'delete_job':
       case 'delete_expense':
@@ -43,6 +45,8 @@ export function ActivityLogModal({ isOpen, onClose, logs }: ActivityLogModalProp
       case 'add_expense': return 'เพิ่มรายจ่าย';
       case 'edit_expense': return 'แก้ไขรายจ่าย';
       case 'delete_expense': return 'ลบรายจ่าย';
+      case 'edit_balance': return 'ปรับปรุงยอดคงเหลือ';
+      case 'edit_incentive': return 'อัปเดตอินเซนต์ทีฟ';
       case 'reset_data': return 'ล้างข้อมูล';
       case 'transfer_income': return 'โอนรายได้';
       default: return type;

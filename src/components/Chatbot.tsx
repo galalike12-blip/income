@@ -510,17 +510,19 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       const parts: any[] = [{ text: currentInput || "Please process these slips." }];
       if (currentImages && currentImages.length > 0) {
         currentImages.forEach(img => {
+          const match = img.match(/^data:([^;]+);base64,/);
+          const mimeType = match ? match[1] : "image/jpeg";
           parts.push({
             inlineData: {
               data: img.split(',')[1],
-              mimeType: "image/jpeg"
+              mimeType: mimeType
             }
           });
         });
       }
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: preferences.geminiModel || 'gemini-3.5-flash',
         contents: [...history, { role: 'user', parts }],
         config: {
           systemInstruction: context,

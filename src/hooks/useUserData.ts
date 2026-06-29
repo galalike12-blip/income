@@ -272,10 +272,12 @@ export function useUserData(user: User | null) {
         transferred,
         updatedAt: serverTimestamp()
       });
+      await addLog('edit_incentive', `อัปเดตอินเซนต์ทีฟ: ${date} (${amount} บาท)`, amount);
     } else {
       const existing = localIncentives[date];
       const transferred = existing && typeof existing !== 'number' ? (existing as any).transferred : false;
       setLocalIncentives(prev => ({ ...prev, [date]: { amount, transferred } }));
+      await addLog('edit_incentive', `อัปเดตอินเซนต์ทีฟ: ${date} (${amount} บาท)`, amount);
     }
   };
 
@@ -668,6 +670,10 @@ export function useUserData(user: User | null) {
       await setDoc(prefRef, cleanUpdates, { merge: true });
     } else {
       setLocalPreferences(prev => ({ ...prev, ...updates }));
+    }
+
+    if (updates.expenseBalance !== undefined) {
+      await addLog('edit_balance', `ปรับปรุงยอดเงินคงเหลือในบัญชี: ${updates.expenseBalance} บาท`, updates.expenseBalance);
     }
   };
 
