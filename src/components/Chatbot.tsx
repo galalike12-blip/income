@@ -41,7 +41,6 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [showAiSettings, setShowAiSettings] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -127,7 +126,6 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
     setIsLoading(true);
 
     try {
-      const provider = preferences.aiProvider || 'gemini';
       const customCategories = preferences.customCategories || ['food', 'fuel', 'rent', 'utilities', 'shopping', 'maintenance', 'other'];
       
       const addExpenseTool: FunctionDeclaration = {
@@ -497,72 +495,42 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       let aiResultText = '';
       let functionCalls: any[] | undefined = undefined;
 
-      if (provider === 'gemini') {
-        if (!process.env.GEMINI_API_KEY) {
-          setMessages(prev => [...prev, { 
-            id: (Date.now() + 1).toString(), 
-            role: 'model', 
-            text: "❌ **ไม่พบ API Key สำหรับใช้ระบบ AI Chatbot (Gemini)**\n\nกรุณาตั้งค่าเซ็ตตัวแปร Environment Variable ชื่อ `GEMINI_API_KEY` ในหน้าตั้งค่าของ Vercel (Vercel Settings -> Environment Variables) หรือในไฟล์ `.env` สำหรับเครื่อง Local จากนั้นทำการ Redeploy หรือรันใหม่อีกครั้งครับ!" 
-          }]);
-          setIsLoading(false);
-          return;
-        }
-
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-        const parts: any[] = [{ text: currentInput || "Please process these slips." }];
-        if (currentImages && currentImages.length > 0) {
-          currentImages.forEach(img => {
-            parts.push({
-              inlineData: {
-                data: img.split(',')[1],
-                mimeType: "image/jpeg"
-              }
-            });
-          });
-        }
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.5-flash',
-          contents: [...history, { role: 'user', parts }],
-          config: {
-            systemInstruction: context,
-            tools: [{ functionDeclarations: [addExpenseTool, setIncentiveTool, addJobTool, updateJobTool, updatePreferencesTool, addLeaveDaysTool, removeLeaveDaysTool] }],
-            thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL }
-          }
-        });
-
-        aiResultText = response.text || '';
-        functionCalls = response.functionCalls;
-      } else {
-        // DeepSeek or Custom AI
-        const apiKey = preferences.customAiApiKey;
-        if (!apiKey) {
-          throw new Error("กรุณาระบุ API Key สำหรับผู้ให้บริการ AI ในเมนูตั้งค่า Chatbot (ปุ่มรูปฟันเฟืองด้านบน) เพื่อใช้งานครับ");
-        }
-
-        let baseUrl = "https://api.deepseek.com";
-        let model = preferences.customAiModel || "deepseek-chat";
-
-        if (provider === 'custom') {
-          baseUrl = preferences.customAiBaseUrl || "https://api.openai.com/v1";
-          model = preferences.customAiModel || "gpt-4o";
-        }
-
-        const openAiRes = await callOpenAiCompatible(
-          baseUrl,
-          apiKey,
-          model,
-          context,
-          messages,
-          currentInput,
-          currentImages,
-          [addExpenseTool, setIncentiveTool, addJobTool, updateJobTool, updatePreferencesTool, addLeaveDaysTool, removeLeaveDaysTool]
-        );
-
-        aiResultText = openAiRes.text;
-        functionCalls = openAiRes.functionCalls;
+      if (!process.env.GEMINI_API_KEY) {
+        setMessages(prev => [...prev, { 
+          id: (Date.now() + 1).toString(), 
+          role: 'model', 
+          text: "❌ **ไม่พบ API Key สำหรับใช้ระบบ AI Chatbot (Gemini)**\n\nกรุณาตั้งค่าเซ็ตตัวแปร Environment Variable ชื่อ `GEMINI_API_KEY` ในหน้าตั้งค่าของ Vercel (Vercel Settings -> Environment Variables) หรือในไฟล์ `.env` สำหรับเครื่อง Local จากนั้นทำการ Redeploy หรือรันใหม่อีกครั้งครับ!" 
+        }]);
+        setIsLoading(false);
+        return;
       }
+
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+      const parts: any[] = [{ text: currentInput || "Please process these slips." }];
+      if (currentImages && currentImages.length > 0) {
+        currentImages.forEach(img => {
+          parts.push({
+            inlineData: {
+              data: img.split(',')[1],
+              mimeType: "image/jpeg"
+            }
+          });
+        });
+      }
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: [...history, { role: 'user', parts }],
+        config: {
+          systemInstruction: context,
+          tools: [{ functionDeclarations: [addExpenseTool, setIncentiveTool, addJobTool, updateJobTool, updatePreferencesTool, addLeaveDaysTool, removeLeaveDaysTool] }],
+          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL }
+        }
+      });
+
+      aiResultText = response.text || '';
+      functionCalls = response.functionCalls;
 
       const aiMsgId = (Date.now() + 1).toString();
       
@@ -727,13 +695,20 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
     } catch (error: any) {
       console.error(error);
       const isQuotaError = error?.message?.includes('429') || error?.status === 429;
+      const isBalanceError = error?.message?.includes('402');
       const errorDetail = error?.message || String(error);
+      
+      let errorText = `${t.errorAi || "AI เกิดข้อผิดพลาด"}\n\n⚠️ **รายละเอียด:** ${errorDetail}`;
+      if (isQuotaError) {
+        errorText = "โควต้าการใช้งาน AI เต็มแล้ว กรุณาลองใหม่ในภายหลัง หรือตรวจสอบการตั้งค่า API Key";
+      } else if (isBalanceError) {
+        errorText = "ยอดเงินในบัญชี API ไม่เพียงพอ (Insufficient Balance) กรุณาเติมเงินเข้าระบบที่ผู้ให้บริการ (เช่น DeepSeek) หรือเปลี่ยนกลับไปใช้ Gemini แบบฟรีในตั้งค่าครับ";
+      }
+
       const errorMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'model',
-        text: isQuotaError 
-          ? "โควต้าการใช้งาน AI เต็มแล้ว กรุณาลองใหม่ในภายหลัง หรือตรวจสอบการตั้งค่า API Key" 
-          : `${t.errorAi || "AI เกิดข้อผิดพลาด"}\n\n⚠️ **รายละเอียด:** ${errorDetail}`,
+        text: errorText,
       };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
@@ -813,13 +788,6 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                 <h3 className="font-semibold">{t.aiAssistant}</h3>
               </div>
               <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setShowAiSettings(!showAiSettings)}
-                  className={`p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer ${showAiSettings ? 'bg-white/20' : ''}`}
-                  title="AI Provider Settings"
-                >
-                  <Settings2 className="w-4 h-4" />
-                </button>
                 <button 
                   onClick={() => setIsOpen(false)}
                   className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer"
@@ -829,133 +797,8 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               </div>
             </div>
 
-            {showAiSettings ? (
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-slate-50 dark:bg-slate-900 transition-colors">
-                <div className="flex items-center gap-2 mb-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-                  <Settings2 className="w-4 h-4 text-indigo-500" />
-                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">ตั้งค่า AI Assistant (เลือกสลับโมเดล)</h4>
-                </div>
-                
-                {/* Select AI Provider */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400">ผู้ให้บริการ AI (AI Provider)</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { id: 'gemini', label: 'Gemini', desc: 'ผู้จัดเตรียม (ฟรี)' },
-                      { id: 'deepseek', label: 'DeepSeek', desc: 'คุ้มค่าและเก่ง' },
-                      { id: 'custom', label: 'Custom', desc: 'ตั้งค่าเอง' }
-                    ].map(p => {
-                      const isSelected = (preferences.aiProvider || 'gemini') === p.id;
-                      return (
-                        <button
-                          key={p.id}
-                          onClick={() => updatePreferences?.({ aiProvider: p.id as any })}
-                          className={`p-2.5 rounded-xl border flex flex-col items-center text-center justify-center transition-all cursor-pointer ${
-                            isSelected 
-                              ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500 text-indigo-600 dark:text-indigo-400 shadow-sm font-black' 
-                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750'
-                          }`}
-                        >
-                          <span className="text-xs font-bold">{p.label}</span>
-                          <span className="text-[9px] opacity-65 mt-0.5">{p.desc}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Gemini Info */}
-                {(preferences.aiProvider || 'gemini') === 'gemini' && (
-                  <div className="p-3.5 bg-indigo-50/50 dark:bg-indigo-950/10 rounded-2xl border border-indigo-100/50 dark:border-indigo-900/20 text-xs text-slate-500 dark:text-slate-400 space-y-1.5 leading-relaxed">
-                    <p className="font-bold text-indigo-600 dark:text-indigo-400">Google Gemini 3.5 Flash (เริ่มต้น)</p>
-                    <p>ใช้โมเดลของระบบที่ทำงานได้ทันที ไม่จำเป็นต้องป้อน API Key เหมาะสำหรับการใช้งานทั่วไป อ่านสลิป และบุกเบิกการบันทึกบัญชีขับรถครับ</p>
-                  </div>
-                )}
-
-                {/* DeepSeek Key Input */}
-                {(preferences.aiProvider || 'gemini') === 'deepseek' && (
-                  <div className="space-y-3 p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1">
-                        <Key className="w-3.5 h-3.5 text-indigo-500" />
-                        DeepSeek API Key
-                      </label>
-                      <input
-                        type="password"
-                        value={preferences.customAiApiKey || ''}
-                        onChange={(e) => updatePreferences?.({ customAiApiKey: e.target.value })}
-                        placeholder="sk-..."
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      />
-                      <p className="text-[10px] text-slate-400">สมัครรับคีย์และราคาถูกมากได้ที่ <a href="https://platform.deepseek.com" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline font-bold">platform.deepseek.com</a> (มีฟรีโค้ดต้อนรับเมื่อเปิดบัญชี)</p>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1">
-                        <Cpu className="w-3.5 h-3.5 text-indigo-500" />
-                        โมเดล (Model Selection)
-                      </label>
-                      <select
-                        value={preferences.customAiModel || 'deepseek-chat'}
-                        onChange={(e) => updatePreferences?.({ customAiModel: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      >
-                        <option value="deepseek-chat">DeepSeek-V3 (แชทบอทความเร็วสูง คุยไหลลื่น แนะนำ)</option>
-                        <option value="deepseek-reasoner">DeepSeek-R1 (คิดลึกซึ้ง เหมาะสำหรับคิดโจทย์ซับซ้อน)</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-
-                {/* Custom OpenAI-Compatible Settings */}
-                {(preferences.aiProvider || 'gemini') === 'custom' && (
-                  <div className="space-y-3 p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600 dark:text-slate-400">API Base URL</label>
-                      <input
-                        type="text"
-                        value={preferences.customAiBaseUrl || ''}
-                        onChange={(e) => updatePreferences?.({ customAiBaseUrl: e.target.value })}
-                        placeholder="https://api.openai.com/v1"
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600 dark:text-slate-400">API Key</label>
-                      <input
-                        type="password"
-                        value={preferences.customAiApiKey || ''}
-                        onChange={(e) => updatePreferences?.({ customAiApiKey: e.target.value })}
-                        placeholder="sk-..."
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600 dark:text-slate-400">Model Name</label>
-                      <input
-                        type="text"
-                        value={preferences.customAiModel || ''}
-                        onChange={(e) => updatePreferences?.({ customAiModel: e.target.value })}
-                        placeholder="gpt-4o / qwen-plus / claude-3-5-sonnet"
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  onClick={() => setShowAiSettings(false)}
-                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center gap-1 mt-4"
-                >
-                  <Check className="w-4 h-4 stroke-[2.5px]" /> ยืนยันการตั้งค่าและกลับไปคุยแชท
-                </button>
-              </div>
-            ) : (
-              <>
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 bg-transparent transition-colors">
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 bg-transparent transition-colors">
                   {messages.length === 0 && (
                     <div className="text-center text-slate-500 dark:text-slate-400 mt-10">
                       <Bot className="w-12 h-12 mx-auto mb-3 text-slate-400 dark:text-slate-500 opacity-50" />
@@ -1052,8 +895,6 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                     </button>
                   </div>
                 </div>
-              </>
-            )}
           </motion.div>
         </>
       )}
@@ -1061,39 +902,3 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
     </>
   );
 });
-
-async function callOpenAiCompatible(
-  baseUrl: string,
-  apiKey: string,
-  model: string,
-  systemInstruction: string,
-  messages: any[],
-  currentInput: string,
-  currentImages: string[],
-  declarations: any[]
-) {
-  const res = await fetch("/api/chat", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      baseUrl,
-      apiKey,
-      model,
-      systemInstruction,
-      messages,
-      currentInput,
-      currentImages,
-      declarations
-    })
-  });
-
-  if (!res.ok) {
-    const errorJson = await res.json().catch(() => ({}));
-    const errorMsg = errorJson.error || res.statusText;
-    throw new Error(`API Proxy Error (${res.status}): ${errorMsg}`);
-  }
-
-  return await res.json();
-}
