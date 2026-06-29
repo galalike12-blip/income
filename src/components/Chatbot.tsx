@@ -60,12 +60,15 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
-          setSelectedImages(prev => [...prev, event.target!.result as string]);
+          const imgUrl = event.target.result as string;
+          // setSelectedImages(prev => [...prev, imgUrl]);
+          handleSend('', [imgUrl]);
           if (onClearSharedFile) onClearSharedFile();
         }
       };
       reader.readAsDataURL(sharedFile);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharedFile, isOpen, onClearSharedFile]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,7 +87,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         }
         processed++;
         if (processed === files.length) {
-          setSelectedImages(prev => [...prev, ...loadedImages]);
+          handleSend(input, loadedImages);
         }
       };
       reader.readAsDataURL(file);
@@ -109,18 +112,21 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
     reader.readAsText(file);
   };
 
-  const handleSend = async () => {
-    if ((!input.trim() && selectedImages.length === 0) || isLoading) return;
+  const handleSend = async (overrideInput?: string, overrideImages?: string[]) => {
+    const finalInput = overrideInput !== undefined ? overrideInput : input;
+    const finalImages = overrideImages !== undefined ? overrideImages : selectedImages;
+
+    if ((!finalInput.trim() && finalImages.length === 0) || isLoading) return;
 
     const userMsg: ChatMessage = { 
       id: Date.now().toString(), 
       role: 'user', 
-      text: input,
-      images: selectedImages.length > 0 ? selectedImages : undefined
+      text: finalInput,
+      images: finalImages.length > 0 ? finalImages : undefined
     };
     setMessages(prev => [...prev, userMsg]);
-    const currentInput = input;
-    const currentImages = [...selectedImages];
+    const currentInput = finalInput;
+    const currentImages = [...finalImages];
     setInput('');
     setSelectedImages([]);
     setIsLoading(true);
@@ -789,7 +795,17 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                 <Bot className="w-5 h-5" />
                 <h3 className="font-semibold">{t.aiAssistant}</h3>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
+                <select
+                  value={preferences?.geminiModel || 'gemini-3.5-flash'}
+                  onChange={(e) => updatePreferences?.({ geminiModel: e.target.value })}
+                  className="bg-indigo-500/50 hover:bg-indigo-500/70 text-white text-xs font-medium px-2 py-1.5 rounded-lg outline-none cursor-pointer transition-colors max-w-[120px] sm:max-w-[140px] truncate border border-white/10"
+                >
+                  <option value="gemini-3.5-flash" className="text-slate-900">3.5 Flash</option>
+                  <option value="gemini-2.5-flash" className="text-slate-900">2.5 Flash</option>
+                  <option value="gemini-2.5-pro" className="text-slate-900">2.5 Pro</option>
+                  <option value="gemini-3.1-pro-preview" className="text-slate-900">3.1 Pro</option>
+                </select>
                 <button 
                   onClick={() => setIsOpen(false)}
                   className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer"

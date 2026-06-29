@@ -224,25 +224,6 @@ export function Header({
               </div>
             )}
 
-            {/* Gemini Model Selector */}
-            <div className="flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors">
-              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                <span className="text-sm font-medium">
-                  {currentLang === 'th' ? 'โมเดล Gemini (AI Model)' : 'Gemini Model'}
-                </span>
-              </div>
-              <select
-                value={preferences?.geminiModel || 'gemini-3.5-flash'}
-                onChange={(e) => updatePreferences({ geminiModel: e.target.value })}
-                className="bg-transparent text-sm font-medium text-slate-900 dark:text-white outline-none cursor-pointer text-right max-w-[140px] truncate"
-              >
-                <option value="gemini-3.5-flash" className="text-slate-900">Gemini 3.5 Flash</option>
-                <option value="gemini-2.5-flash" className="text-slate-900">Gemini 2.5 Flash</option>
-                <option value="gemini-2.5-pro" className="text-slate-900">Gemini 2.5 Pro</option>
-                <option value="gemini-3.1-pro-preview" className="text-slate-900">Gemini 3.1 Pro</option>
-              </select>
-            </div>
-
             {/* Install App */}
             {onInstall && (
               <button 
