@@ -113,8 +113,8 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
   };
 
   const handleSend = async (overrideInput?: string, overrideImages?: string[]) => {
-    const finalInput = overrideInput !== undefined ? overrideInput : input;
-    const finalImages = overrideImages !== undefined ? overrideImages : selectedImages;
+    const finalInput = typeof overrideInput === 'string' ? overrideInput : input;
+    const finalImages = Array.isArray(overrideImages) ? overrideImages : selectedImages;
 
     if ((!finalInput.trim() && finalImages.length === 0) || isLoading) return;
 
@@ -532,8 +532,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         contents: [...history, { role: 'user', parts }],
         config: {
           systemInstruction: context,
-          tools: [{ functionDeclarations: [addExpenseTool, setIncentiveTool, addJobTool, updateJobTool, updatePreferencesTool, addLeaveDaysTool, removeLeaveDaysTool] }],
-          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL }
+          tools: [{ functionDeclarations: [addExpenseTool, setIncentiveTool, addJobTool, updateJobTool, updatePreferencesTool, addLeaveDaysTool, removeLeaveDaysTool] }]
         }
       });
 
@@ -905,7 +904,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                       className="flex-1 px-4 py-3 glass-input rounded-2xl text-sm resize-none min-h-[44px] max-h-32 overflow-y-auto"
                     />
                     <button
-                      onClick={handleSend}
+                      onClick={() => handleSend()}
                       disabled={(!input.trim() && selectedImages.length === 0) || isLoading}
                       className="p-3 glass-button rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
