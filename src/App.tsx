@@ -451,12 +451,14 @@ function MainContent() {
         }}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        onOpenAI={() => setIsChatOpen(prev => !prev)}
-        onLongPressAI={() => {
+        onOpenAI={() => {
           if (!isChatOpen) setIsChatOpen(true);
           setTimeout(() => {
             chatbotRef.current?.toggleListening();
           }, 300);
+        }}
+        onLongPressAI={() => {
+          setIsChatOpen(prev => !prev);
         }}
       />
       <ActivityLogModal 

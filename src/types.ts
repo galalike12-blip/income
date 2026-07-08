@@ -56,6 +56,7 @@ export interface UserPreferences {
   riderMinDailyTarget?: number;
   geminiModel?: string;
   customAiInstructions?: string;
+  enableVoiceFeedback?: boolean;
 }
 
 export interface Goal {

@@ -1,11 +1,44 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, ThinkingLevel, Type, FunctionDeclaration } from '@google/genai';
-import { MessageCircle, X, Send, Bot, Loader2, Camera, Image as ImageIcon, FileJson, Mic, MicOff, Settings2, Key, Cpu, Check } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, Loader2, Camera, Image as ImageIcon, FileJson, Mic, MicOff, Settings2, Key, Cpu, Check, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { JobEntry, ExpenseEntry, UserPreferences } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { toast } from 'sonner';
+
+const speakText = (text: string) => {
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'th-TH';
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      
+      const setVoiceAndSpeak = () => {
+        const voices = window.speechSynthesis.getVoices();
+        const thaiVoice = voices.find(v => v.lang.includes('th') || v.lang.toLowerCase().includes('thai'));
+        if (thaiVoice) {
+          utterance.voice = thaiVoice;
+        }
+        window.speechSynthesis.speak(utterance);
+      };
+
+      if (window.speechSynthesis.getVoices().length > 0) {
+        setVoiceAndSpeak();
+      } else {
+        window.speechSynthesis.onvoiceschanged = () => {
+          setVoiceAndSpeak();
+          window.speechSynthesis.onvoiceschanged = null;
+        };
+        window.speechSynthesis.speak(utterance);
+      }
+    } catch (e) {
+      console.warn('Speech synthesis error:', e);
+    }
+  }
+};
 
 interface ChatMessage {
   id: string;
@@ -35,6 +68,12 @@ interface ChatbotProps {
 export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, incentives, addExpense, setIncentive, addJob, updateJob, preferences, updatePreferences, isOpen, setIsOpen, sharedFile, onClearSharedFile, untransferredIncentivesAmount }, ref) => {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
+
+  const speakFeedback = (text: string) => {
+    if (preferences.enableVoiceFeedback !== false) {
+      speakText(text);
+    }
+  };
   
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -607,13 +646,16 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
             const bal = (res as any)?.balanceAfter;
             if (bal !== undefined) {
               toast.success(`${t.synced || 'เพิ่มรายจ่ายสำเร็จ'} (ยอดคงเหลือ ฿${bal.toLocaleString()})`);
+              speakFeedback(`จ่ายไป ${args.amount} บาท ยอดคงเหลือคงคลัง ${bal} บาท ค่ะ`);
             } else {
               toast.success(t.synced || 'เพิ่มรายจ่ายสำเร็จ');
+              speakFeedback(`จ่ายไป ${args.amount} บาท สำเร็จแล้วค่ะ`);
             }
           } else if (call.name === 'setIncentive') {
             const args = call.args as any;
             setIncentive(args.date, args.amount);
             toast.success(t.synced || 'บันทึกอินเซนทีฟสำเร็จ');
+            speakFeedback(`บันทึกเงินพิเศษ ${args.amount} บาท เรียบร้อยค่ะ`);
           } else if (call.name === 'addJob' && addJob) {
             const args = call.args as any;
             const finalAppNet = args.appNetIncome;
@@ -630,6 +672,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               })()
             });
             toast.success(t.synced || 'เพิ่มรายรับสำเร็จ');
+            speakFeedback(`บันทึกรายรับ ได้รับเงิน ${finalAppNet} บาท สำเร็จแล้วค่ะ`);
           } else if (call.name === 'updateJob' && updateJob) {
             const args = call.args as any;
             const jobToUpdate = jobs.find(j => j.id === args.id);
@@ -802,13 +845,25 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               exit={{ opacity: 0, y: 20, scale: 0.95 }}
               className="fixed inset-x-2 bottom-28 sm:inset-auto sm:bottom-28 sm:right-6 w-auto sm:w-full sm:max-w-sm h-[60vh] sm:h-[600px] glass-panel rounded-2xl sm:rounded-3xl flex flex-col overflow-hidden z-50 transition-colors pb-[-14px]"
             >
-            {/* Header */}
+             {/* Header */}
             <div className="bg-indigo-600/95 backdrop-blur-xl p-3 sm:p-5 flex justify-between items-center text-white border-b border-white/20">
               <div className="flex items-center gap-2">
                 <Bot className="w-5 h-5" />
                 <h3 className="font-semibold">{t.aiAssistant}</h3>
               </div>
               <div className="flex items-center gap-2">
+                {/* Voice feedback toggle */}
+                <button
+                  onClick={() => updatePreferences?.({ enableVoiceFeedback: preferences.enableVoiceFeedback === false })}
+                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white"
+                  title={preferences.enableVoiceFeedback !== false ? "ปิดเสียงพูดตอบกลับ" : "เปิดเสียงพูดตอบกลับ"}
+                >
+                  {preferences.enableVoiceFeedback !== false ? (
+                    <Volume2 className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <VolumeX className="w-4 h-4 text-white/50" />
+                  )}
+                </button>
                 <select
                   value={preferences?.geminiModel || 'gemini-3.5-flash'}
                   onChange={(e) => updatePreferences?.({ geminiModel: e.target.value })}
