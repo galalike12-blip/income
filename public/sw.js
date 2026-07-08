@@ -49,7 +49,17 @@ self.addEventListener('fetch', (event) => {
     event.respondWith((async () => {
       try {
         const formData = await event.request.formData();
-        const file = formData.get('receipt');
+        let file = formData.get('receipt');
+        
+        // Robust fallback: if 'receipt' field is missing or empty, find the first File/Blob field
+        if (!file || (typeof file === 'object' && !file.name)) {
+          for (const [key, value] of formData.entries()) {
+            if (value && typeof value === 'object' && (value.name || value.size)) {
+              file = value;
+              break;
+            }
+          }
+        }
         
         if (file) {
           sharedFile = file; // Store temporarily
@@ -69,7 +79,8 @@ self.addEventListener('fetch', (event) => {
         console.error('Error handling share target POST', err);
       }
       
-      return Response.redirect('/', 303);
+      // Safari iOS requires an absolute URL for Response.redirect inside Service Worker fetch event
+      return Response.redirect(url.origin + '/', 303);
     })());
     return;
   }

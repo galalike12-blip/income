@@ -87,19 +87,32 @@ function MainContent() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', handleMessage);
       
-      // Request shared file if any
-      navigator.serviceWorker.ready.then((registration) => {
-        if (registration.active) {
-          registration.active.postMessage({ type: 'GET_SHARED_FILE' });
+      const requestSharedFile = () => {
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({ type: 'GET_SHARED_FILE' });
         }
-      });
-    }
+        navigator.serviceWorker.ready.then((registration) => {
+          if (registration.active) {
+            registration.active.postMessage({ type: 'GET_SHARED_FILE' });
+          }
+        });
+      };
 
-    return () => {
-      if ('serviceWorker' in navigator) {
+      // Request immediately
+      requestSharedFile();
+      
+      // Request again with minor delays to handle slow Safari service worker boots
+      const timer1 = setTimeout(requestSharedFile, 500);
+      const timer2 = setTimeout(requestSharedFile, 1500);
+      const timer3 = setTimeout(requestSharedFile, 3000);
+
+      return () => {
         navigator.serviceWorker.removeEventListener('message', handleMessage);
-      }
-    };
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+        clearTimeout(timer3);
+      };
+    }
   }, []);
 
   useEffect(() => {

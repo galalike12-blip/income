@@ -6,39 +6,8 @@ import { JobEntry, ExpenseEntry, UserPreferences } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { toast } from 'sonner';
+import { speakText } from '../utils/speech';
 
-const speakText = (text: string) => {
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'th-TH';
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      
-      const setVoiceAndSpeak = () => {
-        const voices = window.speechSynthesis.getVoices();
-        const thaiVoice = voices.find(v => v.lang.includes('th') || v.lang.toLowerCase().includes('thai'));
-        if (thaiVoice) {
-          utterance.voice = thaiVoice;
-        }
-        window.speechSynthesis.speak(utterance);
-      };
-
-      if (window.speechSynthesis.getVoices().length > 0) {
-        setVoiceAndSpeak();
-      } else {
-        window.speechSynthesis.onvoiceschanged = () => {
-          setVoiceAndSpeak();
-          window.speechSynthesis.onvoiceschanged = null;
-        };
-        window.speechSynthesis.speak(utterance);
-      }
-    } catch (e) {
-      console.warn('Speech synthesis error:', e);
-    }
-  }
-};
 
 interface ChatMessage {
   id: string;
@@ -646,7 +615,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
             const bal = (res as any)?.balanceAfter;
             if (bal !== undefined) {
               toast.success(`${t.synced || 'เพิ่มรายจ่ายสำเร็จ'} (ยอดคงเหลือ ฿${bal.toLocaleString()})`);
-              speakFeedback(`จ่ายไป ${args.amount} บาท ยอดคงเหลือคงคลัง ${bal} บาท ค่ะ`);
+              speakFeedback(`จ่ายไป ${args.amount} บาท ยอดคงเหลือ ${bal} บาท ค่ะ`);
             } else {
               toast.success(t.synced || 'เพิ่มรายจ่ายสำเร็จ');
               speakFeedback(`จ่ายไป ${args.amount} บาท สำเร็จแล้วค่ะ`);
@@ -672,7 +641,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               })()
             });
             toast.success(t.synced || 'เพิ่มรายรับสำเร็จ');
-            speakFeedback(`บันทึกรายรับ ได้รับเงิน ${finalAppNet} บาท สำเร็จแล้วค่ะ`);
+            speakFeedback(`ได้รับเงิน ${finalAppNet} บาท สำเร็จแล้วค่ะ`);
           } else if (call.name === 'updateJob' && updateJob) {
             const args = call.args as any;
             const jobToUpdate = jobs.find(j => j.id === args.id);
