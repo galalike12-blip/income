@@ -482,9 +482,6 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
                             <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] bg-[length:16px_16px] animate-[pulse_10s_infinite_linear] opacity-35" />
                           </motion.div>
                         </div>
-                        <div className="absolute -top-7 right-0 text-[10px] font-black bg-indigo-600 dark:bg-indigo-500 text-white px-2 py-0.5 rounded-full shadow-md animate-bounce">
-                          {((summary.grossIncome / effectiveDailyTarget) * 100).toFixed(0)}%
-                        </div>
                       </div>
 
                       <div className="flex justify-between items-center text-[10px] sm:text-xs">

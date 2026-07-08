@@ -211,7 +211,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
 
       const updatePreferencesTool: FunctionDeclaration = {
         name: "updatePreferences",
-        description: "Update the user's dashboard or expenses widget layouts.",
+        description: "Update the user's dashboard, expenses widget layouts, or custom AI memory/instructions.",
         parameters: {
           type: Type.OBJECT,
           properties: {
@@ -224,6 +224,10 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               type: Type.ARRAY, 
               items: { type: Type.STRING },
               description: "The layout order of expenses widgets. Allowed values: 'summary', 'fixed', 'variable'." 
+            },
+            customAiInstructions: {
+              type: Type.STRING,
+              description: "Custom instructions, rules, or behavior settings that the AI assistant must remember and adhere to (e.g. 'เมื่อพิมพ์แค่ตัวเลขอย่างเดียวให้ตีว่าเป็นการเพิ่มงาน รายรับสุทธิเลย'). Call this when the user explicitly instructs you to remember a rule, command, preference, or customize how you respond/react to their messages."
             }
           }
         }
@@ -436,6 +440,11 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       const context = `You are an AI assistant for an income and tip tracking app. 
       Respond concisely and briefly.
 
+      ${preferences.customAiInstructions ? `CRITICAL USER CUSTOM MEMORY/INSTRUCTIONS:
+      You MUST strictly remember and adhere to this customized user rule:
+      "${preferences.customAiInstructions}"
+      If the user's message matches this rule, trigger the appropriate action/tool immediately without requiring further confirmation.` : ''}
+
       Today's date is: ${new Date(Date.now() - (new Date().getTimezoneOffset() * 60000)).toISOString().split('T')[0]} (In YYYY-MM-DD local format)
       
       CRITICAL: When performing calculations or stating balances/workdays/off-days/incentives, you MUST use the provided numbers below exactly. Do not hallucinate or estimate numbers.
@@ -640,9 +649,14 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
             const updates: Partial<UserPreferences> = {};
             if (args.dashboardWidgetOrder) updates.dashboardWidgetOrder = args.dashboardWidgetOrder;
             if (args.expensesWidgetOrder) updates.expensesWidgetOrder = args.expensesWidgetOrder;
+            if (args.customAiInstructions !== undefined) updates.customAiInstructions = args.customAiInstructions;
             if (Object.keys(updates).length > 0) {
               updatePreferences(updates);
-              toast.success('อัปเดตวิดเจ็ตสำเร็จ');
+              if (args.customAiInstructions !== undefined) {
+                toast.success('บันทึกคำสั่งจดจำของ AI สำเร็จ');
+              } else {
+                toast.success('อัปเดตวิดเจ็ตสำเร็จ');
+              }
             }
           } else if (call.name === 'addLeaveDays' && updatePreferences) {
             const args = call.args as any;
@@ -814,6 +828,23 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                 </button>
               </div>
             </div>
+            
+            {/* Custom AI Rule memory alert */}
+            {preferences.customAiInstructions && (
+              <div className="bg-indigo-50/70 dark:bg-indigo-950/35 border-b border-indigo-100/30 dark:border-indigo-900/10 px-4 py-2.5 flex items-center justify-between text-xs text-indigo-600 dark:text-indigo-400 gap-2 shrink-0 animate-fade-in">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="shrink-0 font-black bg-indigo-100 dark:bg-indigo-900/50 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider">Memory</span>
+                  <span className="truncate font-semibold text-[11px]">{preferences.customAiInstructions}</span>
+                </div>
+                <button
+                  onClick={() => updatePreferences?.({ customAiInstructions: '' })}
+                  className="shrink-0 p-1 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 cursor-pointer transition-colors"
+                  title="ลบความจำ"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 bg-transparent transition-colors">

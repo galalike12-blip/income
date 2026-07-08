@@ -641,6 +641,71 @@ export function Summary({
     };
   }, [activeTab, jobs, expenses, incentives, rawIncentives, expenseBalance, selectedDay, selectedMonth, selectedYear, startDate, endDate, weekOffset]);
 
+  const subplotPeriods = useMemo(() => {
+    if (activeTab === 'monthly') {
+      const [curYStr, curMStr] = selectedMonth.split('-');
+      const curY = parseInt(curYStr);
+      const curM = parseInt(curMStr) - 1; // 0-indexed month
+      
+      return Array.from({ length: 4 }, (_, i) => {
+        const date = new Date(curY, curM - i, 1);
+        const monthName = date.toLocaleDateString(currentLang === 'th' ? 'th-TH' : 'en-US', { month: 'short' });
+        const label = i === 0 
+          ? (currentLang === 'th' ? `เดือนนี้ (${monthName})` : `This Month (${monthName})`)
+          : i === 1 
+          ? (currentLang === 'th' ? `เดือนที่แล้ว (${monthName})` : `Last Month (${monthName})`)
+          : (currentLang === 'th' ? `${monthName} (${date.getFullYear() + 543})` : `${monthName} (${date.getFullYear()})`);
+        return {
+          key: `v${i}`,
+          label,
+          color: i === 0 ? '#4f46e5' : i === 1 ? '#0ea5e9' : i === 2 ? '#10b981' : '#f43f5e'
+        };
+      });
+    } else {
+      const curY = parseInt(selectedYear);
+      return Array.from({ length: 4 }, (_, i) => {
+        const yr = curY - i;
+        const displayYr = currentLang === 'th' ? yr + 543 : yr;
+        const label = i === 0 
+          ? (currentLang === 'th' ? `ปีนี้ (${displayYr})` : `This Year (${displayYr})`)
+          : i === 1 
+          ? (currentLang === 'th' ? `ปีที่แล้ว (${displayYr})` : `Last Year (${displayYr})`)
+          : `${displayYr}`;
+        return {
+          key: `v${i}`,
+          label,
+          color: i === 0 ? '#4f46e5' : i === 1 ? '#0ea5e9' : i === 2 ? '#10b981' : '#f43f5e'
+        };
+      });
+    }
+  }, [activeTab, selectedMonth, selectedYear, currentLang]);
+
+  const maxYValue = useMemo(() => {
+    if (!rangeData.overlappingData || rangeData.overlappingData.length === 0) return 1000;
+    let maxVal = 0;
+    rangeData.overlappingData.forEach(item => {
+      ['v0', 'v1', 'v2', 'v3'].forEach(k => {
+        const val = item[k];
+        if (typeof val === 'number' && val > maxVal) {
+          maxVal = val;
+        }
+      });
+    });
+    return maxVal > 0 ? Math.ceil(maxVal * 1.1) : 1000;
+  }, [rangeData.overlappingData]);
+
+  const subplotTotals = useMemo(() => {
+    const totals: Record<string, number> = { v0: 0, v1: 0, v2: 0, v3: 0 };
+    if (!rangeData.overlappingData) return totals;
+    rangeData.overlappingData.forEach(item => {
+      totals.v0 += (item.v0 || 0);
+      totals.v1 += (item.v1 || 0);
+      totals.v2 += (item.v2 || 0);
+      totals.v3 += (item.v3 || 0);
+    });
+    return totals;
+  }, [rangeData.overlappingData]);
+
   const subTabs: { id: SubTab, label: string }[] = [
     { id: 'daily', label: currentLang === 'th' ? 'รายวัน' : 'Daily' },
     { id: 'weekly', label: currentLang === 'th' ? 'รายสัปดาห์' : 'Weekly' },
@@ -1152,41 +1217,81 @@ export function Summary({
       </div>
       
       {/* Historical Overlap Line Chart */}
-{ (activeTab === 'monthly' || activeTab === 'yearly') && rangeData.overlappingData?.length > 0 && (
+      { (activeTab === 'monthly' || activeTab === 'yearly') && rangeData.overlappingData?.length > 0 && (
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass-panel p-6 rounded-[2rem] mt-6"
+          className="glass-panel p-6 sm:p-8 rounded-[2rem] mt-6"
         >
-          <div className="flex items-center justify-between mb-6">
-            <h4 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2 uppercase tracking-widest">
-              <TrendingUp className="w-4 h-4 text-indigo-500" />
-              เปรียบเทียบย้อนหลัง (4 {activeTab === 'monthly' ? 'เดือน' : 'ปี'})
-            </h4>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+            <div>
+              <h4 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2 uppercase tracking-widest">
+                <TrendingUp className="w-4 h-4 text-indigo-500" />
+                เปรียบเทียบย้อนหลังแยกราย{activeTab === 'monthly' ? 'เดือน' : 'ปี'} (Small Multiples)
+              </h4>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-bold">
+                มาตราส่วนแกน Y เดียวกันทุกกราฟเพื่อให้เปรียบเทียบขนาดรายวันได้อย่างเที่ยงตรง
+              </p>
+            </div>
           </div>
-          <div className="h-[250px] w-full mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={rangeData.overlappingData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis 
-                  dataKey={activeTab === 'monthly' ? 'day' : 'month'} 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 9, fill: '#64748b', fontWeight: 'bold' }}
-                  minTickGap={15}
-                />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 'bold' }} width={45} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px' }}
-                  formatter={(value: number, name: string) => [`฿${value.toLocaleString()}`, name === 'v0' ? (activeTab === 'monthly' ? 'เดือนนี้' : 'ปีนี้') : name === 'v1' ? (activeTab === 'monthly' ? 'เดือนที่แล้ว' : 'ปีที่แล้ว') : name === 'v2' ? (activeTab === 'monthly' ? '2 เดือนที่แล้ว' : '2 ปีที่แล้ว') : (activeTab === 'monthly' ? '3 เดือนที่แล้ว' : '3 ปีที่แล้ว')]}
-                />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '15px' }} formatter={(value) => <span className="font-medium text-slate-600 dark:text-slate-300">{value === 'v0' ? (activeTab === 'monthly' ? 'เดือนนี้' : 'ปีนี้') : value === 'v1' ? (activeTab === 'monthly' ? 'เดือนที่แล้ว' : 'ปีที่แล้ว') : value === 'v2' ? (activeTab === 'monthly' ? '2 เดือนที่แล้ว' : '2 ปีที่แล้ว') : (activeTab === 'monthly' ? '3 เดือนที่แล้ว' : '3 ปีที่แล้ว')}</span> } />
-                <Line type="monotone" dataKey="v0" stroke="#4f46e5" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, fill: '#4f46e5', stroke: '#fff', strokeWidth: 2 }} />
-                <Line type="monotone" dataKey="v1" stroke="#0ea5e9" strokeWidth={2.5} dot={{ r: 0 }} activeDot={{ r: 4, fill: '#0ea5e9', stroke: '#fff', strokeWidth: 2 }} />
-                <Line type="monotone" dataKey="v2" stroke="#10b981" strokeWidth={2} strokeOpacity={0.7} dot={{ r: 0 }} activeDot={{ r: 4, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }} />
-                <Line type="monotone" dataKey="v3" stroke="#f43f5e" strokeWidth={1.5} strokeOpacity={0.6} strokeDasharray="4 4" dot={{ r: 0 }} activeDot={{ r: 4, fill: '#f43f5e', stroke: '#fff', strokeWidth: 2 }} />
-              </LineChart>
-            </ResponsiveContainer>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {subplotPeriods.map((period) => {
+              const total = subplotTotals[period.key];
+              return (
+                <div 
+                  key={period.key} 
+                  className="bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/30 p-4 rounded-2xl flex flex-col justify-between hover:border-slate-200 dark:hover:border-slate-600/30 transition-all"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="text-xs font-black" style={{ color: period.color }}>
+                        {period.label}
+                      </p>
+                      <p className="text-sm font-black text-slate-800 dark:text-white mt-1">
+                        ฿{total.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="h-[140px] w-full mt-3">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={rangeData.overlappingData} margin={{ top: 5, right: 10, left: -25, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.4} />
+                        <XAxis 
+                          dataKey={activeTab === 'monthly' ? 'day' : 'month'} 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fontSize: 8, fill: '#94a3b8', fontWeight: 'bold' }}
+                          minTickGap={10}
+                        />
+                        <YAxis 
+                          domain={[0, maxYValue]} 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fontSize: 8, fill: '#94a3b8', fontWeight: 'bold' }} 
+                          width={30}
+                          tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(0)}k` : val}
+                        />
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', fontSize: '10px' }}
+                          formatter={(value: number) => [`฿${value.toLocaleString()}`, 'รายได้']}
+                          labelFormatter={(label) => activeTab === 'monthly' ? `วันที่ ${label}` : `เดือนที่ ${label}`}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey={period.key} 
+                          stroke={period.color} 
+                          strokeWidth={2.5} 
+                          dot={{ r: 0 }} 
+                          activeDot={{ r: 4, fill: period.color, stroke: '#fff', strokeWidth: 1.5 }} 
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </motion.div>
       )}

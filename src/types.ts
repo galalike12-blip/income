@@ -55,6 +55,7 @@ export interface UserPreferences {
   hasCompletedOnboarding?: boolean;
   riderMinDailyTarget?: number;
   geminiModel?: string;
+  customAiInstructions?: string;
 }
 
 export interface Goal {
