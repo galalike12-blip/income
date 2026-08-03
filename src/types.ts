@@ -10,6 +10,15 @@ export interface JobEntry {
   workType?: 'rider' | 'freelance' | 'salary';
   isMultiDay?: boolean;
   endDate?: string;
+  pickupLocation?: string;
+  dropoffLocation?: string;
+  pickupCoords?: { lat: number; lng: number };
+  dropoffCoords?: { lat: number; lng: number };
+  routePoints?: Array<{ lat: number; lng: number; timestamp: string }>;
+  status?: 'in_progress' | 'completed';
+  tripStartTime?: string;
+  tripEndTime?: string;
+  tripDurationMinutes?: number;
 }
 
 export interface ExpenseEntry {

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { JobEntry } from '../types';
 import { translations } from '../i18n/translations';
 import { useSettings } from '../contexts/SettingsContext';
+import { toast } from 'sonner';
 
 interface AddIncomeModalProps {
   isOpen: boolean;
@@ -354,6 +355,7 @@ export function AddIncomeModal({ isOpen, onClose, onAdd, onEdit, selectedDate, e
                         <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 ml-1">{t.actualReceived || 'ยอดที่ได้รับจริง'}</label>
                         <input type="number" step="0.01" value={actualReceived} onChange={e => setActualReceived(e.target.value)} placeholder="0.00" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" />
                       </div>
+
                     </>
                   )}
 

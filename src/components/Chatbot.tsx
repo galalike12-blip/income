@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, ThinkingLevel, Type, FunctionDeclaration } from '@google/genai';
 import { MessageCircle, X, Send, Bot, Loader2, Camera, Image as ImageIcon, FileJson, Mic, MicOff, Settings2, Key, Cpu, Check, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { JobEntry, ExpenseEntry, UserPreferences } from '../types';
+import { JobEntry, ExpenseEntry, UserPreferences, Goal } from '../types';
 import { safeStringify } from '../utils/safeStringify';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
@@ -23,6 +23,7 @@ interface ChatbotProps {
   expenses: ExpenseEntry[];
   incentives: Record<string, number>;
   untransferredIncentivesAmount?: number;
+  goals?: Goal[];
   addExpense: (expense: Omit<ExpenseEntry, 'id'>) => void;
   setIncentive: (date: string, amount: number) => void;
   addJob?: (job: Omit<JobEntry, 'id'>) => void;
@@ -35,7 +36,7 @@ interface ChatbotProps {
   onClearSharedFile?: () => void;
 }
 
-export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, incentives, addExpense, setIncentive, addJob, updateJob, preferences, updatePreferences, isOpen, setIsOpen, sharedFile, onClearSharedFile, untransferredIncentivesAmount }, ref) => {
+export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, incentives, addExpense, setIncentive, addJob, updateJob, preferences, updatePreferences, isOpen, setIsOpen, sharedFile, onClearSharedFile, untransferredIncentivesAmount, goals }, ref) => {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
@@ -112,7 +113,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       try {
         const content = event.target?.result as string;
         const json = JSON.parse(content);
-        setInput(`Import this JSON data: ${JSON.stringify(json, null, 2)}`);
+        setInput(`Import this JSON data: ${safeStringify(json, 2)}`);
         toast.info('JSON loaded into message. Press send to import.');
       } catch (err) {
         toast.error('Invalid JSON file');
@@ -174,7 +175,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
 
       const addJobTool: FunctionDeclaration = {
         name: "addJob",
-        description: "Add a new job/income entry with fare details. For quick entry, only appNetIncome is needed.",
+        description: "Add a new job/income entry with fare details. For quick entry, only appNetIncome is needed. You can also include pickup and dropoff locations if specified by user.",
         parameters: {
           type: Type.OBJECT,
           properties: {
@@ -182,7 +183,9 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
             appNetIncome: { type: Type.NUMBER, description: "The net income reported by the app (ยอดสุทธิ)" },
             actualReceived: { type: Type.NUMBER, description: "The actual cash/transfer amount the customer paid. If not provided, defaults to appNetIncome." },
             upfrontCost: { type: Type.NUMBER, description: "Extra expenses paid upfront by the driver (e.g., toll fees)" },
-            date: { type: Type.STRING, description: "Date and time in YYYY-MM-DDTHH:mm format. Use current date/time if not specified." }
+            date: { type: Type.STRING, description: "Date and time in YYYY-MM-DDTHH:mm format. Use current date/time if not specified." },
+            pickupLocation: { type: Type.STRING, description: "Pickup district/location (จุดรับลูกค้า) e.g., ห้วยขวาง, สยาม, อโศก" },
+            dropoffLocation: { type: Type.STRING, description: "Dropoff district/location (จุดส่งลูกค้า) e.g., จตุจักร, สุขุมวิท, สีลม" }
           },
           required: ["appNetIncome"]
         }
@@ -199,7 +202,9 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
             appNetIncome: { type: Type.NUMBER, description: "The updated net income reported by the app (ยอดสุทธิ)." },
             actualReceived: { type: Type.NUMBER, description: "The updated actual cash/transfer amount the customer paid (this includes tips). Example: if former actualReceived was 50 and they got 20 tip, this should be 70." },
             upfrontCost: { type: Type.NUMBER, description: "Extra expenses paid upfront." },
-            date: { type: Type.STRING, description: "Updated date/time" }
+            date: { type: Type.STRING, description: "Updated date/time" },
+            pickupLocation: { type: Type.STRING, description: "Updated pickup location" },
+            dropoffLocation: { type: Type.STRING, description: "Updated dropoff location" }
           },
           required: ["id"]
         }
@@ -414,12 +419,112 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
 
       const totalJobsIncomeAllTime = jobs.reduce((sum, j) => sum + (j.appNetIncome || 0), 0);
       let totalTipsAllTime = 0;
+      let jobsWithTipCount = 0;
       jobs.forEach(j => {
         const amountToCollect = j.customerMustPay + j.upfrontCost;
         const diff = (j.actualReceived ?? amountToCollect) - amountToCollect;
-        if (diff > 0) totalTipsAllTime += diff;
+        if (diff > 0) {
+          totalTipsAllTime += diff;
+          jobsWithTipCount++;
+        }
       });
       const totalIncentivesAllTime = Object.values(incentives).reduce((sum, amt) => sum + amt, 0);
+      const grandTotalGrossIncome = totalJobsIncomeAllTime + totalTipsAllTime + totalIncentivesAllTime;
+      const grandTotalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+      const netProfitAllTime = grandTotalGrossIncome - grandTotalExpenses;
+      const profitMarginPct = grandTotalGrossIncome > 0 ? ((netProfitAllTime / grandTotalGrossIncome) * 100).toFixed(1) : '0';
+      const expenseToIncomePct = grandTotalGrossIncome > 0 ? ((grandTotalExpenses / grandTotalGrossIncome) * 100).toFixed(1) : '0';
+      const tipRatioPct = totalJobsIncomeAllTime > 0 ? ((totalTipsAllTime / totalJobsIncomeAllTime) * 100).toFixed(1) : '0';
+
+      const uniqueJobDates = new Set(jobs.map(j => j.date.split('T')[0]));
+      const workDaysCount = uniqueJobDates.size || 1;
+      const avgIncomePerWorkDay = Math.round(grandTotalGrossIncome / workDaysCount);
+      const avgExpensesPerWorkDay = Math.round(grandTotalExpenses / workDaysCount);
+      const avgNetSavingsPerWorkDay = Math.round(netProfitAllTime / workDaysCount);
+      const avgTipPerTipJob = jobsWithTipCount > 0 ? Math.round(totalTipsAllTime / jobsWithTipCount) : 0;
+
+      // Peak performance days & time ranges
+      const dailyIncomeMap: Record<string, number> = {};
+      const hourlyJobCountMap: Record<number, number> = {};
+      const pickupDistrictMap: Record<string, { count: number; totalInc: number }> = {};
+      const dropoffDistrictMap: Record<string, { count: number; totalInc: number }> = {};
+
+      jobs.forEach(j => {
+        const day = j.date.split('T')[0];
+        const appNet = j.appNetIncome || 0;
+        const tip = Math.max(0, (j.actualReceived || 0) - ((j.customerMustPay || 0) + (j.upfrontCost || 0)));
+        dailyIncomeMap[day] = (dailyIncomeMap[day] || 0) + appNet + tip;
+
+        if (j.date.includes('T')) {
+          const hour = parseInt(j.date.split('T')[1].split(':')[0], 10);
+          if (!isNaN(hour)) {
+            hourlyJobCountMap[hour] = (hourlyJobCountMap[hour] || 0) + 1;
+          }
+        }
+
+        if (j.pickupLocation) {
+          const loc = j.pickupLocation.trim();
+          if (loc) {
+            pickupDistrictMap[loc] = pickupDistrictMap[loc] || { count: 0, totalInc: 0 };
+            pickupDistrictMap[loc].count += 1;
+            pickupDistrictMap[loc].totalInc += appNet;
+          }
+        }
+        if (j.dropoffLocation) {
+          const loc = j.dropoffLocation.trim();
+          if (loc) {
+            dropoffDistrictMap[loc] = dropoffDistrictMap[loc] || { count: 0, totalInc: 0 };
+            dropoffDistrictMap[loc].count += 1;
+            dropoffDistrictMap[loc].totalInc += appNet;
+          }
+        }
+      });
+
+      let bestDayStr = '';
+      let maxDayIncome = 0;
+      Object.entries(dailyIncomeMap).forEach(([day, inc]) => {
+        if (inc > maxDayIncome) {
+          maxDayIncome = inc;
+          bestDayStr = day;
+        }
+      });
+
+      const sortedHours = Object.entries(hourlyJobCountMap).sort((a, b) => b[1] - a[1]);
+      const peakHoursStr = sortedHours.slice(0, 3).map(([hr, cnt]) => `${hr}:00-${parseInt(hr) + 1}:00 (${cnt} งาน)`).join(', ') || 'ไม่มีข้อมูล';
+
+      const topPickupsStr = Object.entries(pickupDistrictMap)
+        .sort((a, b) => b[1].totalInc - a[1].totalInc)
+        .slice(0, 3)
+        .map(([loc, data]) => `${loc} (${data.count} รอบ, ฿${data.totalInc.toLocaleString()})`)
+        .join(', ') || 'ไม่มีข้อมูล';
+
+      const topDropoffsStr = Object.entries(dropoffDistrictMap)
+        .sort((a, b) => b[1].totalInc - a[1].totalInc)
+        .slice(0, 3)
+        .map(([loc, data]) => `${loc} (${data.count} รอบ, ฿${data.totalInc.toLocaleString()})`)
+        .join(', ') || 'ไม่มีข้อมูล';
+
+      const categoryTotalMap: Record<string, number> = {};
+      expenses.forEach(e => {
+        const cat = e.category || 'อื่นๆ';
+        categoryTotalMap[cat] = (categoryTotalMap[cat] || 0) + (e.amount || 0);
+      });
+      const topCategoriesStr = Object.entries(categoryTotalMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([cat, amt]) => `${cat}: ฿${amt.toLocaleString()} (${grandTotalExpenses > 0 ? ((amt / grandTotalExpenses) * 100).toFixed(1) : 0}%)`)
+        .join('\n      - ') || 'ไม่มีข้อมูล';
+
+      const goalsSummaryList = (goals || []).map(g => {
+        const target = g.targetAmount;
+        const currentVal = g.type === 'daily' ? (dailyIncomeMap[new Date().toISOString().split('T')[0]] || 0) : grandTotalGrossIncome;
+        const pct = target > 0 ? Math.min(100, Math.round((currentVal / target) * 100)) : 0;
+        const needed = Math.max(0, target - currentVal);
+        const estDays = (g.type === 'monthly' && avgNetSavingsPerWorkDay > 0 && needed > 0)
+          ? Math.ceil(needed / avgNetSavingsPerWorkDay)
+          : 0;
+        return `- ${g.type === 'daily' ? 'เป้าหมายรายวัน' : 'เป้าหมายรายเดือน'}: เป้าหมาย ฿${target.toLocaleString()} | ปัจจุบัน ฿${currentVal.toLocaleString()} (${pct}%) | ขาดอีก ฿${needed.toLocaleString()} ${estDays > 0 ? `(ประมาณ ${estDays} วันทำงาน)` : ''}`;
+      }).join('\n      ');
 
       const jobsSummary = {
         total: jobs.length,
@@ -433,8 +538,8 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         list: filteredExpenses
       };
 
-      const context = `You are an AI assistant for an income and tip tracking app. 
-      Respond concisely and briefly.
+      const context = `You are an AI financial analyst and assistant for an income and tip tracking app powered by Gemini 3.6 Flash. 
+      Respond concisely, warmly, and clearly in Thailand language unless requested otherwise.
 
       ${preferences.customAiInstructions ? `CRITICAL USER CUSTOM MEMORY/INSTRUCTIONS:
       You MUST strictly remember and adhere to this customized user rule:
@@ -443,8 +548,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
 
       Today's date is: ${new Date(Date.now() - (new Date().getTimezoneOffset() * 60000)).toISOString().split('T')[0]} (In YYYY-MM-DD local format)
       
-      CRITICAL: When performing calculations or stating balances/workdays/off-days/incentives, you MUST use the provided numbers below exactly. Do not hallucinate or estimate numbers.
-      Always double-check your math before responding.
+      CRITICAL: When performing calculations or stating balances/workdays/off-days/incentives/insights, you MUST use the provided numbers below exactly. Do not hallucinate or estimate numbers. Always double-check your math before responding.
       
       The user's direct live financial stats & metrics (Sourced directly from live database):
       - เงินคงเหลือในบัญชีรายจ่าย (Expense Balance / wallet): ฿${(preferences.expenseBalance || 0).toLocaleString()}
@@ -461,6 +565,25 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
           ? `วันที่รับรายได้จริง = ${workDaysSummaryCount} วัน, วันว่างงาน/ไม่มีรายจับ = ${offDaysSummaryCount} วัน` 
           : `วันสู้ชีวิตทำงานจริง (รายได้รวม > ฿${riderMinDaily}) = ${workDaysSummaryCount} วัน, วันหยุดงาน/วันสโลว์ไลฟ์ (รายได้ <= ฿${riderMinDaily}) = ${offDaysSummaryCount} วัน`
       }
+
+      📊 ข้อมูลวิเคราะห์เชิงลึกทางการเงิน (Financial Deep Insights & Analytics):
+      - รายรับรวมทั้งหมด (Gross Income): ฿${grandTotalGrossIncome.toLocaleString()} (จากงาน: ฿${totalJobsIncomeAllTime.toLocaleString()}, ทิป: ฿${totalTipsAllTime.toLocaleString()}, โบนัสอินเซนทีฟ: ฿${totalIncentivesAllTime.toLocaleString()})
+      - รายจ่ายรวมทั้งหมด (Total Expenses): ฿${grandTotalExpenses.toLocaleString()}
+      - กำไรสุทธิคงเหลือ (Net Profit / Cash Flow): ฿${netProfitAllTime.toLocaleString()}
+      - อัตราส่วนกำไรสุทธิ (Profit Margin): ${profitMarginPct}%
+      - สัดส่วนรายจ่ายต่อรายรับ (Expense Ratio): ${expenseToIncomePct}%
+      - สัดส่วนเงินทิปต่อรายได้จากงาน (Tip Ratio): ${tipRatioPct}% (เฉลี่ย ฿${avgTipPerTipJob} ต่อครั้งที่มีทิป)
+      - รายได้เฉลี่ยต่อวันทำงาน (Avg Daily Income): ฿${avgIncomePerWorkDay.toLocaleString()} / วัน
+      - รายจ่ายเฉลี่ยต่อวันทำงาน (Avg Daily Expense): ฿${avgExpensesPerWorkDay.toLocaleString()} / วัน
+      - เงินออมสุทธิต่อวันทำงาน (Avg Daily Net Savings): ฿${avgNetSavingsPerWorkDay.toLocaleString()} / วัน
+      - วันที่รายได้สูงที่สุด (Best Earning Day): ${bestDayStr ? `${bestDayStr} (฿${maxDayIncome.toLocaleString()})` : 'ยังไม่มีข้อมูล'}
+      - ช่วงเวลารับงานหนาแน่นสูงสุด (Peak Earning Hours): ${peakHoursStr}
+      - เขตจุดรับที่ทำเงินสูงสุด (Top Pickup Districts): ${topPickupsStr}
+      - เขตจุดส่งที่ทำเงินสูงสุด (Top Dropoff Districts): ${topDropoffsStr}
+      - หมวดหมู่รายจ่ายสูงสุด (Top Expense Categories):
+      - ${topCategoriesStr}
+      - ความคืบหน้าเป้าหมายทางการเงิน (Financial Goals Progress):
+      ${goalsSummaryList || '  - ยังไม่ได้ตั้งเป้าหมาย'}
 
       The user's current data summary (Last 60 days):
       Jobs Summary (Note: 'dailyIndex' represents the sequence number of the job for that specific day. If the user says "งานที่ 4" (job 4), find the job with dailyIndex 4 for today. If they say "งานที่แล้ว" or "the last job", find the job with the highest dailyIndex for today. Use the job 'id' to call updateJobTool): ${safeStringify(jobsSummary)}
@@ -506,19 +629,9 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       let aiResultText = '';
       let functionCalls: any[] | undefined = undefined;
 
-      if (!process.env.GEMINI_API_KEY) {
-        setMessages(prev => [...prev, { 
-          id: (Date.now() + 1).toString(), 
-          role: 'model', 
-          text: "❌ **ไม่พบ API Key สำหรับใช้ระบบ AI Chatbot (Gemini)**\n\nกรุณาตั้งค่าเซ็ตตัวแปร Environment Variable ชื่อ `GEMINI_API_KEY` ในหน้าตั้งค่าของ Vercel (Vercel Settings -> Environment Variables) หรือในไฟล์ `.env` สำหรับเครื่อง Local จากนั้นทำการ Redeploy หรือรันใหม่อีกครั้งครับ!" 
-        }]);
-        setIsLoading(false);
-        return;
-      }
+      const declarations = [addExpenseTool, setIncentiveTool, addJobTool, updateJobTool, updatePreferencesTool, addLeaveDaysTool, removeLeaveDaysTool];
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-      const parts: any[] = [{ text: currentInput || "Please process these slips." }];
+      const parts: any[] = [{ text: currentInput || "Please process these slips or request." }];
       if (currentImages && currentImages.length > 0) {
         currentImages.forEach(img => {
           const match = img.match(/^data:([^;]+);base64,/);
@@ -532,21 +645,70 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         });
       }
 
-      const selectedModel = preferences.geminiModel && ['gemini-3.1-flash', 'gemini-3.5-flash-lite'].includes(preferences.geminiModel)
+      const selectedModel = preferences.geminiModel && ['gemini-3.6-flash', 'gemini-3.1-flash', 'gemini-3.5-flash-lite'].includes(preferences.geminiModel)
         ? preferences.geminiModel
-        : 'gemini-3.1-flash';
+        : 'gemini-3.6-flash';
 
-      const response = await ai.models.generateContent({
-        model: selectedModel,
-        contents: [...history, { role: 'user', parts }],
-        config: {
-          systemInstruction: context,
-          tools: [{ functionDeclarations: [addExpenseTool, setIncentiveTool, addJobTool, updateJobTool, updatePreferencesTool, addLeaveDaysTool, removeLeaveDaysTool] }]
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: selectedModel,
+            history: history,
+            currentInput: currentInput,
+            currentImages: currentImages,
+            systemInstruction: context,
+            tools: [{ functionDeclarations: declarations }]
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          aiResultText = data.text || '';
+          functionCalls = data.functionCalls || undefined;
+        } else {
+          // Client side fallback if GEMINI_API_KEY is available in process.env
+          if (process.env.GEMINI_API_KEY) {
+            const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+            const response = await ai.models.generateContent({
+              model: selectedModel,
+              contents: [...history, { role: 'user', parts }],
+              config: {
+                systemInstruction: context,
+                tools: [{ functionDeclarations: declarations }]
+              }
+            });
+            aiResultText = response.text || '';
+            functionCalls = response.functionCalls;
+          } else {
+            const errData = await res.json().catch(() => ({ error: 'AI request failed' }));
+            throw new Error(errData.error || 'Server API Error');
+          }
         }
-      });
-
-      aiResultText = response.text || '';
-      functionCalls = response.functionCalls;
+      } catch (err: any) {
+        if (process.env.GEMINI_API_KEY) {
+          const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+          const response = await ai.models.generateContent({
+            model: selectedModel,
+            contents: [...history, { role: 'user', parts }],
+            config: {
+              systemInstruction: context,
+              tools: [{ functionDeclarations: declarations }]
+            }
+          });
+          aiResultText = response.text || '';
+          functionCalls = response.functionCalls;
+        } else {
+          setMessages(prev => [...prev, { 
+            id: (Date.now() + 1).toString(), 
+            role: 'model', 
+            text: `❌ **ไม่สามารถเรียกใช้ Gemini AI ได้**: ${err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ'}` 
+          }]);
+          setIsLoading(false);
+          return;
+        }
+      }
 
       const aiMsgId = (Date.now() + 1).toString();
       
@@ -627,6 +789,8 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               appNetIncome: finalAppNet,
               actualReceived: args.actualReceived !== undefined ? args.actualReceived : finalAppNet,
               upfrontCost: args.upfrontCost || 0,
+              pickupLocation: args.pickupLocation || undefined,
+              dropoffLocation: args.dropoffLocation || undefined,
               date: args.date || (() => {
                 const d = new Date();
                 return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
@@ -644,6 +808,8 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                 appNetIncome: args.appNetIncome !== undefined ? args.appNetIncome : jobToUpdate.appNetIncome,
                 actualReceived: args.actualReceived !== undefined ? args.actualReceived : jobToUpdate.actualReceived,
                 upfrontCost: args.upfrontCost !== undefined ? args.upfrontCost : jobToUpdate.upfrontCost,
+                pickupLocation: args.pickupLocation !== undefined ? args.pickupLocation : jobToUpdate.pickupLocation,
+                dropoffLocation: args.dropoffLocation !== undefined ? args.dropoffLocation : jobToUpdate.dropoffLocation,
                 date: args.date || jobToUpdate.date
               });
               toast.success('อัปเดตงานสำเร็จ');
@@ -826,10 +992,11 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                   )}
                 </button>
                 <select
-                  value={preferences?.geminiModel && ['gemini-3.1-flash', 'gemini-3.5-flash-lite'].includes(preferences.geminiModel) ? preferences.geminiModel : 'gemini-3.1-flash'}
+                  value={preferences?.geminiModel && ['gemini-3.6-flash', 'gemini-3.1-flash', 'gemini-3.5-flash-lite'].includes(preferences.geminiModel) ? preferences.geminiModel : 'gemini-3.6-flash'}
                   onChange={(e) => updatePreferences?.({ geminiModel: e.target.value })}
-                  className="bg-indigo-500/50 hover:bg-indigo-500/70 text-white text-xs font-medium px-2 py-1.5 rounded-lg outline-none cursor-pointer transition-colors max-w-[130px] sm:max-w-[150px] truncate border border-white/10"
+                  className="bg-indigo-500/50 hover:bg-indigo-500/70 text-white text-xs font-medium px-2 py-1.5 rounded-lg outline-none cursor-pointer transition-colors max-w-[130px] sm:max-w-[160px] truncate border border-white/10"
                 >
+                  <option value="gemini-3.6-flash" className="text-slate-900">⚡ Gemini 3.6 Flash</option>
                   <option value="gemini-3.1-flash" className="text-slate-900">Gemini 3.1 Flash</option>
                   <option value="gemini-3.5-flash-lite" className="text-slate-900">Gemini 3.5 Flash Lite</option>
                 </select>

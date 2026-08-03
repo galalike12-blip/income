@@ -16,7 +16,9 @@ import {
   ChevronRight,
   Settings2,
   GripVertical,
-  Circle
+  Circle,
+  Flame,
+  MapPin
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -762,7 +764,9 @@ export function Summary({
     <div className="max-w-4xl mx-auto px-4 pt-2 pb-24 space-y-6">
       {/* Search Filter Header with Dropdown Interval selector */}
       <div className="flex flex-col gap-3 glass-panel p-4 rounded-3xl transition-colors">
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{t.summary || 'ภาพรวมและรายงาน'}</h1>
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{t.summary || 'ภาพรวมและรายงาน'}</h1>
+        </div>
         
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {/* Dropdown Menu block */}

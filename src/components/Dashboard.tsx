@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { JobEntry, DailySummary, ExpenseEntry, Goal, UserPreferences } from '../types';
-import { Plus, Trash2, Calendar, DollarSign, TrendingUp, TrendingDown, Pencil, X, Settings2, Check, GripVertical, ChevronDown, ChevronUp, Gift, Target, BarChart2, ArrowUpCircle, Wallet, Circle, CheckCircle2, ArrowUpRight, ArrowDownRight, Briefcase, Laptop, Bike } from 'lucide-react';
+import { Plus, Trash2, Calendar, DollarSign, TrendingUp, TrendingDown, Pencil, X, Settings2, Check, GripVertical, ChevronDown, ChevronUp, Gift, Target, BarChart2, ArrowUpCircle, Wallet, Circle, CheckCircle2, ArrowUpRight, ArrowDownRight, Briefcase, Laptop, Bike, MapPin } from 'lucide-react';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
@@ -325,7 +325,9 @@ export function Dashboard({ jobs, expenses = [], editJob, deleteJob, selectedDat
     <div className="max-w-5xl mx-auto px-4 pt-2 pb-0 space-y-6">
       {/* Header & Date Picker */}
       <div className="flex flex-col gap-3 glass-panel p-4 rounded-3xl transition-colors">
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white">{t.dailyEarnings}</h1>
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white">{t.dailyEarnings}</h1>
+        </div>
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           <button 
             onClick={() => {
@@ -871,6 +873,12 @@ function JobItem({ job, index, handleEditClick, deleteJob, t, expandedJobId, set
               {job.date.includes('T') && (
                 <span className="bg-slate-100/80 dark:bg-slate-900/40 px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-500">{job.date.split('T')[1]} น.</span>
               )}
+              {(job.pickupLocation || job.dropoffLocation) && (
+                <span className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200/50 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded text-[9px] font-bold flex items-center gap-1">
+                  <MapPin className="w-2.5 h-2.5" />
+                  {job.pickupLocation || '?'} ➔ {job.dropoffLocation || '?'}
+                </span>
+              )}
             </div>
             <div className="text-lg font-bold text-slate-800 dark:text-slate-100 truncate flex items-center gap-2">
               ฿{net.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -887,7 +895,9 @@ function JobItem({ job, index, handleEditClick, deleteJob, t, expandedJobId, set
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="flex items-center gap-2.5">
+
           <div className="text-right hidden sm:block">
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">ยอดสุทธิรอบนี้</div>
             <div className="font-extrabold text-emerald-600 dark:text-emerald-450 text-sm">฿{net.toFixed(2)}</div>

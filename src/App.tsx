@@ -26,7 +26,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { GoogleSheetsService } from './services/googleSheets';
 import { translations } from './i18n/translations';
 import { JobEntry, ExpenseEntry } from './types';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 
 function MainContent() {
   const { currentLang } = useSettings();
@@ -415,6 +415,7 @@ function MainContent() {
         expenses={expenses}
         incentives={incentives} 
         untransferredIncentivesAmount={untransferredIncentivesAmount}
+        goals={goals}
         addExpense={addExpense} 
         setIncentive={setIncentive} 
         addJob={addJob} 

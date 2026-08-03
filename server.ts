@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import { GoogleGenAI } from "@google/genai";
 
 async function startServer() {
   const app = express();
@@ -11,124 +12,57 @@ async function startServer() {
   // API routes FIRST
   app.post("/api/chat", async (req, res) => {
     try {
-      const { baseUrl, apiKey, model, messages, systemInstruction, currentInput, currentImages, declarations } = req.body;
-      
-      // Map Gemini-style tools to OpenAI-compatible tools
-      const openAiTools = declarations.map((decl: any) => {
-        const formattedProperties: Record<string, any> = {};
-        const originalProps = decl.parameters?.properties || {};
-        
-        Object.keys(originalProps).forEach(key => {
-          const prop = originalProps[key];
-          const pType = typeof prop.type === 'string' ? prop.type.toLowerCase() : 'string';
-          formattedProperties[key] = {
-            type: pType === 'object' ? 'object' : pType,
-            description: prop.description || ''
-          };
-          if (prop.items) {
-            const itemType = typeof prop.items.type === 'string' ? prop.items.type.toLowerCase() : 'string';
-            formattedProperties[key].items = {
-              type: itemType
-            };
-          }
-        });
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(400).json({ error: "GEMINI_API_KEY environment variable is not configured." });
+      }
 
-        return {
-          type: "function",
-          function: {
-            name: decl.name,
-            description: decl.description || '',
-            parameters: {
-              type: "object",
-              properties: formattedProperties,
-              required: decl.parameters?.required || []
-            }
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build'
           }
-        };
+        }
       });
 
-      // Build messages
-      const formattedMessages: any[] = [
-        { role: "system", content: systemInstruction }
-      ];
+      const { model, history, currentInput, currentImages, systemInstruction, tools } = req.body;
 
-      // Add history
-      messages.forEach((m: any) => {
-        formattedMessages.push({
-          role: m.role === 'model' ? 'assistant' : 'user',
-          content: m.text
-        });
-      });
+      const selectedModel = model || "gemini-3.6-flash";
 
-      // Add current message with images if supported
-      let content: any = currentInput || "Please process these slips.";
-      if (currentImages && currentImages.length > 0) {
-        const contentArray: any[] = [{ type: "text", text: currentInput || "Please process these slips." }];
+      const parts: any[] = [{ text: currentInput || "Please process these slips or request." }];
+      if (currentImages && Array.isArray(currentImages)) {
         currentImages.forEach((img: string) => {
-          contentArray.push({
-            type: "image_url",
-            image_url: {
-              url: img
+          const match = img.match(/^data:([^;]+);base64,/);
+          const mimeType = match ? match[1] : "image/jpeg";
+          const base64Data = img.includes(',') ? img.split(',')[1] : img;
+          parts.push({
+            inlineData: {
+              data: base64Data,
+              mimeType: mimeType
             }
           });
         });
-        content = contentArray;
       }
 
-      formattedMessages.push({
-        role: "user",
-        content: content
+      const contents = [...(history || []), { role: 'user', parts }];
+
+      const response = await ai.models.generateContent({
+        model: selectedModel,
+        contents,
+        config: {
+          systemInstruction: systemInstruction,
+          tools: tools ? tools : undefined
+        }
       });
 
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      };
-
-      const isReasoner = model.toLowerCase().includes('reasoner') || model.toLowerCase().includes('-r1');
-
-      const body: any = {
-        model: model,
-        messages: formattedMessages
-      };
-
-      if (openAiTools && openAiTools.length > 0 && !isReasoner) {
-        body.tools = openAiTools;
-        body.tool_choice = "auto";
-      }
-
-      const url = baseUrl.endsWith('/') ? `${baseUrl}chat/completions` : `${baseUrl}/chat/completions`;
-
-      const apiRes = await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body)
+      res.json({
+        text: response.text || '',
+        functionCalls: response.functionCalls || null
       });
-
-      if (!apiRes.ok) {
-        const errorText = await apiRes.text();
-        return res.status(apiRes.status).json({ error: `API Error (${apiRes.status}): ${errorText || apiRes.statusText}` });
-      }
-
-      const data = await apiRes.json();
-      const choice = data.choices?.[0];
-      const message = choice?.message;
-
-      // Map response back to Gemini-like format
-      const text = message?.content || "";
-      let functionCalls: any[] | undefined = undefined;
-
-      if (message?.tool_calls && message.tool_calls.length > 0) {
-        functionCalls = message.tool_calls.map((tc: any) => ({
-          name: tc.function.name,
-          args: JSON.parse(tc.function.arguments)
-        }));
-      }
-
-      res.json({ text, functionCalls });
     } catch (err: any) {
-      console.error("Error in /api/chat proxy:", err);
-      res.status(500).json({ error: err.message });
+      console.error("Error in /api/chat:", err);
+      res.status(500).json({ error: err.message || "Internal server error" });
     }
   });
 
