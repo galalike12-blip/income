@@ -267,6 +267,116 @@ export function Summary({
     let prevTotalIncome = 0;
     let prevBalance = expenseBalance;
 
+    const getHistoricalBalanceForDate = (targetDateStr: string): number => {
+      if (targetDateStr >= todayStr) {
+        return Math.max(0, expenseBalance);
+      }
+
+      const rawDailyBalances = preferences?.dailyBalances;
+
+      // 1. Direct snapshot check on targetDateStr from dailyBalances
+      if (rawDailyBalances && rawDailyBalances[targetDateStr] !== undefined && rawDailyBalances[targetDateStr] !== null) {
+        return Math.max(0, Number(rawDailyBalances[targetDateStr]) || 0);
+      }
+
+      // 2. Direct snapshot check on targetDateStr from paid expenses with balanceAfter
+      const targetExpensesWithBalance = expenses.filter(e => 
+        e.date.startsWith(targetDateStr) && 
+        e.isPaid !== false && 
+        e.balanceAfter !== undefined && 
+        e.balanceAfter !== null
+      );
+      if (targetExpensesWithBalance.length > 0) {
+        const lastExp = targetExpensesWithBalance[targetExpensesWithBalance.length - 1];
+        return Math.max(0, Number(lastExp.balanceAfter) || 0);
+      }
+
+      // 3. Collect consolidated snapshots per date
+      const snapshotsMap: Record<string, number> = {};
+
+      // Paid expenses
+      expenses.forEach(e => {
+        if (e.isPaid !== false && e.balanceAfter !== undefined && e.balanceAfter !== null) {
+          const dStr = e.date.split('T')[0];
+          snapshotsMap[dStr] = Math.max(0, Number(e.balanceAfter) || 0);
+        }
+      });
+
+      // Daily balances override / supplement
+      if (rawDailyBalances) {
+        Object.entries(rawDailyBalances).forEach(([k, v]) => {
+          if (v !== undefined && v !== null) {
+            snapshotsMap[k] = Math.max(0, Number(v) || 0);
+          }
+        });
+      }
+
+      const getNetChangeBetween = (fromDateExclusive: string, toDateInclusive: string) => {
+        let transfers = 0;
+        const sortedTransferLogs = logs.filter(l => l.type === 'transfer_income').sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+        const firstTransferLogTime = sortedTransferLogs.length > 0 ? sortedTransferLogs[0].timestamp : '9999-99-99T99:99';
+
+        sortedTransferLogs.forEach(l => {
+          const logDate = l.timestamp.split('T')[0];
+          if (logDate > fromDateExclusive && logDate <= toDateInclusive) {
+            transfers += (l.amount || 0);
+          }
+        });
+
+        jobs.filter(j => {
+          const dStr = j.date.split('T')[0];
+          return dStr > fromDateExclusive && dStr <= toDateInclusive && j.transferred && j.date < firstTransferLogTime;
+        }).forEach(j => {
+          const amountToCollect = j.customerMustPay + j.upfrontCost;
+          const actual = j.actualReceived ?? amountToCollect;
+          const diff = actual - amountToCollect;
+          const tip = diff > 0 ? diff : 0;
+          const loss = diff < 0 ? Math.abs(diff) : 0;
+          transfers += (j.appNetIncome - loss + tip);
+        });
+
+        Object.entries(rawIncentives || {}).forEach(([d, inc]) => {
+          if (d > fromDateExclusive && d <= toDateInclusive && inc && typeof inc !== 'number' && inc.transferred && d < firstTransferLogTime.split('T')[0]) {
+            transfers += inc.amount;
+          }
+        });
+
+        let paidExpenses = 0;
+        expenses.filter(e => {
+          const dStr = e.date.split('T')[0];
+          return dStr > fromDateExclusive && dStr <= toDateInclusive && e.isPaid !== false;
+        }).forEach(e => {
+          paidExpenses += e.amount;
+        });
+
+        return transfers - paidExpenses;
+      };
+
+      const snapshotDates = Object.keys(snapshotsMap).sort();
+
+      // Find closest snapshot before targetDateStr
+      const datesBefore = snapshotDates.filter(d => d < targetDateStr);
+      if (datesBefore.length > 0) {
+        const closestBefore = datesBefore[datesBefore.length - 1];
+        const baseBal = snapshotsMap[closestBefore];
+        const netChange = getNetChangeBetween(closestBefore, targetDateStr);
+        return Math.max(0, baseBal + netChange);
+      }
+
+      // Find closest snapshot after targetDateStr
+      const datesAfter = snapshotDates.filter(d => d > targetDateStr);
+      if (datesAfter.length > 0) {
+        const closestAfter = datesAfter[0];
+        const baseBal = snapshotsMap[closestAfter];
+        const netChange = getNetChangeBetween(targetDateStr, closestAfter);
+        return Math.max(0, baseBal - netChange);
+      }
+
+      // Fallback: calculate backward from current expenseBalance
+      const netChangeAfterTarget = getNetChangeBetween(targetDateStr, todayStr);
+      return Math.max(0, expenseBalance - netChangeAfterTarget);
+    };
+
     if (compStartStr && compEndStr) {
       const prevJobs = jobs.filter(j => {
         const dStr = j.date.split('T')[0];
@@ -318,76 +428,10 @@ export function Summary({
 
       prevTotalIncome = Object.values(prevDailyStatsForIncome).reduce((sum, val) => sum + Math.max(0, val), 0);
 
-      // Calculate historical balance exactly at compEndStr
-      let transIncomeAfter = 0;
-      
-      const sortedTransferLogs = logs.filter(l => l.type === 'transfer_income').sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-      const firstTransferLogTime = sortedTransferLogs.length > 0 ? sortedTransferLogs[0].timestamp : '9999-99-99T99:99';
-
-      // 1. Add from transfer logs
-      sortedTransferLogs.forEach(l => {
-        if (l.timestamp > compEndStr! + 'T23:59:59') {
-          transIncomeAfter += (l.amount || 0);
-        }
-      });
-
-      // 2. Add from legacy jobs that were transferred BEFORE the logging feature existed
-      jobs.filter(j => j.date.split('T')[0] > compEndStr! && j.transferred && j.date < firstTransferLogTime).forEach(j => {
-        const amountToCollect = j.customerMustPay + j.upfrontCost;
-        const actual = j.actualReceived ?? amountToCollect;
-        const diff = actual - amountToCollect;
-        const tip = diff > 0 ? diff : 0;
-        const loss = diff < 0 ? Math.abs(diff) : 0;
-        transIncomeAfter += (j.appNetIncome - loss + tip);
-      });
-      
-      Object.entries(rawIncentives || {}).forEach(([d, inc]) => {
-        if (d > compEndStr! && inc && typeof inc !== 'number' && inc.transferred && d < firstTransferLogTime.split('T')[0]) {
-          transIncomeAfter += inc.amount;
-        }
-      });
-
-      let paidExpensesAfter = 0;
-      expenses.filter(e => e.date.split('T')[0] > compEndStr! && e.isPaid !== false).forEach(e => {
-        paidExpensesAfter += e.amount;
-      });
-      prevBalance = expenseBalance - transIncomeAfter + paidExpensesAfter;
+      prevBalance = getHistoricalBalanceForDate(compEndStr!);
     }
 
-    let currentBalanceAtEndStr = expenseBalance;
-    let transIncomeAfterEnd = 0;
-    
-    // We already have smoothed logs and sortedTransferLogs/firstTransferLogTime from above, 
-    // but they are scoped. Let's just re-calculate or simplify.
-    const sortedTransferLogsEnd = logs.filter(l => l.type === 'transfer_income').sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-    const firstTransferLogTimeEnd = sortedTransferLogsEnd.length > 0 ? sortedTransferLogsEnd[0].timestamp : '9999-99-99T99:99';
-
-    sortedTransferLogsEnd.forEach(l => {
-      if (l.timestamp > endStr + 'T23:59:59') {
-        transIncomeAfterEnd += (l.amount || 0);
-      }
-    });
-
-    jobs.filter(j => j.date.split('T')[0] > endStr && j.transferred && j.date < firstTransferLogTimeEnd).forEach(j => {
-      const amountToCollect = j.customerMustPay + j.upfrontCost;
-      const actual = j.actualReceived ?? amountToCollect;
-      const diff = actual - amountToCollect;
-      const tip = diff > 0 ? diff : 0;
-      const loss = diff < 0 ? Math.abs(diff) : 0;
-      transIncomeAfterEnd += (j.appNetIncome - loss + tip);
-    });
-    
-    Object.entries(rawIncentives || {}).forEach(([d, inc]) => {
-      if (d > endStr && inc && typeof inc !== 'number' && inc.transferred && d < firstTransferLogTimeEnd.split('T')[0]) {
-        transIncomeAfterEnd += inc.amount;
-      }
-    });
-
-    let paidExpensesAfterEnd = 0;
-    expenses.filter(e => e.date.split('T')[0] > endStr && e.isPaid !== false).forEach(e => {
-      paidExpensesAfterEnd += e.amount;
-    });
-    currentBalanceAtEndStr = expenseBalance - transIncomeAfterEnd + paidExpensesAfterEnd;
+    const currentBalanceAtEndStr = getHistoricalBalanceForDate(endStr);
 
     let currentTransferredIncome = 0;
     filteredJobs.forEach(j => {

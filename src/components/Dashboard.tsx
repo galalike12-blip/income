@@ -879,9 +879,9 @@ function JobItem({ job, index, handleEditClick, deleteJob, t, expandedJobId, set
                   โอนแล้ว
                 </span>
               )}
-              {job.upfrontCost > 0 && (
-                <span className="text-[9px] px-1.5 py-0.5 bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-100 dark:border-amber-900/20 rounded-md font-extrabold uppercase tracking-widest leading-none animate-pulse">
-                  สำรองจ่าย
+              {tip > 0 && (
+                <span className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/20 rounded-md font-extrabold uppercase tracking-widest leading-none">
+                  +ทิป ฿{tip.toLocaleString(undefined, { minimumFractionDigits: tip % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
                 </span>
               )}
             </div>

@@ -3,6 +3,7 @@ import { GoogleGenAI, ThinkingLevel, Type, FunctionDeclaration } from '@google/g
 import { MessageCircle, X, Send, Bot, Loader2, Camera, Image as ImageIcon, FileJson, Mic, MicOff, Settings2, Key, Cpu, Check, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { JobEntry, ExpenseEntry, UserPreferences } from '../types';
+import { safeStringify } from '../utils/safeStringify';
 import { useSettings } from '../contexts/SettingsContext';
 import { translations } from '../i18n/translations';
 import { toast } from 'sonner';
@@ -187,20 +188,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         }
       };
 
-      const safeStringify = (obj: any): string => {
-    const cache = new Set();
-    return JSON.stringify(obj, (key, value) => {
-      if (typeof value === 'object' && value !== null) {
-        if (cache.has(value)) {
-          return '[Circular]';
-        }
-        cache.add(value);
-      }
-      return value;
-    });
-  };
-
-  const updateJobTool: FunctionDeclaration = {
+      const updateJobTool: FunctionDeclaration = {
         name: "updateJob",
         description: "Edit/update an existing job entry. You MUST provide the id of the job. If the user mentions adding a tip, you should add it to actualReceived.",
         parameters: {
@@ -465,7 +453,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       - ยอดทิปรวมสะสมทั้งหมด: ฿${totalTipsAllTime.toLocaleString()}
       - เงินอินเซนทีฟสะสมทั้งหมด: ฿${totalIncentivesAllTime.toLocaleString()}
       - จำนวนวันทำงานที่มีวิ่งงานจริง (Work Days with real jobs): ${totalWorkDaysActual} วัน
-      - วันหยุด/วันลาที่กำหนดไว้โดยผู้ใช้: ${totalLeaveDaysConfigured} วัน (รายชื่อวันลา: ${JSON.stringify(preferences.leaveDays || [])})
+      - วันหยุด/วันลาที่กำหนดไว้โดยผู้ใช้: ${totalLeaveDaysConfigured} วัน (รายชื่อวันลา: ${safeStringify(preferences.leaveDays || [])})
       - เกณฑ์รอบ 60 วันล่าสุด (ประเภทงาน: ${workType}, เกณฑ์เป้าหมายไรเดอร์: ฿${riderMinDaily}): ${
         workType === 'salary' 
           ? `วันทำงานจริง (วันธรรมดาและวันหยุดที่วิ่งงานนอกเสริม) = ${workDaysSummaryCount} วัน, วันหยุดสัปดาห์ที่ไม่มีรายรับ = ${offDaysSummaryCount} วัน` 
@@ -544,8 +532,12 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         });
       }
 
+      const selectedModel = preferences.geminiModel && ['gemini-3.1-flash', 'gemini-3.5-flash-lite'].includes(preferences.geminiModel)
+        ? preferences.geminiModel
+        : 'gemini-3.1-flash';
+
       const response = await ai.models.generateContent({
-        model: preferences.geminiModel || 'gemini-3.5-flash',
+        model: selectedModel,
         contents: [...history, { role: 'user', parts }],
         config: {
           systemInstruction: context,
@@ -834,15 +826,12 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                   )}
                 </button>
                 <select
-                  value={preferences?.geminiModel || 'gemini-3.5-flash'}
+                  value={preferences?.geminiModel && ['gemini-3.1-flash', 'gemini-3.5-flash-lite'].includes(preferences.geminiModel) ? preferences.geminiModel : 'gemini-3.1-flash'}
                   onChange={(e) => updatePreferences?.({ geminiModel: e.target.value })}
-                  className="bg-indigo-500/50 hover:bg-indigo-500/70 text-white text-xs font-medium px-2 py-1.5 rounded-lg outline-none cursor-pointer transition-colors max-w-[120px] sm:max-w-[140px] truncate border border-white/10"
+                  className="bg-indigo-500/50 hover:bg-indigo-500/70 text-white text-xs font-medium px-2 py-1.5 rounded-lg outline-none cursor-pointer transition-colors max-w-[130px] sm:max-w-[150px] truncate border border-white/10"
                 >
-                  <option value="gemini-3.5-flash" className="text-slate-900">Gemini 3.5 Flash</option>
-                  <option value="gemini-2.5-flash" className="text-slate-900">Gemini 2.5 Flash</option>
-                  <option value="gemini-2.5-pro" className="text-slate-900">Gemini 2.5 Pro</option>
-                  <option value="gemini-1.5-flash" className="text-slate-900">Gemini 1.5 Flash</option>
-                  <option value="gemini-1.5-pro" className="text-slate-900">Gemini 1.5 Pro</option>
+                  <option value="gemini-3.1-flash" className="text-slate-900">Gemini 3.1 Flash</option>
+                  <option value="gemini-3.5-flash-lite" className="text-slate-900">Gemini 3.5 Flash Lite</option>
                 </select>
                 <button 
                   onClick={() => setIsOpen(false)}

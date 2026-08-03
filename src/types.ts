@@ -47,6 +47,7 @@ export interface UserPreferences {
   customCategories?: string[];
   defaultCategories?: string[];
   expenseBalance?: number;
+  dailyBalances?: Record<string, number>;
   leaveDays?: string[];
   leaveReasons?: Record<string, string>;
   workType?: 'rider' | 'freelance' | 'salary';

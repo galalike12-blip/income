@@ -4,8 +4,63 @@ import { db } from '../firebase';
 import { JobEntry, ExpenseEntry, Goal, UserPreferences, ActivityLog } from '../types';
 import { User } from 'firebase/auth';
 import { useLocalStorage } from './useLocalStorage';
+import { safeStringify } from '../utils/safeStringify';
 import { toast } from 'sonner';
 import { speakText } from '../utils/speech';
+
+
+const getTodayDateStr = () => {
+  const d = new Date();
+  const yr = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const dy = String(d.getDate()).padStart(2, '0');
+  return `${yr}-${mo}-${dy}`;
+};
+
+const computeUpdatedDailyBalances = (
+  existingDailyBalances: Record<string, number> | undefined,
+  transactionDate: string,
+  balanceDelta: number,
+  newCurrentBalance: number
+) => {
+  const updated = { ...(existingDailyBalances || {}) };
+  const today = getTodayDateStr();
+
+  // Sanitize existing
+  Object.keys(updated).forEach(k => {
+    if (updated[k] < 0) updated[k] = 0;
+  });
+
+  updated[today] = Math.max(0, newCurrentBalance);
+
+  if (transactionDate) {
+    const txDate = transactionDate.split('T')[0];
+    if (balanceDelta !== 0) {
+      Object.keys(updated).forEach(d => {
+        if (d >= txDate && d < today) {
+          updated[d] = Math.max(0, (updated[d] || 0) + balanceDelta);
+        }
+      });
+    }
+
+    if (updated[txDate] === undefined) {
+      const datesBefore = Object.keys(updated).filter(d => d < txDate).sort();
+      if (datesBefore.length > 0) {
+        const closestBefore = datesBefore[datesBefore.length - 1];
+        updated[txDate] = Math.max(0, updated[closestBefore] + balanceDelta);
+      } else {
+        updated[txDate] = Math.max(0, newCurrentBalance);
+      }
+    }
+  }
+
+  // Ensure all values are non-negative
+  Object.keys(updated).forEach(k => {
+    if (updated[k] < 0) updated[k] = 0;
+  });
+
+  return updated;
+};
 
 
 export function useUserData(user: User | null) {
@@ -74,7 +129,7 @@ export function useUserData(user: User | null) {
       unsubscribes.push(onSnapshot(qLogs, (snapshot) => {
         const logsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ActivityLog[];
         setFirestoreLogs(logsData);
-        localStorage.setItem(`online-cache-logs-${user.uid}`, JSON.stringify(logsData));
+        localStorage.setItem(`online-cache-logs-${user.uid}`, safeStringify(logsData));
       }, (error) => {
         console.error("Error fetching logs:", error);
       }));
@@ -85,7 +140,7 @@ export function useUserData(user: User | null) {
       unsubscribes.push(onSnapshot(qJobs, (snapshot) => {
         const jobsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setFirestoreJobs(jobsData);
-        localStorage.setItem(`online-cache-jobs-${user.uid}`, JSON.stringify(jobsData));
+        localStorage.setItem(`online-cache-jobs-${user.uid}`, safeStringify(jobsData));
       }, (error) => {
         console.error("Error fetching jobs:", error);
       }));
@@ -101,7 +156,7 @@ export function useUserData(user: User | null) {
           }
         });
         setFirestoreIncentives(incData);
-        localStorage.setItem(`online-cache-incentives-${user.uid}`, JSON.stringify(incData));
+        localStorage.setItem(`online-cache-incentives-${user.uid}`, safeStringify(incData));
       }, (error) => {
         console.error("Error fetching incentives:", error);
       }));
@@ -112,7 +167,7 @@ export function useUserData(user: User | null) {
       unsubscribes.push(onSnapshot(qExpenses, (snapshot) => {
         const expensesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ExpenseEntry[];
         setFirestoreExpenses(expensesData);
-        localStorage.setItem(`online-cache-expenses-${user.uid}`, JSON.stringify(expensesData));
+        localStorage.setItem(`online-cache-expenses-${user.uid}`, safeStringify(expensesData));
       }, (error) => {
         console.error("Error fetching expenses:", error);
       }));
@@ -122,7 +177,7 @@ export function useUserData(user: User | null) {
       unsubscribes.push(onSnapshot(goalsRef, (snapshot) => {
         const goalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Goal[];
         setFirestoreGoals(goalsData);
-        localStorage.setItem(`online-cache-goals-${user.uid}`, JSON.stringify(goalsData));
+        localStorage.setItem(`online-cache-goals-${user.uid}`, safeStringify(goalsData));
       }, (error) => {
         console.error("Error fetching goals:", error);
       }));
@@ -133,10 +188,10 @@ export function useUserData(user: User | null) {
         if (docSnap.exists()) {
           const prefData = docSnap.data() as UserPreferences;
           setFirestorePreferences(prefData);
-          localStorage.setItem(`online-cache-preferences-${user.uid}`, JSON.stringify(prefData));
+          localStorage.setItem(`online-cache-preferences-${user.uid}`, safeStringify(prefData));
         } else {
           setFirestorePreferences({});
-          localStorage.setItem(`online-cache-preferences-${user.uid}`, JSON.stringify({}));
+          localStorage.setItem(`online-cache-preferences-${user.uid}`, safeStringify({}));
         }
         setLoading(false);
       }, (error) => {
@@ -348,7 +403,12 @@ export function useUserData(user: User | null) {
 
       // Update balance in preferences
       const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
-      currentBatch.set(prefRef, { expenseBalance: newBalance }, { merge: true });
+      const today = getTodayDateStr();
+      const updatedDailyBalances = computeUpdatedDailyBalances(preferences.dailyBalances, today, totalNet, newBalance);
+      currentBatch.set(prefRef, { 
+        expenseBalance: newBalance,
+        dailyBalances: updatedDailyBalances
+      }, { merge: true });
       batches.push(currentBatch);
       
       try {
@@ -373,7 +433,15 @@ export function useUserData(user: User | null) {
       });
 
       // Update balance locally
-      setLocalPreferences(prev => ({ ...prev, expenseBalance: newBalance }));
+      const today = getTodayDateStr();
+      setLocalPreferences(prev => {
+        const updatedDailyBalances = computeUpdatedDailyBalances(prev.dailyBalances, today, totalNet, newBalance);
+        return { 
+          ...prev, 
+          expenseBalance: newBalance,
+          dailyBalances: updatedDailyBalances
+        };
+      });
       await addLog('transfer_income', `โอนรายได้เข้าบัญชีรายจ่าย: ${totalNet} บาท`, totalNet);
     }
   };
@@ -426,7 +494,17 @@ export function useUserData(user: User | null) {
 
       if (expense.isPaid) {
         const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
-        promises.push(setDoc(prefRef, { expenseBalance: increment(-expense.amount) }, { merge: true }));
+        const finalBal = (preferences.expenseBalance || 0) - expense.amount;
+        const updatedDailyBalances = computeUpdatedDailyBalances(
+          preferences.dailyBalances,
+          expense.date,
+          -expense.amount,
+          finalBal
+        );
+        promises.push(setDoc(prefRef, { 
+          expenseBalance: finalBal, 
+          dailyBalances: updatedDailyBalances 
+        }, { merge: true }));
       }
 
       await Promise.all(promises);
@@ -434,7 +512,20 @@ export function useUserData(user: User | null) {
     } else {
       setLocalExpenses(prev => [...prev, ...entries]);
       if (expense.isPaid) {
-        setLocalPreferences(prev => ({ ...prev, expenseBalance: currentBalance }));
+        setLocalPreferences(prev => {
+          const finalBal = (prev.expenseBalance || 0) - expense.amount;
+          const updatedDailyBalances = computeUpdatedDailyBalances(
+            prev.dailyBalances,
+            expense.date,
+            -expense.amount,
+            finalBal
+          );
+          return {
+            ...prev,
+            expenseBalance: finalBal,
+            dailyBalances: updatedDailyBalances
+          };
+        });
       }
       await addLog('add_expense', `เพิ่มรายจ่าย: ${expense.payee || expense.category} (${expense.amount} บาท)${isMultiMonth ? ` จำนวน ${duration} เดือน` : ''}`, expense.amount * duration);
     }
@@ -488,7 +579,18 @@ export function useUserData(user: User | null) {
       batch.set(expenseRef, cleanUpdates, { merge: true });
       
       if (balanceChange !== 0) {
-        batch.set(prefRef, { expenseBalance: increment(balanceChange) }, { merge: true });
+        const finalBalance = currentBalance + balanceChange;
+        const txDate = oldExpense.date;
+        const updatedDailyBalances = computeUpdatedDailyBalances(
+          preferences.dailyBalances,
+          txDate,
+          balanceChange,
+          finalBalance
+        );
+        batch.set(prefRef, { 
+          expenseBalance: finalBalance,
+          dailyBalances: updatedDailyBalances
+        }, { merge: true });
       }
       
       await batch.commit();
@@ -554,7 +656,14 @@ export function useUserData(user: User | null) {
             }
 
             if (newBalance !== currentBalance) {
-              return { ...prevPref, expenseBalance: newBalance };
+              const today = getTodayDateStr();
+              const updatedDailyBalances = { ...(prevPref.dailyBalances || {}) };
+              updatedDailyBalances[today] = newBalance;
+              return { 
+                ...prevPref, 
+                expenseBalance: newBalance,
+                dailyBalances: updatedDailyBalances
+              };
             }
             return prevPref;
           });
@@ -594,7 +703,17 @@ export function useUserData(user: User | null) {
       batch.delete(expenseRef);
       
       if (expenseToDelete.isPaid) {
-        batch.set(prefRef, { expenseBalance: increment(expenseToDelete.amount) }, { merge: true });
+        const finalBalance = (preferences.expenseBalance || 0) + expenseToDelete.amount;
+        const updatedDailyBalances = computeUpdatedDailyBalances(
+          preferences.dailyBalances,
+          expenseToDelete.date,
+          expenseToDelete.amount,
+          finalBalance
+        );
+        batch.set(prefRef, { 
+          expenseBalance: finalBalance,
+          dailyBalances: updatedDailyBalances
+        }, { merge: true });
       }
 
       await batch.commit();
@@ -615,7 +734,18 @@ export function useUserData(user: User | null) {
           if (expenseToDelete.isPaid) {
             setLocalPreferences(prevPref => {
               const currentBalance = prevPref.expenseBalance || 0;
-              return { ...prevPref, expenseBalance: currentBalance + expenseToDelete.amount };
+              const finalBalance = currentBalance + expenseToDelete.amount;
+              const updatedDailyBalances = computeUpdatedDailyBalances(
+                prevPref.dailyBalances,
+                expenseToDelete.date,
+                expenseToDelete.amount,
+                finalBalance
+              );
+              return { 
+                ...prevPref, 
+                expenseBalance: finalBalance,
+                dailyBalances: updatedDailyBalances
+              };
             });
           }
         }
@@ -709,12 +839,28 @@ export function useUserData(user: User | null) {
   const updatePreferences = async (updates: Partial<UserPreferences>) => {
     if (user) {
       const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
-      const cleanUpdates = Object.fromEntries(
+      let cleanUpdates = Object.fromEntries(
         Object.entries(updates).filter(([_, v]) => v !== undefined)
       );
+      if (updates.expenseBalance !== undefined) {
+        const today = getTodayDateStr();
+        const updatedDailyBalances = computeUpdatedDailyBalances(preferences.dailyBalances, today, 0, updates.expenseBalance);
+        cleanUpdates = {
+          ...cleanUpdates,
+          dailyBalances: updatedDailyBalances
+        };
+      }
       await setDoc(prefRef, cleanUpdates, { merge: true });
     } else {
-      setLocalPreferences(prev => ({ ...prev, ...updates }));
+      setLocalPreferences(prev => {
+        const next = { ...prev, ...updates };
+        if (updates.expenseBalance !== undefined) {
+          const today = getTodayDateStr();
+          const updatedDailyBalances = computeUpdatedDailyBalances(prev.dailyBalances, today, 0, updates.expenseBalance);
+          next.dailyBalances = updatedDailyBalances;
+        }
+        return next;
+      });
     }
 
     if (updates.expenseBalance !== undefined) {

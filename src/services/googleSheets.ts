@@ -1,17 +1,10 @@
+import { safeStringify } from '../utils/safeStringify';
+
 export class GoogleSheetsService {
   private accessToken: string;
 
   private safeStringify(obj: any): string {
-    const cache = new Set();
-    return JSON.stringify(obj, (key, value) => {
-      if (typeof value === 'object' && value !== null) {
-        if (cache.has(value)) {
-          return '[Circular]';
-        }
-        cache.add(value);
-      }
-      return value;
-    });
+    return safeStringify(obj);
   }
 
   constructor(accessToken: string) {

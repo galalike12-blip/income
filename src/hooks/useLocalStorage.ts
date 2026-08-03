@@ -1,17 +1,5 @@
 import { useState, useEffect } from 'react';
-
-const safeStringify = (obj: any): string => {
-  const cache = new Set();
-  return JSON.stringify(obj, (key, value) => {
-    if (typeof value === 'object' && value !== null) {
-      if (cache.has(value)) {
-        return '[Circular]';
-      }
-      cache.add(value);
-    }
-    return value;
-  });
-};
+import { safeStringify } from '../utils/safeStringify';
 
 export function useLocalStorage<T>(key: string, initialValue: T) {
   const [storedValue, setStoredValue] = useState<T>(() => {

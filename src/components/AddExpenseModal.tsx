@@ -5,6 +5,7 @@ import { ExpenseEntry } from '../types';
 import { translations } from '../i18n/translations';
 import { useSettings } from '../contexts/SettingsContext';
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
+import { safeStringify } from '../utils/safeStringify';
 import { toast } from 'sonner';
 
 interface AddExpenseModalProps {
@@ -192,19 +193,8 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
           }
         });
 
-      const safeStringify = (obj: any): string => {
-        const cache = new Set();
-        return JSON.stringify(obj, (key, value) => {
-          if (typeof value === 'object' && value !== null) {
-            if (cache.has(value)) { return '[Circular]'; }
-            cache.add(value);
-          }
-          return value;
-        });
-      };
-
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-3.1-flash",
         contents: [
           {
             parts: [
