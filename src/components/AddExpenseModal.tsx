@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Plus, DollarSign, Calendar, Camera, Loader2, Tag, User, FileText, ChevronDown, UtensilsCrossed, Fuel, Zap, Car, ShoppingBag, Wrench, HelpCircle, Home } from 'lucide-react';
+import { X, Plus, DollarSign, Calendar, Camera, Loader2, Tag, User, FileText, ChevronDown, UtensilsCrossed, Fuel, Zap, Car, ShoppingBag, Wrench, HelpCircle, Home, Sparkles, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ExpenseEntry } from '../types';
 import { translations } from '../i18n/translations';
@@ -7,6 +7,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { safeStringify } from '../utils/safeStringify';
 import { toast } from 'sonner';
+import { getSmartFaviconUrl, resolveBrandDomain, BRAND_PRESETS } from '../utils/brandIcons';
 
 interface AddExpenseModalProps {
   isOpen: boolean;
@@ -230,7 +231,13 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         }
       }
 
-      if (finalPayee) setExpensePayee(finalPayee);
+      if (finalPayee) {
+        setExpensePayee(finalPayee);
+        const autoDomain = resolveBrandDomain(finalPayee);
+        if (autoDomain && !websiteUrl) {
+          setWebsiteUrl(autoDomain);
+        }
+      }
       if (finalCategory) setExpenseCategory(finalCategory);
       if (result.date) {
         setExpenseDate(result.date);
@@ -257,13 +264,17 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const finalWebsiteUrl = websiteUrl.trim() 
+      ? (resolveBrandDomain(websiteUrl) || websiteUrl.trim())
+      : (resolveBrandDomain(expensePayee) || '');
+
     const expenseData = {
       date: expenseDate,
       category: expenseCategory,
       payee: expensePayee,
       amount: parseFloat(expenseAmount) || 0,
       note: expenseNote,
-      websiteUrl,
+      websiteUrl: finalWebsiteUrl,
       necessity,
       isFixed,
       isPaid: isFixed ? isPaid : true,
@@ -279,6 +290,11 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
     }
     onClose();
   };
+
+  const activeIconQuery = websiteUrl.trim() || expensePayee.trim();
+  const liveDomain = resolveBrandDomain(activeIconQuery);
+  const liveFavicon = getSmartFaviconUrl(activeIconQuery);
+  const payeeDomain = resolveBrandDomain(expensePayee);
 
   return (
     <AnimatePresence>
@@ -385,21 +401,92 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
                     <input type="text" value={expenseNote} onChange={e => setExpenseNote(e.target.value)} placeholder={t.notePlaceholder || "หมายเหตุ (ถ้ามี)"} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" />
                   </div>
 
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 ml-1">URL เว็บไซต์ (สำหรับดึงไอคอน)</label>
-                    <input 
-                      type="url" 
-                      list="recent-website-urls"
-                      value={websiteUrl} 
-                      onChange={e => setWebsiteUrl(e.target.value)} 
-                      placeholder="https://example.com" 
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" 
-                    />
+                  <div className="col-span-2 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 ml-1">
+                        ไอคอนแบรนด์ / เว็บไซต์ (ค้นหาอัตโนมัติ)
+                      </label>
+                      {liveDomain && (
+                        <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-200/50 dark:border-emerald-800/50 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-amber-500" />
+                          {liveDomain}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="relative flex items-center">
+                      <input 
+                        type="text" 
+                        list="recent-website-urls"
+                        value={websiteUrl} 
+                        onChange={e => setWebsiteUrl(e.target.value)} 
+                        placeholder="พิมพ์ชื่อร้าน เช่น homepro, 7-eleven, shopee, netflix หรือ URL" 
+                        className="w-full pl-4 pr-12 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" 
+                      />
+                      <div className="absolute right-3.5 flex items-center justify-center pointer-events-none">
+                        {liveFavicon ? (
+                          <img src={liveFavicon} alt="live icon" className="w-6 h-6 rounded-full bg-white shadow-sm p-0.5 object-contain border border-slate-200/60" referrerPolicy="no-referrer" />
+                        ) : (
+                          <Globe className="w-5 h-5 text-slate-400" />
+                        )}
+                      </div>
+                    </div>
+
                     <datalist id="recent-website-urls">
                       {uniqueUrls.map(url => (
                         <option key={url} value={url} />
                       ))}
                     </datalist>
+
+                    {/* Auto Suggestion Chip from Payee */}
+                    {!websiteUrl.trim() && payeeDomain && (
+                      <motion.button
+                        type="button"
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        onClick={() => {
+                          setWebsiteUrl(payeeDomain);
+                          toast.success(`เลือกไอคอน ${expensePayee} (${payeeDomain}) เรียบร้อย`);
+                        }}
+                        className="flex items-center gap-1.5 text-xs text-indigo-700 dark:text-indigo-300 font-medium bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800/60 cursor-pointer transition-all"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-bounce" />
+                        <span>ดึงไอคอนอัตโนมัติสำหรับ "{expensePayee}" ({payeeDomain})</span>
+                      </motion.button>
+                    )}
+
+                    {/* Popular Brand Preset Chips */}
+                    <div className="pt-1">
+                      <div className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mb-1.5 ml-1">
+                        ⚡ แบรนด์ยอดนิยม (คลิกเพื่อดึงไอคอนด่วน):
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1 scrollbar-thin">
+                        {BRAND_PRESETS.map((brand) => {
+                          const isSelected = websiteUrl.toLowerCase() === brand.domain.toLowerCase() || liveDomain === brand.domain;
+                          return (
+                            <button
+                              key={brand.name}
+                              type="button"
+                              onClick={() => {
+                                setWebsiteUrl(brand.domain);
+                                if (!expensePayee.trim()) {
+                                  setExpensePayee(brand.name);
+                                }
+                                toast.success(`เลือกไอคอน ${brand.name} (${brand.domain})`);
+                              }}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700/80 hover:bg-slate-200 dark:hover:bg-slate-700'
+                              }`}
+                            >
+                              <span>{brand.emoji}</span>
+                              <span>{brand.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="col-span-2">

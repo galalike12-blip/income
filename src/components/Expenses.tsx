@@ -8,6 +8,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { ChevronLeft } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { getSmartFaviconUrl } from '../utils/brandIcons';
 
 const COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#64748b'];
 
@@ -29,18 +30,8 @@ interface ExpensesProps {
   onToggleSettings?: () => void;
 }
 
-const getFaviconUrl = (url?: string) => {
-  if (!url) return null;
-  try {
-    let validUrl = url;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      validUrl = 'https://' + url;
-    }
-    const domain = new URL(validUrl).hostname;
-    return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-  } catch (e) {
-    return null;
-  }
+const getFaviconUrl = (url?: string, payee?: string) => {
+  return getSmartFaviconUrl(url || payee);
 };
 
 const getCategoryIcon = (category: string) => {
@@ -1039,8 +1030,8 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
       >
         <div className="flex items-center gap-4 min-w-0">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${expense.isPaid ? 'bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-indigo-100/50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'} overflow-hidden`}>
-            {getFaviconUrl(expense.websiteUrl) ? (
-              <img src={getFaviconUrl(expense.websiteUrl)!} alt="icon" className="w-6 h-6 rounded-full bg-white p-0.5" referrerPolicy="no-referrer" />
+            {getFaviconUrl(expense.websiteUrl, expense.payee) ? (
+              <img src={getFaviconUrl(expense.websiteUrl, expense.payee)!} alt="icon" className="w-6 h-6 rounded-full bg-white p-0.5 object-contain" referrerPolicy="no-referrer" />
             ) : (
               <div className="text-current">
                 {getCategoryIcon(expense.category)}
