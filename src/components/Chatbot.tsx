@@ -645,15 +645,15 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         });
       }
 
-      const selectedModel = preferences.geminiModel && ['gemini-3.6-flash', 'gemini-3.1-flash', 'gemini-3.5-flash-lite'].includes(preferences.geminiModel)
+      const selectedModel = preferences.geminiModel && ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.1-flash', 'gemini-3.5-flash-lite'].includes(preferences.geminiModel)
         ? preferences.geminiModel
-        : 'gemini-3.6-flash';
+        : 'gemini-3.7-flash';
 
       try {
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+          body: safeStringify({
             model: selectedModel,
             history: history,
             currentInput: currentInput,
@@ -992,11 +992,12 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                   )}
                 </button>
                 <select
-                  value={preferences?.geminiModel && ['gemini-3.6-flash', 'gemini-3.1-flash', 'gemini-3.5-flash-lite'].includes(preferences.geminiModel) ? preferences.geminiModel : 'gemini-3.6-flash'}
+                  value={preferences?.geminiModel && ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.1-flash', 'gemini-3.5-flash-lite'].includes(preferences.geminiModel) ? preferences.geminiModel : 'gemini-3.7-flash'}
                   onChange={(e) => updatePreferences?.({ geminiModel: e.target.value })}
                   className="bg-indigo-500/50 hover:bg-indigo-500/70 text-white text-xs font-medium px-2 py-1.5 rounded-lg outline-none cursor-pointer transition-colors max-w-[130px] sm:max-w-[160px] truncate border border-white/10"
                 >
-                  <option value="gemini-3.6-flash" className="text-slate-900">⚡ Gemini 3.6 Flash</option>
+                  <option value="gemini-3.7-flash" className="text-slate-900">⚡ Gemini 3.7 Flash</option>
+                  <option value="gemini-3.6-flash" className="text-slate-900">Gemini 3.6 Flash</option>
                   <option value="gemini-3.1-flash" className="text-slate-900">Gemini 3.1 Flash</option>
                   <option value="gemini-3.5-flash-lite" className="text-slate-900">Gemini 3.5 Flash Lite</option>
                 </select>

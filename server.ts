@@ -28,7 +28,7 @@ async function startServer() {
 
       const { model, history, currentInput, currentImages, systemInstruction, tools } = req.body;
 
-      const selectedModel = model || "gemini-3.6-flash";
+      const selectedModel = model || "gemini-3.7-flash";
 
       const parts: any[] = [{ text: currentInput || "Please process these slips or request." }];
       if (currentImages && Array.isArray(currentImages)) {
