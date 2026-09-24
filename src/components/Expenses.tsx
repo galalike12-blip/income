@@ -17,7 +17,7 @@ interface ExpensesProps {
   expenses: ExpenseEntry[];
   incentives: Record<string, number>;
   onEditExpense: (expense: ExpenseEntry) => void;
-  updateExpense: (id: string, updates: Partial<ExpenseEntry>) => void;
+  updateExpense: (id: string, updates: Partial<ExpenseEntry>, scope?: 'single' | 'onwards' | 'all') => void;
   deleteExpense: (id: string) => void;
   preferences: UserPreferences;
   updatePreferences: (updates: Partial<UserPreferences>) => void;
@@ -1163,7 +1163,7 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
               className="flex-1 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
             >
               <Edit2 className="w-3.5 h-3.5" />
-              {t.edit || 'แก้'}
+              {isFixed ? (t.updateExpense || 'ปรับราคา/แก้') : (t.edit || 'แก้')}
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); handleDeleteExpense(expense); }} 

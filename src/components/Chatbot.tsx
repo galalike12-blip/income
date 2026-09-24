@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, ThinkingLevel, Type, FunctionDeclaration } from '@google/genai';
-import { MessageCircle, X, Send, Bot, Loader2, Camera, Image as ImageIcon, FileJson, Mic, MicOff, Settings2, Key, Cpu, Check, Volume2, VolumeX } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, Loader2, Camera, Image as ImageIcon, FileJson, Mic, MicOff, Settings2, Key, Cpu, Check, Volume2, VolumeX, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { JobEntry, ExpenseEntry, UserPreferences, Goal } from '../types';
 import { safeStringify } from '../utils/safeStringify';
@@ -56,6 +56,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
   const fileInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -72,7 +73,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         if (event.target?.result) {
           const imgUrl = event.target.result as string;
           // setSelectedImages(prev => [...prev, imgUrl]);
-          handleSend('', [imgUrl]);
+          handleSend('ช่วยบันทึกข้อมูลสลิปนี้เข้าระบบให้หน่อย', [imgUrl]);
           if (onClearSharedFile) onClearSharedFile();
         }
       };
@@ -127,6 +128,9 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
     const finalImages = Array.isArray(overrideImages) ? overrideImages : selectedImages;
 
     if ((!finalInput.trim() && finalImages.length === 0) || isLoading) return;
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const userMsg: ChatMessage = { 
       id: Date.now().toString(), 
@@ -660,7 +664,8 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
             currentImages: currentImages,
             systemInstruction: context,
             tools: [{ functionDeclarations: declarations }]
-          })
+          }),
+          signal: controller.signal
         });
 
         if (res.ok) {
@@ -687,6 +692,16 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
           }
         }
       } catch (err: any) {
+        if (err.name === 'AbortError' || controller.signal.aborted) {
+          setMessages(prev => [...prev, { 
+            id: (Date.now() + 1).toString(), 
+            role: 'model', 
+            text: `🛑 *หยุดการประมวลผลโดยผู้ใช้*` 
+          }]);
+          setIsLoading(false);
+          abortControllerRef.current = null;
+          return;
+        }
         if (process.env.GEMINI_API_KEY) {
           const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
           const response = await ai.models.generateContent({
@@ -706,6 +721,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
             text: `❌ **ไม่สามารถเรียกใช้ Gemini AI ได้**: ${err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ'}` 
           }]);
           setIsLoading(false);
+          abortControllerRef.current = null;
           return;
         }
       }
@@ -884,6 +900,16 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       }]);
 
     } catch (error: any) {
+      if (error.name === 'AbortError' || controller.signal.aborted) {
+        setMessages(prev => [...prev, { 
+          id: (Date.now() + 1).toString(), 
+          role: 'model', 
+          text: `🛑 *หยุดการประมวลผลโดยผู้ใช้*` 
+        }]);
+        setIsLoading(false);
+        abortControllerRef.current = null;
+        return;
+      }
       console.error(error);
       const isQuotaError = error?.message?.includes('429') || error?.status === 429;
       const isBalanceError = error?.message?.includes('402');
@@ -904,6 +930,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -1116,13 +1143,25 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                       rows={1}
                       className="flex-1 px-4 py-3 glass-input rounded-2xl text-sm resize-none min-h-[44px] max-h-32 overflow-y-auto"
                     />
-                    <button
-                      onClick={() => handleSend()}
-                      disabled={(!input.trim() && selectedImages.length === 0) || isLoading}
-                      className="p-3 glass-button rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
+                    {isLoading ? (
+                      <button
+                        type="button"
+                        onClick={() => abortControllerRef.current?.abort()}
+                        className="p-3 bg-rose-500 hover:bg-rose-600 text-white rounded-full transition-all flex items-center justify-center cursor-pointer shadow-md shadow-rose-500/25 active:scale-95 shrink-0"
+                        title="หยุดประมวลผล"
+                      >
+                        <Square className="w-4 h-4 fill-white" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSend()}
+                        disabled={!input.trim() && selectedImages.length === 0}
+                        className="p-3 glass-button rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
           </motion.div>

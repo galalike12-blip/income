@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { X, Plus, DollarSign, Calendar, Camera, Loader2, Tag, User, FileText, ChevronDown, UtensilsCrossed, Fuel, Zap, Car, ShoppingBag, Wrench, HelpCircle, Home, Sparkles, Globe } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { X, Plus, DollarSign, Calendar, Camera, Loader2, Tag, User, FileText, ChevronDown, UtensilsCrossed, Fuel, Zap, Car, ShoppingBag, Wrench, HelpCircle, Home, Sparkles, Globe, Edit2, Repeat } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ExpenseEntry } from '../types';
 import { translations } from '../i18n/translations';
@@ -13,7 +13,7 @@ interface AddExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (expense: Omit<ExpenseEntry, 'id'>) => void;
-  onEdit?: (id: string, updates: Partial<ExpenseEntry>) => void;
+  onEdit?: (id: string, updates: Partial<ExpenseEntry>, scope?: 'single' | 'onwards' | 'all') => void;
   customCategories: string[];
   setCustomCategories: (categories: string[]) => void;
   editingExpense?: ExpenseEntry | null;
@@ -42,6 +42,32 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
   const [isScanning, setIsScanning] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [updateScope, setUpdateScope] = useState<'single' | 'onwards' | 'all'>('onwards');
+
+  const relatedExpenses = useMemo(() => {
+    if (!editingExpense) return [];
+    return expenses.filter(e => {
+      if (e.id === editingExpense.id) return false;
+      if (editingExpense.groupId && e.groupId && e.groupId === editingExpense.groupId) {
+        return true;
+      }
+      if (editingExpense.isFixed && e.isFixed) {
+        const targetPayee = editingExpense.payee?.trim().toLowerCase();
+        if (targetPayee && e.payee?.trim()) {
+          return e.payee.trim().toLowerCase() === targetPayee;
+        }
+        if (!targetPayee && !e.payee?.trim()) {
+          return e.category === editingExpense.category && (e.note || '') === (editingExpense.note || '');
+        }
+      }
+      return false;
+    });
+  }, [editingExpense, expenses]);
+
+  const futureRelatedExpenses = useMemo(() => {
+    if (!editingExpense) return [];
+    return relatedExpenses.filter(e => e.date >= editingExpense.date);
+  }, [relatedExpenses, editingExpense]);
   
   const getCategoryName = (category: string) => {
     switch (category) {
@@ -105,6 +131,17 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         setIsIndefinite(editingExpense.isIndefinite ?? true);
         setDurationMonths(editingExpense.durationMonths?.toString() || '12');
         setIsPaid(editingExpense.isPaid ?? true);
+
+        const hasFuture = expenses.some(e => 
+          e.id !== editingExpense.id &&
+          ((editingExpense.groupId && e.groupId === editingExpense.groupId) || 
+           (editingExpense.isFixed && e.isFixed && (
+             (editingExpense.payee?.trim() && e.payee?.trim().toLowerCase() === editingExpense.payee.trim().toLowerCase()) ||
+             (!editingExpense.payee?.trim() && e.category === editingExpense.category && (e.note || '') === (editingExpense.note || ''))
+           ))) &&
+          e.date >= editingExpense.date
+        );
+        setUpdateScope(hasFuture ? 'onwards' : 'all');
       } else {
         const now = new Date();
         setExpenseDate(new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16));
@@ -119,6 +156,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         setIsIndefinite(true);
         setDurationMonths('12');
         setIsPaid(true);
+        setUpdateScope('onwards');
       }
     } else {
       document.body.style.overflow = 'unset';
@@ -126,7 +164,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, editingExpense]);
+  }, [isOpen, editingExpense, expenses]);
 
   const compressImage = async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -175,14 +213,8 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
   const scanFile = async (file: File) => {
     setIsScanning(true);
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("ไม่พบ API Key สำหรับใช้ระบบตรวจจับสลิป (Gemini) กรุณาตั้งค่า GEMINI_API_KEY ใน Vercel Dashboard หรือไฟล์ .env");
-      }
-
       const compressedDataUrl = await compressImage(file);
       const base64Data = compressedDataUrl.split(',')[1];
-      const ai = new GoogleGenAI({ apiKey });
       
       // Generate a distinct mapping of payee to their most frequent/recent category
       const payeeToCategoryMap: Record<string, string> = {};
@@ -194,22 +226,49 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
           }
         });
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.7-flash",
-        contents: [
-          {
-            parts: [
-              { text: "Extract receipt details: amount (number), payee (string), category, and date (string, in 'YYYY-MM-DDTHH:mm' local timezone format, extracting both the date and the time from the slip if available). You MUST choose a category from this list: [" + customCategories.join(', ') + "]. If no category matches, you MUST use 'อื่นๆ'. Here is a history map of payees and their matching categories: " + safeStringify(payeeToCategoryMap) + ". If the payee/recipient name detected matches or is highly similar to any in this history map, you MUST use its historical category. Return JSON only with fields: amount, payee, category, date." },
-              { inlineData: { data: base64Data, mimeType: "image/jpeg" } }
-            ]
-          }
-        ],
-        config: { 
-          responseMimeType: "application/json"
-        }
-      });
+      let result: any = null;
 
-      const result = JSON.parse(response.text || '{}');
+      try {
+        const res = await fetch('/api/scan-receipt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: safeStringify({
+            imageBase64: base64Data,
+            mimeType: 'image/jpeg',
+            customCategories,
+            payeeToCategoryMap
+          })
+        });
+        if (res.ok) {
+          result = await res.json();
+        }
+      } catch (err) {
+        console.warn('Failed to call /api/scan-receipt, checking client fallback:', err);
+      }
+
+      if (!result && process.env.GEMINI_API_KEY) {
+        const apiKey = process.env.GEMINI_API_KEY;
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({
+          model: "gemini-3.7-flash",
+          contents: [
+            {
+              parts: [
+                { text: "Extract receipt details: amount (number), payee (string), category, and date (string, in 'YYYY-MM-DDTHH:mm' local timezone format, extracting both the date and the time from the slip if available). You MUST choose a category from this list: [" + customCategories.join(', ') + "]. If no category matches, you MUST use 'อื่นๆ'. Here is a history map of payees and their matching categories: " + safeStringify(payeeToCategoryMap) + ". If the payee/recipient name detected matches or is highly similar to any in this history map, you MUST use its historical category. Return JSON only with fields: amount, payee, category, date." },
+                { inlineData: { data: base64Data, mimeType: "image/jpeg" } }
+              ]
+            }
+          ],
+          config: { 
+            responseMimeType: "application/json"
+          }
+        });
+        result = JSON.parse(response.text || '{}');
+      }
+
+      if (!result) {
+        throw new Error("ไม่สามารถตรวจจับสลิปได้ กรุณาตรวจสอบการตั้งค่า GEMINI_API_KEY หรือลองใหม่อีกครั้ง");
+      }
       if (result.amount) setExpenseAmount(result.amount.toString());
       
       let finalPayee = result.payee || '';
@@ -284,7 +343,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
     };
 
     if (editingExpense && onEdit) {
-      onEdit(editingExpense.id, expenseData);
+      onEdit(editingExpense.id, expenseData, updateScope);
     } else {
       onAdd(expenseData);
     }
@@ -316,10 +375,14 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
             <div className="p-6 sm:p-8">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600 dark:text-rose-400">
-                    <Plus className="w-6 h-6" />
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+                    editingExpense 
+                      ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400' 
+                      : 'bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400'
+                  }`}>
+                    {editingExpense ? <Edit2 className="w-6 h-6" /> : <Plus className="w-6 h-6" />}
                   </div>
-                  {t.addExpense || 'เพิ่มรายจ่าย'}
+                  {editingExpense ? (t.editExpense || 'แก้ไขรายจ่าย') : (t.addExpense || 'เพิ่มรายจ่าย')}
                 </h2>
                 <div className="flex items-center gap-2">
                   <input type="file" ref={fileInputRef} onChange={handleScanReceipt} accept="image/*" className="hidden" />
@@ -339,6 +402,107 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
+                  {/* Recurring scope update card when editing a recurring expense with multiple periods */}
+                  {editingExpense && relatedExpenses.length > 0 && (
+                    <div className="col-span-2 p-4 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200 dark:border-indigo-800/60 shadow-sm space-y-3">
+                      <div className="flex items-start gap-2.5">
+                        <div className="p-1.5 bg-indigo-600 text-white rounded-lg mt-0.5 shrink-0">
+                          <Repeat className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <h4 className="text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                              {t.recurringUpdateNotice || 'พบรายจ่ายต่อเนื่องในงวดอื่น'}
+                            </h4>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
+                              ทั้งหมด {relatedExpenses.length + 1} งวด
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-0.5 leading-relaxed">
+                            {t.priceUpdateHelp || 'แนะนำสำหรับการปรับราคาใหม่ (เช่น YouTube ปรับเป็น 75 บาท ตั้งแต่เดือนนี้เป็นต้นไป)'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                        {/* Option 1: Onwards */}
+                        <button
+                          type="button"
+                          onClick={() => setUpdateScope('onwards')}
+                          className={`p-2.5 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
+                            updateScope === 'onwards'
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/25'
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold">
+                              {t.updateOnwards || 'งวดนี้และถัดไป'}
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                              updateScope === 'onwards' ? 'bg-white/20 text-white' : 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
+                            }`}>
+                              {futureRelatedExpenses.length + 1} งวด
+                            </span>
+                          </div>
+                          <span className={`text-[10px] ${updateScope === 'onwards' ? 'text-indigo-100' : 'text-slate-500'}`}>
+                            แนะนำเมื่อราคาเปลี่ยนใหม่
+                          </span>
+                        </button>
+
+                        {/* Option 2: Single */}
+                        <button
+                          type="button"
+                          onClick={() => setUpdateScope('single')}
+                          className={`p-2.5 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
+                            updateScope === 'single'
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/25'
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold">
+                              {t.updateOnlyThis || 'เฉพาะงวดนี้'}
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                              updateScope === 'single' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                            }`}>
+                              1 งวด
+                            </span>
+                          </div>
+                          <span className={`text-[10px] ${updateScope === 'single' ? 'text-indigo-100' : 'text-slate-500'}`}>
+                            แก้ไขเฉพาะงวดนี้เท่านั้น
+                          </span>
+                        </button>
+
+                        {/* Option 3: All in group */}
+                        <button
+                          type="button"
+                          onClick={() => setUpdateScope('all')}
+                          className={`p-2.5 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
+                            updateScope === 'all'
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/25'
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold">
+                              {t.updateAllInGroup || 'ทุกงวดในชุดนี้'}
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                              updateScope === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                            }`}>
+                              {relatedExpenses.length + 1} งวด
+                            </span>
+                          </div>
+                          <span className={`text-[10px] ${updateScope === 'all' ? 'text-indigo-100' : 'text-slate-500'}`}>
+                            อัปเดตทุกงวดรวมอดีต
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="col-span-2">
                     <label className="block text-xs font-bold text-rose-600 dark:text-rose-400 mb-1.5 ml-1 uppercase tracking-wider">{t.amount || 'จำนวนเงิน'} *</label>
                     <div className="relative">

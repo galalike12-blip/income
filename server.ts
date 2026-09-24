@@ -66,6 +66,54 @@ async function startServer() {
     }
   });
 
+  app.post("/api/scan-receipt", async (req, res) => {
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(400).json({ error: "GEMINI_API_KEY environment variable is not configured." });
+      }
+
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build'
+          }
+        }
+      });
+
+      const { imageBase64, mimeType = "image/jpeg", customCategories = [], payeeToCategoryMap = {} } = req.body;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.7-flash",
+        contents: [
+          {
+            parts: [
+              {
+                text: `Extract receipt details: amount (number), payee (string), category, and date (string, in 'YYYY-MM-DDTHH:mm' local timezone format, extracting both the date and the time from the slip if available). You MUST choose a category from this list: [${customCategories.join(', ')}]. If no category matches, you MUST use 'อื่นๆ'. Here is a history map of payees and their matching categories: ${JSON.stringify(payeeToCategoryMap)}. If the payee/recipient name detected matches or is highly similar to any in this history map, you MUST use its historical category. Return JSON only with fields: amount, payee, category, date.`
+              },
+              {
+                inlineData: {
+                  data: imageBase64,
+                  mimeType: mimeType
+                }
+              }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
+
+      const result = JSON.parse(response.text || '{}');
+      res.json(result);
+    } catch (err: any) {
+      console.error("Error in /api/scan-receipt:", err);
+      res.status(500).json({ error: err.message || "Failed to scan receipt" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

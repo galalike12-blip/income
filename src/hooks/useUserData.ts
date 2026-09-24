@@ -533,58 +533,102 @@ export function useUserData(user: User | null) {
     return { id: entries[0].id, balanceAfter: entries[0].balanceAfter };
   };
 
-  const updateExpense = async (id: string, updates: Partial<ExpenseEntry>) => {
+  const updateExpense = async (
+    id: string, 
+    updates: Partial<ExpenseEntry>, 
+    scope: 'single' | 'onwards' | 'all' = 'single'
+  ) => {
     if (user) {
-      const expenseRef = doc(db, 'users', user.uid, 'expenses', id);
       const prefRef = doc(db, 'users', user.uid, 'preferences', 'main');
-      
       const oldExpense = firestoreExpenses.find(e => e.id === id);
       if (!oldExpense) return;
-      
-      const wasPaid = oldExpense.isPaid || false;
-      const isPaid = updates.isPaid !== undefined ? updates.isPaid : wasPaid;
-      const oldAmount = oldExpense.amount || 0;
-      const newAmount = updates.amount !== undefined ? updates.amount : oldAmount;
-      
-      let balanceChange = 0;
-      
-      if (!wasPaid && isPaid) {
-        // Just paid: deduct full new amount
-        balanceChange = -newAmount;
-      } else if (wasPaid && !isPaid) {
-        // Unpaid: add back old amount
-        balanceChange = oldAmount;
-      } else if (wasPaid && isPaid && updates.amount !== undefined) {
-        // Still paid but amount changed: adjust by difference
-        balanceChange = -(newAmount - oldAmount);
-      }
-
-      const cleanUpdates: Partial<ExpenseEntry> = Object.fromEntries(
-        Object.entries(updates).filter(([_, v]) => v !== undefined)
-      );
 
       const currentBalance = preferences.expenseBalance || 0;
-      if (balanceChange !== 0 || updates.isPaid !== undefined) {
-        if (isPaid) {
-          cleanUpdates.balanceAfter = currentBalance + balanceChange;
-        } else if (!isPaid) {
-          cleanUpdates.balanceAfter = undefined;
-          // In Firestore we can use deleteField() but setting to null is okay too.
-          // Let's just set it to null so it overwrites.
-          (cleanUpdates as any).balanceAfter = null;
+      const targetPayee = oldExpense.payee?.trim().toLowerCase();
+
+      let matchingEntries = [oldExpense];
+      if (scope !== 'single') {
+        matchingEntries = firestoreExpenses.filter(e => {
+          if (e.id === id) return true;
+          if (oldExpense.groupId && e.groupId && e.groupId === oldExpense.groupId) {
+            return true;
+          }
+          if (oldExpense.isFixed && e.isFixed) {
+            if (targetPayee && e.payee?.trim() && e.payee.trim().toLowerCase() === targetPayee) {
+              return true;
+            }
+            if (!targetPayee && !e.payee?.trim() && e.category === oldExpense.category && (e.note || '') === (oldExpense.note || '')) {
+              return true;
+            }
+          }
+          return false;
+        });
+
+        if (scope === 'onwards') {
+          matchingEntries = matchingEntries.filter(e => e.date >= oldExpense.date);
         }
       }
 
+      const sharedGroupId = oldExpense.groupId || (matchingEntries.length > 1 ? ('grp_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6)) : undefined);
+      let totalBalanceChange = 0;
       const batch = writeBatch(db);
-      batch.set(expenseRef, cleanUpdates, { merge: true });
-      
-      if (balanceChange !== 0) {
-        const finalBalance = currentBalance + balanceChange;
+
+      matchingEntries.forEach(entry => {
+        const expenseRef = doc(db, 'users', user.uid, 'expenses', entry.id);
+        const wasPaid = entry.isPaid || false;
+        const isPaid = entry.id === id && updates.isPaid !== undefined ? updates.isPaid : wasPaid;
+        const oldAmount = entry.amount || 0;
+        const newAmount = updates.amount !== undefined ? updates.amount : oldAmount;
+
+        let entryBalanceChange = 0;
+        if (!wasPaid && isPaid) {
+          entryBalanceChange = -newAmount;
+        } else if (wasPaid && !isPaid) {
+          entryBalanceChange = oldAmount;
+        } else if (wasPaid && isPaid && updates.amount !== undefined) {
+          entryBalanceChange = -(newAmount - oldAmount);
+        }
+
+        totalBalanceChange += entryBalanceChange;
+
+        let cleanEntryUpdates: Partial<ExpenseEntry>;
+        if (entry.id === id) {
+          cleanEntryUpdates = Object.fromEntries(
+            Object.entries(updates).filter(([_, v]) => v !== undefined)
+          );
+          if (sharedGroupId) cleanEntryUpdates.groupId = sharedGroupId;
+          if (entryBalanceChange !== 0 || updates.isPaid !== undefined) {
+            if (isPaid) {
+              cleanEntryUpdates.balanceAfter = currentBalance + entryBalanceChange;
+            } else if (!isPaid) {
+              (cleanEntryUpdates as any).balanceAfter = null;
+            }
+          }
+        } else {
+          cleanEntryUpdates = {};
+          if (updates.amount !== undefined) cleanEntryUpdates.amount = updates.amount;
+          if (updates.payee !== undefined) cleanEntryUpdates.payee = updates.payee;
+          if (updates.category !== undefined) cleanEntryUpdates.category = updates.category;
+          if (updates.note !== undefined) cleanEntryUpdates.note = updates.note;
+          if (updates.websiteUrl !== undefined) cleanEntryUpdates.websiteUrl = updates.websiteUrl;
+          if (updates.necessity !== undefined) cleanEntryUpdates.necessity = updates.necessity;
+          if (updates.frequency !== undefined) cleanEntryUpdates.frequency = updates.frequency;
+          if (sharedGroupId) cleanEntryUpdates.groupId = sharedGroupId;
+          if (wasPaid && updates.amount !== undefined && entry.balanceAfter !== undefined) {
+            cleanEntryUpdates.balanceAfter = entry.balanceAfter + entryBalanceChange;
+          }
+        }
+
+        batch.set(expenseRef, cleanEntryUpdates, { merge: true });
+      });
+
+      if (totalBalanceChange !== 0) {
+        const finalBalance = currentBalance + totalBalanceChange;
         const txDate = oldExpense.date;
         const updatedDailyBalances = computeUpdatedDailyBalances(
           preferences.dailyBalances,
           txDate,
-          balanceChange,
+          totalBalanceChange,
           finalBalance
         );
         batch.set(prefRef, { 
@@ -592,100 +636,140 @@ export function useUserData(user: User | null) {
           dailyBalances: updatedDailyBalances
         }, { merge: true });
       }
-      
+
       await batch.commit();
 
-      const finalBalance = currentBalance + balanceChange;
+      const finalBalance = currentBalance + totalBalanceChange;
+      const expenseName = updates.payee || oldExpense.payee || updates.category || oldExpense.category;
+      const newAmount = updates.amount !== undefined ? updates.amount : oldExpense.amount;
 
-      if (!wasPaid && isPaid) {
-        toast.success(`ชำระรายจ่ายสำเร็จ: ${updates.payee || oldExpense.payee || updates.category || oldExpense.category} ฿${newAmount.toLocaleString()} (ยอดคงเหลือ ฿${finalBalance.toLocaleString()})`);
-        if (preferences.enableVoiceFeedback !== false) {
-          speakText(`จ่ายค่า ${updates.payee || oldExpense.payee || updates.category || oldExpense.category} ${newAmount} บาท แล้วค่ะ ยอดคงเหลือ ${finalBalance} บาท ค่ะ`);
-        }
-        await addLog('edit_expense', `ชำระรายจ่าย: ${updates.payee || oldExpense.payee || updates.category || oldExpense.category} (${newAmount} บาท) - ยอดคงเหลือ ฿${finalBalance.toLocaleString()}`, newAmount);
-      } else if (wasPaid && !isPaid) {
-        toast.info(`ยกเลิกการชำระรายจ่าย: ${updates.payee || oldExpense.payee || updates.category || oldExpense.category} (ยอดคงเหลือ ฿${finalBalance.toLocaleString()})`);
-        if (preferences.enableVoiceFeedback !== false) {
-          speakText(`ยกเลิกการจ่ายค่า ${updates.payee || oldExpense.payee || updates.category || oldExpense.category} แล้วค่ะ ยอดคงเหลือ ${finalBalance} บาท ค่ะ`);
-        }
-        await addLog('edit_expense', `ยกเลิกการชำระรายจ่าย: ${updates.payee || oldExpense.payee || updates.category || oldExpense.category} (${oldAmount} บาท) - ยอดคงเหลือ ฿${finalBalance.toLocaleString()}`, oldAmount);
+      if (matchingEntries.length > 1) {
+        toast.success(`อัปเดตราคา "${expenseName}" เป็น ฿${newAmount.toLocaleString()} ทั้งหมด ${matchingEntries.length} งวด เรียบร้อยแล้ว`);
+        await addLog('edit_expense', `อัปเดตราคาต่อเนื่อง: ${expenseName} (${newAmount} บาท) ทั้งหมด ${matchingEntries.length} งวด`, newAmount * matchingEntries.length);
       } else {
-        await addLog('edit_expense', `แก้ไขรายจ่าย: ${updates.payee || oldExpense.payee || updates.category || oldExpense.category}`, updates.amount);
+        const wasPaid = oldExpense.isPaid || false;
+        const isPaid = updates.isPaid !== undefined ? updates.isPaid : wasPaid;
+        if (!wasPaid && isPaid) {
+          toast.success(`ชำระรายจ่ายสำเร็จ: ${expenseName} ฿${newAmount.toLocaleString()} (ยอดคงเหลือ ฿${finalBalance.toLocaleString()})`);
+          if (preferences.enableVoiceFeedback !== false) {
+            speakText(`จ่ายค่า ${expenseName} ${newAmount} บาท แล้วค่ะ ยอดคงเหลือ ${finalBalance} บาท ค่ะ`);
+          }
+          await addLog('edit_expense', `ชำระรายจ่าย: ${expenseName} (${newAmount} บาท) - ยอดคงเหลือ ฿${finalBalance.toLocaleString()}`, newAmount);
+        } else if (wasPaid && !isPaid) {
+          toast.info(`ยกเลิกการชำระรายจ่าย: ${expenseName} (ยอดคงเหลือ ฿${finalBalance.toLocaleString()})`);
+          if (preferences.enableVoiceFeedback !== false) {
+            speakText(`ยกเลิกการจ่ายค่า ${expenseName} แล้วค่ะ ยอดคงเหลือ ${finalBalance} บาท ค่ะ`);
+          }
+          await addLog('edit_expense', `ยกเลิกการชำระรายจ่าย: ${expenseName} (${oldExpense.amount} บาท) - ยอดคงเหลือ ฿${finalBalance.toLocaleString()}`, oldExpense.amount);
+        } else {
+          await addLog('edit_expense', `แก้ไขรายจ่าย: ${expenseName}`, updates.amount);
+        }
       }
     } else {
       const oldEx = localExpenses.find(e => e.id === id);
-      if (oldEx) {
-        const wasPaid = oldEx.isPaid;
-        const isPaid = updates.isPaid !== undefined ? updates.isPaid : wasPaid;
-        const oldAmount = oldEx.amount;
-        const newAmount = updates.amount !== undefined ? updates.amount : oldAmount;
+      if (!oldEx) return;
 
-        let localBalanceChange = 0;
-        if (!wasPaid && isPaid) {
-          localBalanceChange = -newAmount;
-        } else if (wasPaid && !isPaid) {
-          localBalanceChange = oldAmount;
-        } else if (wasPaid && isPaid && updates.amount !== undefined) {
-          localBalanceChange = -(newAmount - oldAmount);
-        }
-
-        const finalLocalBalance = (preferences.expenseBalance || 0) + localBalanceChange;
-
-        setLocalExpenses(prev => {
-          const currentExpenses = [...prev];
-          const index = currentExpenses.findIndex(e => e.id === id);
-          if (index === -1) return currentExpenses;
-
-          setLocalPreferences(prevPref => {
-            const currentBalance = prevPref.expenseBalance || 0;
-            let newBalance = currentBalance;
-
-            if (!wasPaid && isPaid) {
-              newBalance = currentBalance - newAmount;
-            } else if (wasPaid && !isPaid) {
-              newBalance = currentBalance + oldAmount;
-            } else if (wasPaid && isPaid && updates.amount !== undefined) {
-              const diff = newAmount - oldAmount;
-              newBalance = currentBalance - diff;
-            }
-
-            if (isPaid) {
-              updates.balanceAfter = newBalance;
-            } else {
-              updates.balanceAfter = undefined;
-            }
-
-            if (newBalance !== currentBalance) {
-              const today = getTodayDateStr();
-              const updatedDailyBalances = { ...(prevPref.dailyBalances || {}) };
-              updatedDailyBalances[today] = newBalance;
-              return { 
-                ...prevPref, 
-                expenseBalance: newBalance,
-                dailyBalances: updatedDailyBalances
-              };
-            }
-            return prevPref;
-          });
-
-          currentExpenses[index] = { ...oldEx, ...updates };
-          return currentExpenses;
+      const targetPayee = oldEx.payee?.trim().toLowerCase();
+      let matchingEntries = [oldEx];
+      if (scope !== 'single') {
+        matchingEntries = localExpenses.filter(e => {
+          if (e.id === id) return true;
+          if (oldEx.groupId && e.groupId && e.groupId === oldEx.groupId) return true;
+          if (oldEx.isFixed && e.isFixed) {
+            if (targetPayee && e.payee?.trim() && e.payee.trim().toLowerCase() === targetPayee) return true;
+            if (!targetPayee && !e.payee?.trim() && e.category === oldEx.category && (e.note || '') === (oldEx.note || '')) return true;
+          }
+          return false;
         });
 
+        if (scope === 'onwards') {
+          matchingEntries = matchingEntries.filter(e => e.date >= oldEx.date);
+        }
+      }
+
+      const sharedGroupId = oldEx.groupId || (matchingEntries.length > 1 ? ('grp_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6)) : undefined);
+      let localBalanceChange = 0;
+
+      matchingEntries.forEach(entry => {
+        const wasPaid = entry.isPaid || false;
+        const isPaid = entry.id === id && updates.isPaid !== undefined ? updates.isPaid : wasPaid;
+        const oldAmount = entry.amount || 0;
+        const newAmount = updates.amount !== undefined ? updates.amount : oldAmount;
+
         if (!wasPaid && isPaid) {
-          toast.success(`ชำระรายจ่ายสำเร็จ: ${updates.payee || oldEx.payee || updates.category || oldEx.category} ฿${newAmount.toLocaleString()} (ยอดคงเหลือ ฿${finalLocalBalance.toLocaleString()})`);
-          if (preferences.enableVoiceFeedback !== false) {
-            speakText(`จ่ายค่า ${updates.payee || oldEx.payee || updates.category || oldEx.category} ${newAmount} บาท แล้วค่ะ ยอดคงเหลือ ${finalLocalBalance} บาท ค่ะ`);
-          }
-          await addLog('edit_expense', `ชำระรายจ่าย: ${updates.payee || oldEx.payee || updates.category || oldEx.category} (${newAmount} บาท) - ยอดคงเหลือ ฿${finalLocalBalance.toLocaleString()}`, newAmount);
+          localBalanceChange += -newAmount;
         } else if (wasPaid && !isPaid) {
-          toast.info(`ยกเลิกการชำระรายจ่าย: ${updates.payee || oldEx.payee || updates.category || oldEx.category} (ยอดคงเหลือ ฿${finalLocalBalance.toLocaleString()})`);
-          if (preferences.enableVoiceFeedback !== false) {
-            speakText(`ยกเลิกการจ่ายค่า ${updates.payee || oldEx.payee || updates.category || oldEx.category} แล้วค่ะ ยอดคงเหลือ ${finalLocalBalance} บาท ค่ะ`);
+          localBalanceChange += oldAmount;
+        } else if (wasPaid && isPaid && updates.amount !== undefined) {
+          localBalanceChange += -(newAmount - oldAmount);
+        }
+      });
+
+      const finalLocalBalance = (preferences.expenseBalance || 0) + localBalanceChange;
+
+      setLocalExpenses(prev => {
+        const updated = [...prev];
+        matchingEntries.forEach(entry => {
+          const idx = updated.findIndex(e => e.id === entry.id);
+          if (idx === -1) return;
+          if (entry.id === id) {
+            const clean = { ...updated[idx], ...updates };
+            if (sharedGroupId) clean.groupId = sharedGroupId;
+            updated[idx] = clean;
+          } else {
+            const clean: any = { ...updated[idx] };
+            if (updates.amount !== undefined) clean.amount = updates.amount;
+            if (updates.payee !== undefined) clean.payee = updates.payee;
+            if (updates.category !== undefined) clean.category = updates.category;
+            if (updates.note !== undefined) clean.note = updates.note;
+            if (updates.websiteUrl !== undefined) clean.websiteUrl = updates.websiteUrl;
+            if (updates.necessity !== undefined) clean.necessity = updates.necessity;
+            if (updates.frequency !== undefined) clean.frequency = updates.frequency;
+            if (sharedGroupId) clean.groupId = sharedGroupId;
+            updated[idx] = clean;
           }
-          await addLog('edit_expense', `ยกเลิกการชำระรายจ่าย: ${updates.payee || oldEx.payee || updates.category || oldEx.category} (${oldAmount} บาท) - ยอดคงเหลือ ฿${finalLocalBalance.toLocaleString()}`, oldAmount);
+        });
+        return updated;
+      });
+
+      if (localBalanceChange !== 0) {
+        setLocalPreferences(prevPref => {
+          const currentBalance = prevPref.expenseBalance || 0;
+          const newBalance = currentBalance + localBalanceChange;
+          const today = getTodayDateStr();
+          const updatedDailyBalances = { ...(prevPref.dailyBalances || {}) };
+          updatedDailyBalances[today] = newBalance;
+          return { 
+            ...prevPref, 
+            expenseBalance: newBalance,
+            dailyBalances: updatedDailyBalances
+          };
+        });
+      }
+
+      const expenseName = updates.payee || oldEx.payee || updates.category || oldEx.category;
+      const newAmount = updates.amount !== undefined ? updates.amount : oldEx.amount;
+
+      if (matchingEntries.length > 1) {
+        toast.success(`อัปเดตราคา "${expenseName}" เป็น ฿${newAmount.toLocaleString()} ทั้งหมด ${matchingEntries.length} งวด เรียบร้อยแล้ว`);
+        await addLog('edit_expense', `อัปเดตราคาต่อเนื่อง: ${expenseName} (${newAmount} บาท) ทั้งหมด ${matchingEntries.length} งวด`, newAmount * matchingEntries.length);
+      } else {
+        const wasPaid = oldEx.isPaid || false;
+        const isPaid = updates.isPaid !== undefined ? updates.isPaid : wasPaid;
+        if (!wasPaid && isPaid) {
+          toast.success(`ชำระรายจ่ายสำเร็จ: ${expenseName} ฿${newAmount.toLocaleString()} (ยอดคงเหลือ ฿${finalLocalBalance.toLocaleString()})`);
+          if (preferences.enableVoiceFeedback !== false) {
+            speakText(`จ่ายค่า ${expenseName} ${newAmount} บาท แล้วค่ะ ยอดคงเหลือ ${finalLocalBalance} บาท ค่ะ`);
+          }
+          await addLog('edit_expense', `ชำระรายจ่าย: ${expenseName} (${newAmount} บาท) - ยอดคงเหลือ ฿${finalLocalBalance.toLocaleString()}`, newAmount);
+        } else if (wasPaid && !isPaid) {
+          toast.info(`ยกเลิกการชำระรายจ่าย: ${expenseName} (ยอดคงเหลือ ฿${finalLocalBalance.toLocaleString()})`);
+          if (preferences.enableVoiceFeedback !== false) {
+            speakText(`ยกเลิกการจ่ายค่า ${expenseName} แล้วค่ะ ยอดคงเหลือ ${finalLocalBalance} บาท ค่ะ`);
+          }
+          await addLog('edit_expense', `ยกเลิกการชำระรายจ่าย: ${expenseName} (${oldEx.amount} บาท) - ยอดคงเหลือ ฿${finalLocalBalance.toLocaleString()}`, oldEx.amount);
         } else {
-          await addLog('edit_expense', `แก้ไขรายจ่าย: ${updates.payee || oldEx.payee || updates.category || oldEx.category}`, updates.amount);
+          await addLog('edit_expense', `แก้ไขรายจ่าย: ${expenseName}`, updates.amount);
         }
       }
     }
