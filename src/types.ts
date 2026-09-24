@@ -37,6 +37,7 @@ export interface ExpenseEntry {
   isPaid?: boolean;
   groupId?: string;
   balanceAfter?: number;
+  transactionId?: string; // เลขที่รายการสลิป / Slip Transaction ID to prevent duplication
 }
 
 export interface ActivityLog {

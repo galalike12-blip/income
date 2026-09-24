@@ -158,7 +158,8 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
             category: { type: Type.STRING, description: "Category. You MUST choose from this list: [" + customCategories.join(', ') + "]. If no category matches, you MUST use 'อื่นๆ'." },
             payee: { type: Type.STRING, description: "The store or person paid" },
             note: { type: Type.STRING, description: "A brief description or note" },
-            date: { type: Type.STRING, description: "Date and time in 'YYYY-MM-DDTHH:mm' local timezone format. Extract both the date and time from the receipt if uploaded, use today's date if not specified." }
+            date: { type: Type.STRING, description: "Date and time in 'YYYY-MM-DDTHH:mm' local timezone format. Extract both the date and time from the receipt if uploaded, use today's date if not specified." },
+            transactionId: { type: Type.STRING, description: "The transaction ID (เลขที่รายการ/เลขที่อ้างอิง) of the slip/receipt. Extract this value if it exists on the uploaded slip/receipt image. It could be labelled as 'เลขที่รายการ', 'Transaction No.', 'Txn ID', 'เลขที่อ้างอิง', 'Ref No.', 'เลขที่สลิป' or similar." }
           },
           required: ["amount", "category"]
         }
@@ -616,7 +617,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       
       The user's preferred language code is '${currentLang}'. Please respond in this language.
       
-      If the user uploads an image of a receipt or slip, extract the details such as payee name and call the 'addExpense' tool.
+      If the user uploads an image of a receipt or slip, you MUST extract the payee name, amount, date/time, and transactionId (เลขที่รายการ/เลขที่อ้างอิง) if it exists on the slip and call the 'addExpense' tool.
       When extracting the category, always check the Payee Category History Map first. If a match is found, use it. If not, use the custom lists or default 'อื่นๆ'.
       If the user provides JSON data, process it by calling the appropriate tools (addExpense, addJob, setIncentive) for each entry in the JSON.
       If the user mentions adding a job or income, use the 'addJob' tool.
@@ -759,6 +760,15 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
 
             // Programmatic check for duplicate expense entries
             const isDuplicate = expenses.some(e => {
+              // 1. If transactionId matches and is not empty, it is definitely a duplicate!
+              if (args.transactionId && e.transactionId && args.transactionId.trim() && e.transactionId.trim()) {
+                return args.transactionId.trim() === e.transactionId.trim();
+              }
+              // 2. If transactionId is different, and BOTH have transactionIds, it is definitely NOT a duplicate!
+              if (args.transactionId && e.transactionId && args.transactionId.trim() && e.transactionId.trim() && args.transactionId.trim() !== e.transactionId.trim()) {
+                return false;
+              }
+              // 3. Otherwise fall back to amount, payee, and date comparison
               const sameAmount = Math.abs(e.amount - args.amount) < 0.01;
               const p1 = (e.payee || '').trim().toLowerCase();
               const p2 = (args.payee || '').trim().toLowerCase();
@@ -769,8 +779,9 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
 
             if (isDuplicate) {
               const payeeLabel = args.payee || 'ร้านค้า/ผู้รับเงิน';
-              toast.warning(`ตรวจพบสลิปซ้ำ: ${payeeLabel} ฿${args.amount}`);
-              duplicateAlertMessage = `⚠️ **ตรวจพบรายการนี้ในระบบแล้ว!**\nรายการค่าใช้จ่ายจำนวน **฿${args.amount}** จ่ายให้กับ **${payeeLabel}** ในวันที่ **${targetDate.substring(0, 10)}** ได้ตอบรับการเพิ่มในระบบมาก่อนหน้าแล้ว ระบบจึงแจ้งเตือนและระงับการบันทึกรายการซ้ำเพื่อความถูกต้องของสมุดบัญชีครับ`;
+              const slipInfo = args.transactionId ? ` (เลขที่รายการ: ${args.transactionId})` : '';
+              toast.warning(`ตรวจพบสลิปซ้ำ: ${payeeLabel} ฿${args.amount}${slipInfo}`);
+              duplicateAlertMessage = `⚠️ **ตรวจพบรายการนี้ในระบบแล้ว!**\nรายการค่าใช้จ่ายจำนวน **฿${args.amount}** จ่ายให้กับ **${payeeLabel}** ${args.transactionId ? `ที่มีเลขที่รายการซ้ำกัน (**${args.transactionId}**)` : `ในวันที่ **${targetDate.substring(0, 10)}**`} ได้รับการเพิ่มในระบบมาก่อนหน้าแล้ว ระบบจึงแจ้งเตือนและระงับการบันทึกรายการซ้ำเพื่อความถูกต้องครับ`;
               continue;
             }
 
@@ -780,7 +791,8 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               payee: args.payee || '',
               note: args.note || '',
               date: targetDate,
-              isPaid: true
+              isPaid: true,
+              transactionId: args.transactionId || undefined
             });
             const bal = (res as any)?.balanceAfter;
             if (bal !== undefined) {

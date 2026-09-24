@@ -43,6 +43,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [updateScope, setUpdateScope] = useState<'single' | 'onwards' | 'all'>('onwards');
+  const [transactionId, setTransactionId] = useState('');
 
   const relatedExpenses = useMemo(() => {
     if (!editingExpense) return [];
@@ -131,6 +132,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         setIsIndefinite(editingExpense.isIndefinite ?? true);
         setDurationMonths(editingExpense.durationMonths?.toString() || '12');
         setIsPaid(editingExpense.isPaid ?? true);
+        setTransactionId(editingExpense.transactionId || '');
 
         const hasFuture = expenses.some(e => 
           e.id !== editingExpense.id &&
@@ -157,6 +159,7 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
         setDurationMonths('12');
         setIsPaid(true);
         setUpdateScope('onwards');
+        setTransactionId('');
       }
     } else {
       document.body.style.overflow = 'unset';
@@ -301,6 +304,9 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
       if (result.date) {
         setExpenseDate(result.date);
       }
+      if (result.transactionId) {
+        setTransactionId(result.transactionId);
+      }
     } catch (error: any) {
       console.error("Scan failed:", error);
       toast.error(error?.message || "สแกนสลิปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
@@ -327,11 +333,37 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
       ? (resolveBrandDomain(websiteUrl) || websiteUrl.trim())
       : (resolveBrandDomain(expensePayee) || '');
 
+    const amountVal = parseFloat(expenseAmount) || 0;
+
+    // Check for duplicates
+    const isDuplicate = !editingExpense && expenses.some(e => {
+      // 1. If transactionId matches and is not empty
+      if (transactionId && e.transactionId && transactionId.trim() && e.transactionId.trim()) {
+        return transactionId.trim() === e.transactionId.trim();
+      }
+      // 2. If transactionId is different, and BOTH have transactionIds, it is definitely NOT a duplicate!
+      if (transactionId && e.transactionId && transactionId.trim() && e.transactionId.trim() && transactionId.trim() !== e.transactionId.trim()) {
+        return false;
+      }
+      // 3. Otherwise fall back to amount, payee, and date comparison
+      const sameAmount = Math.abs(e.amount - amountVal) < 0.01;
+      const p1 = (e.payee || '').trim().toLowerCase();
+      const p2 = (expensePayee || '').trim().toLowerCase();
+      const samePayee = p1 === p2 || (p1 && p2 && (p1.includes(p2) || p2.includes(p1)));
+      const sameDay = e.date.substring(0, 10) === expenseDate.substring(0, 10);
+      return sameAmount && samePayee && sameDay;
+    });
+
+    if (isDuplicate) {
+      toast.warning(`ตรวจพบสลิปซ้ำ: รายการนี้ได้รับการบันทึกไปแล้ว`);
+      return;
+    }
+
     const expenseData = {
       date: expenseDate,
       category: expenseCategory,
       payee: expensePayee,
-      amount: parseFloat(expenseAmount) || 0,
+      amount: amountVal,
       note: expenseNote,
       websiteUrl: finalWebsiteUrl,
       necessity,
@@ -339,7 +371,8 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
       isPaid: isFixed ? isPaid : true,
       frequency: isFixed ? frequency : undefined,
       durationMonths: isFixed && !isIndefinite ? parseInt(durationMonths) : undefined,
-      isIndefinite: isFixed ? isIndefinite : undefined
+      isIndefinite: isFixed ? isIndefinite : undefined,
+      transactionId: transactionId.trim() || undefined
     };
 
     if (editingExpense && onEdit) {
@@ -563,6 +596,11 @@ export function AddExpenseModal({ isOpen, onClose, onAdd, onEdit, customCategori
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 ml-1">{t.note || 'หมายเหตุ'}</label>
                     <input type="text" value={expenseNote} onChange={e => setExpenseNote(e.target.value)} placeholder={t.notePlaceholder || "หมายเหตุ (ถ้ามี)"} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 ml-1">เลขที่รายการสลิป (Transaction ID)</label>
+                    <input type="text" value={transactionId} onChange={e => setTransactionId(e.target.value)} placeholder="เลขที่อ้างอิง/เลขที่รายการสลิป (ถ้ามี)" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:border-indigo-500 outline-none transition-all text-sm" />
                   </div>
 
                   <div className="col-span-2 space-y-2">

@@ -90,7 +90,7 @@ async function startServer() {
           {
             parts: [
               {
-                text: `Extract receipt details: amount (number), payee (string), category, and date (string, in 'YYYY-MM-DDTHH:mm' local timezone format, extracting both the date and the time from the slip if available). You MUST choose a category from this list: [${customCategories.join(', ')}]. If no category matches, you MUST use 'อื่นๆ'. Here is a history map of payees and their matching categories: ${JSON.stringify(payeeToCategoryMap)}. If the payee/recipient name detected matches or is highly similar to any in this history map, you MUST use its historical category. Return JSON only with fields: amount, payee, category, date.`
+                text: `Extract receipt details: amount (number), payee (string), category, date (string, in 'YYYY-MM-DDTHH:mm' local timezone format, extracting both the date and the time from the slip if available), and transactionId (string, the transaction ID / 'เลขที่รายการ' / 'เลขที่อ้างอิง' / 'Ref No.' / 'Transaction No.' of the slip, extract this if it exists, otherwise return null). You MUST choose a category from this list: [${customCategories.join(', ')}]. If no category matches, you MUST use 'อื่นๆ'. Here is a history map of payees and their matching categories: ${JSON.stringify(payeeToCategoryMap)}. If the payee/recipient name detected matches or is highly similar to any in this history map, you MUST use its historical category. Return JSON only with fields: amount, payee, category, date, transactionId.`
               },
               {
                 inlineData: {

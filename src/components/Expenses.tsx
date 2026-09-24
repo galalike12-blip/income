@@ -277,6 +277,10 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
   const totalVariable = variableExpenses.reduce((sum, e) => sum + e.amount, 0);
   const totalExpenses = totalFixed + totalVariable;
 
+  const startingBalance = useMemo(() => {
+    return expenseBalance + totalExpenses;
+  }, [expenseBalance, totalExpenses]);
+
   const handleResetDataInternal = async () => {
     if (resetInput === 'RESET') {
       try {
@@ -547,6 +551,7 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
                   progress={getGroupProgress(expense.groupId)}
                   expandedExpenseId={expandedExpenseId}
                   setExpandedExpenseId={setExpandedExpenseId}
+                  startingBalance={startingBalance}
                 />
               ))}
             </div>
@@ -699,6 +704,7 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
                             isFixed={false}
                             expandedExpenseId={expandedExpenseId}
                             setExpandedExpenseId={setExpandedExpenseId}
+                            startingBalance={startingBalance}
                           />
                         ))
                       )}
@@ -738,6 +744,7 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
                                   isFixed={false}
                                   expandedExpenseId={expandedExpenseId}
                                   setExpandedExpenseId={setExpandedExpenseId}
+                                  startingBalance={startingBalance}
                                 />
                               ))}
                             </div>
@@ -1011,7 +1018,7 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
   );
 }
 
-function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpense, getFaviconUrl, t, isFixed, progress, expandedExpenseId, setExpandedExpenseId }: any) {
+function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpense, getFaviconUrl, t, isFixed, progress, expandedExpenseId, setExpandedExpenseId, startingBalance }: any) {
   const isExpanded = expandedExpenseId === expense.id;
   
   return (
@@ -1039,7 +1046,7 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
             )}
           </div>
           <div className="min-w-0">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5 flex items-center gap-2">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5 flex flex-wrap items-center gap-2">
               <span>
                 {expense.category === 'food' ? t.food || 'Food' : 
                  expense.category === 'fuel' ? t.fuel || 'Fuel' : 
@@ -1051,6 +1058,11 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
               </span>
               {expense.date.includes('T') && (
                 <span className="text-[10px]">{expense.date.split('T')[1]}</span>
+              )}
+              {startingBalance > 0 && (
+                <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded-md leading-none">
+                  {((expense.amount / startingBalance) * 100).toFixed(1)}% ของเงินต้นเดือน
+                </span>
               )}
             </div>
             <div className="text-lg font-bold text-slate-800 dark:text-slate-100 truncate flex items-center gap-2">
@@ -1079,6 +1091,11 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
             {expense.isPaid && expense.balanceAfter !== undefined && (
               <div className="text-[10px] font-bold text-slate-500 mt-0.5">
                 คงเหลือ ฿{expense.balanceAfter.toLocaleString()}
+              </div>
+            )}
+            {startingBalance > 0 && (
+              <div className="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20 px-1.5 py-0.5 rounded-md inline-block mt-1">
+                คิดเป็น {((expense.amount / startingBalance) * 100).toFixed(1)}% ของเงินต้นเดือน
               </div>
             )}
           </div>
@@ -1112,6 +1129,11 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
                 {expense.isPaid && expense.balanceAfter !== undefined && (
                   <span className="text-[10px] font-semibold text-slate-500 block leading-tight">
                     คงเหลือ ฿{expense.balanceAfter.toLocaleString()}
+                  </span>
+                )}
+                {startingBalance > 0 && (
+                  <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 block mt-1">
+                    คิดเป็น {((expense.amount / startingBalance) * 100).toFixed(1)}% ของเงินต้นเดือน
                   </span>
                 )}
               </div>
