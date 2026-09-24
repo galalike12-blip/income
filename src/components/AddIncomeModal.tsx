@@ -87,7 +87,9 @@ export function AddIncomeModal({ isOpen, onClose, onAdd, onEdit, selectedDate, e
       finalNet = net;
       finalReceived = actualReceived === '' ? net : received;
     } else {
-      finalTitle = finalTitle || 'งานส่งของเดลิเวอรี';
+      if (finalTitle === 'งานส่งของเดลิเวอรี' || finalTitle === 'งานส่งของเดลิเวอรี่' || finalTitle.startsWith('งานที่')) {
+        finalTitle = '';
+      }
       finalMustPay = mustPay || net;
       finalUpfront = upfront;
       finalNet = net;
@@ -101,7 +103,7 @@ export function AddIncomeModal({ isOpen, onClose, onAdd, onEdit, selectedDate, e
       appNetIncome: finalNet,
       actualReceived: finalReceived,
       transferred: editingJob?.transferred || false,
-      jobTitle: finalTitle,
+      jobTitle: finalTitle || undefined,
       workType,
       isMultiDay: workType === 'freelance' ? isMultiDay : false,
       endDate: (workType === 'freelance' && isMultiDay) ? (endDate || selectedDate) : undefined,

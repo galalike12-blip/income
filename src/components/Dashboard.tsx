@@ -844,6 +844,16 @@ function JobItem({ job, index, handleEditClick, deleteJob, t, expandedJobId, set
   const loss = diff < 0 ? Math.abs(diff) : 0;
   const net = job.appNetIncome + diff;
 
+  const jobTitleText = (() => {
+    if (job.workType === 'salary') return job.jobTitle || 'รายได้ประจำ';
+    if (job.workType === 'freelance') return job.jobTitle || 'งานรับจ้างอิสระ';
+    // สำหรับงานไรเดอร์/ทั่วไป: ถ้าไม่มีชื่อ หรือเป็นชื่ออัตโนมัติเดิม เช่น 'งานส่งของเดลิเวอรี' / 'งานส่งของเดลิเวอรี่' หรือขึ้นต้นด้วย 'งานที่' ให้แสดงเรียงลำดับ 'งานที่ X' เสมอ
+    if (!job.jobTitle || job.jobTitle.includes('เดลิเวอ') || job.jobTitle.trim().startsWith('งานที่')) {
+      return `${t.jobSequence} ${index + 1}`;
+    }
+    return job.jobTitle;
+  })();
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
@@ -869,7 +879,7 @@ function JobItem({ job, index, handleEditClick, deleteJob, t, expandedJobId, set
           </div>
           <div className="min-w-0">
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 flex items-center gap-1.5 flex-wrap">
-              <span>{job.jobTitle || (job.workType === 'salary' ? 'รายได้ประจำ' : job.workType === 'freelance' ? 'งานรับจ้างอิสระ' : `${t.jobSequence} ${index + 1}`)}</span>
+              <span>{jobTitleText}</span>
               {job.date.includes('T') && (
                 <span className="bg-slate-100/80 dark:bg-slate-900/40 px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-500">{job.date.split('T')[1]} น.</span>
               )}
