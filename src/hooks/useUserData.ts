@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, query, orderBy, getDoc, getDocs, where, limit, writeBatch, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { JobEntry, ExpenseEntry, Goal, UserPreferences, ActivityLog } from '../types';
@@ -136,7 +136,7 @@ export function useUserData(user: User | null) {
 
       // Listen to Jobs
       const jobsRef = collection(db, 'users', user.uid, 'jobs');
-      const qJobs = query(jobsRef, orderBy('createdAt', 'asc'));
+      const qJobs = query(jobsRef, orderBy('date', 'asc'));
       unsubscribes.push(onSnapshot(qJobs, (snapshot) => {
         const jobsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setFirestoreJobs(jobsData);
@@ -235,7 +235,17 @@ export function useUserData(user: User | null) {
     }
   };
 
-  const jobs = user ? firestoreJobs : localJobs;
+  const jobs = useMemo(() => {
+    const list = user ? firestoreJobs : localJobs;
+    return [...list].sort((a, b) => {
+      const cmp = (a.date || '').localeCompare(b.date || '');
+      if (cmp !== 0) return cmp;
+      const aTime = a.createdAt?.seconds || 0;
+      const bTime = b.createdAt?.seconds || 0;
+      if (aTime !== bTime) return aTime - bTime;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+  }, [user, firestoreJobs, localJobs]);
   const rawIncentives = user ? firestoreIncentives : localIncentives;
   
   // Map rawIncentives to Record<string, number> for UI compatibility
