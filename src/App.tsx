@@ -369,6 +369,7 @@ function MainContent() {
                   jobs={jobs}
                   expenses={expenses}
                   incentives={incentives}
+                  rawIncentives={rawIncentives}
                   onEditExpense={handleEditExpense}
                   updateExpense={updateExpense}
                   deleteExpense={deleteExpense}
@@ -381,6 +382,7 @@ function MainContent() {
                   handleResetData={handleResetData}
                   showSettings={showLayoutSettings}
                   onToggleSettings={() => setShowLayoutSettings(!showLayoutSettings)}
+                  untransferredIncentivesAmount={untransferredIncentivesAmount}
                 />
               </motion.div>
             )}

@@ -28,6 +28,8 @@ interface ExpensesProps {
   handleResetData: () => Promise<void>;
   showSettings?: boolean;
   onToggleSettings?: () => void;
+  untransferredIncentivesAmount?: number;
+  rawIncentives?: Record<string, any>;
 }
 
 const getFaviconUrl = (url?: string, payee?: string) => {
@@ -65,7 +67,7 @@ const getCategoryIcon = (category: string) => {
   return <HelpCircle className="w-4 h-4" />;
 };
 
-export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpense, deleteExpense, preferences, updatePreferences, showResetConfirm, setShowResetConfirm, resetInput, setResetInput, handleResetData, showSettings = false, onToggleSettings }: ExpensesProps) {
+export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpense, deleteExpense, preferences, updatePreferences, showResetConfirm, setShowResetConfirm, resetInput, setResetInput, handleResetData, showSettings = false, onToggleSettings, untransferredIncentivesAmount = 0, rawIncentives = {} }: ExpensesProps) {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
 
@@ -724,7 +726,7 @@ export function Expenses({ jobs, expenses, incentives, onEditExpense, updateExpe
                               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
                               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
                                 {new Date(group.date + 'T00:00:00').toLocaleDateString(currentLang === 'th' ? 'th-TH' : currentLang === 'zh' ? 'zh-CN' : 'en-US', { 
-                                  day: 'numeric',
+                                  day: 'numeric', 
                                   month: 'short', 
                                   year: 'numeric' 
                                 })}
@@ -1059,7 +1061,7 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
               {expense.date.includes('T') && (
                 <span className="text-[10px]">{expense.date.split('T')[1]}</span>
               )}
-              {startingBalance > 0 && (
+              {!isFixed && startingBalance > 0 && (
                 <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded-md leading-none">
                   {((expense.amount / startingBalance) * 100).toFixed(1)}% ของเงินต้นเดือน
                 </span>
@@ -1093,7 +1095,7 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
                 คงเหลือ ฿{expense.balanceAfter.toLocaleString()}
               </div>
             )}
-            {startingBalance > 0 && (
+            {!isFixed && startingBalance > 0 && (
               <div className="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20 px-1.5 py-0.5 rounded-md inline-block mt-1">
                 คิดเป็น {((expense.amount / startingBalance) * 100).toFixed(1)}% ของเงินต้นเดือน
               </div>
@@ -1129,11 +1131,6 @@ function ExpenseItem({ expense, updateExpense, handleEditClick, handleDeleteExpe
                 {expense.isPaid && expense.balanceAfter !== undefined && (
                   <span className="text-[10px] font-semibold text-slate-500 block leading-tight">
                     คงเหลือ ฿{expense.balanceAfter.toLocaleString()}
-                  </span>
-                )}
-                {startingBalance > 0 && (
-                  <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 block mt-1">
-                    คิดเป็น {((expense.amount / startingBalance) * 100).toFixed(1)}% ของเงินต้นเดือน
                   </span>
                 )}
               </div>
