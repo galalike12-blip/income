@@ -72,17 +72,54 @@ function MainContent() {
       setTimeout(() => loader.remove(), 500); // Wait for transition
     }
 
+    const retrieveSharedFileFromCache = async () => {
+      if ('caches' in window) {
+        try {
+          const cache = await caches.open('shared-files-cache');
+          const response = await cache.match('/shared-file');
+          if (response) {
+            const blob = await response.blob();
+            const fileName = decodeURIComponent(response.headers.get('X-File-Name') || 'shared_slip.jpg');
+            const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+            await cache.delete('/shared-file');
+            console.log('Successfully retrieved shared file from CacheStorage:', file);
+            setSharedFile(file);
+            setIsExpenseModalOpen(false);
+            setIsChatOpen(true);
+            if (window.location.search.includes('shared=')) {
+              window.history.replaceState({}, '', window.location.pathname);
+            }
+            return true;
+          }
+        } catch (e) {
+          console.error('Error reading shared file from CacheStorage:', e);
+        }
+      }
+      return false;
+    };
+
+    // Check CacheStorage immediately on mount
+    retrieveSharedFileFromCache();
+    const cacheTimer1 = setTimeout(retrieveSharedFileFromCache, 400);
+    const cacheTimer2 = setTimeout(retrieveSharedFileFromCache, 1200);
+
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === 'SHARE_TARGET_FILE') {
         const file = event.data.file;
         if (file) {
-          console.log('Received shared file from SW:', file);
+          console.log('Received shared file from SW message:', file);
           setSharedFile(file);
           setIsExpenseModalOpen(false);
           setIsChatOpen(true);
         }
       }
     };
+
+    const handleVisibilityOrFocus = () => {
+      retrieveSharedFileFromCache();
+    };
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', handleMessage);
@@ -101,16 +138,27 @@ function MainContent() {
       // Request immediately
       requestSharedFile();
       
-      // Request again with minor delays to handle slow Safari service worker boots
+      // Request again with minor delays to handle slow Safari/Android service worker boots
       const timer1 = setTimeout(requestSharedFile, 500);
       const timer2 = setTimeout(requestSharedFile, 1500);
       const timer3 = setTimeout(requestSharedFile, 3000);
 
       return () => {
         navigator.serviceWorker.removeEventListener('message', handleMessage);
+        window.removeEventListener('focus', handleVisibilityOrFocus);
+        document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
         clearTimeout(timer1);
         clearTimeout(timer2);
         clearTimeout(timer3);
+        clearTimeout(cacheTimer1);
+        clearTimeout(cacheTimer2);
+      };
+    } else {
+      return () => {
+        window.removeEventListener('focus', handleVisibilityOrFocus);
+        document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+        clearTimeout(cacheTimer1);
+        clearTimeout(cacheTimer2);
       };
     }
   }, []);

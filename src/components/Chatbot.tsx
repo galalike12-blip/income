@@ -36,6 +36,45 @@ interface ChatbotProps {
   onClearSharedFile?: () => void;
 }
 
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1280;
+        const MAX_HEIGHT = 1280;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(e.target?.result as string);
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => resolve(e.target?.result as string);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
 export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, incentives, addExpense, setIncentive, addJob, updateJob, preferences, updatePreferences, isOpen, setIsOpen, sharedFile, onClearSharedFile, untransferredIncentivesAmount, goals }, ref) => {
   const { currentLang } = useSettings();
   const t = translations[currentLang];
@@ -67,20 +106,41 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
   }, [messages, isLoading]);
 
   useEffect(() => {
-    if (sharedFile && isOpen) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          const imgUrl = event.target.result as string;
-          // setSelectedImages(prev => [...prev, imgUrl]);
+    if (sharedFile) {
+      if (!isOpen) {
+        setIsOpen(true);
+      }
+      let isCancelled = false;
+      toast.info('ได้รับสลิปที่แชร์แล้ว กำลังเตรียมส่งให้ AI ตรวจสอบ...');
+
+      compressImage(sharedFile)
+        .then((imgUrl) => {
+          if (isCancelled) return;
+          setSelectedImages([imgUrl]);
           handleSend('ช่วยบันทึกข้อมูลสลิปนี้เข้าระบบให้หน่อย', [imgUrl]);
           if (onClearSharedFile) onClearSharedFile();
-        }
+        })
+        .catch((err) => {
+          console.error('Error compressing shared file:', err);
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            if (isCancelled) return;
+            const fallbackUrl = event.target?.result as string;
+            if (fallbackUrl) {
+              setSelectedImages([fallbackUrl]);
+              handleSend('ช่วยบันทึกข้อมูลสลิปนี้เข้าระบบให้หน่อย', [fallbackUrl]);
+              if (onClearSharedFile) onClearSharedFile();
+            }
+          };
+          reader.readAsDataURL(sharedFile);
+        });
+
+      return () => {
+        isCancelled = true;
       };
-      reader.readAsDataURL(sharedFile);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sharedFile, isOpen, onClearSharedFile]);
+  }, [sharedFile, isOpen, onClearSharedFile, setIsOpen]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -91,17 +151,27 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          loadedImages.push(event.target.result as string);
-        }
-        processed++;
-        if (processed === files.length) {
-          handleSend(input, loadedImages);
-        }
-      };
-      reader.readAsDataURL(file);
+      compressImage(file)
+        .then((imgUrl) => {
+          loadedImages.push(imgUrl);
+          processed++;
+          if (processed === files.length) {
+            handleSend(input, loadedImages);
+          }
+        })
+        .catch(() => {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            if (event.target?.result) {
+              loadedImages.push(event.target.result as string);
+            }
+            processed++;
+            if (processed === files.length) {
+              handleSend(input, loadedImages);
+            }
+          };
+          reader.readAsDataURL(file);
+        });
     }
   };
 
@@ -617,6 +687,12 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       
       The user's preferred language code is '${currentLang}'. Please respond in this language.
       
+      CRITICAL REQUIREMENT WHEN CONFIRMING RECORDED TRANSACTIONS:
+      Whenever you record or process a transaction (whether an expense, a job income, or an incentive), your response MUST explicitly and prominently state whether the amount was recorded into **[รายรับ]** (Income) or **[รายจ่าย]** (Expense).
+      - If it is an expense/slip paid: explicitly say "บันทึกเข้า **[รายจ่าย]** ..." with amount, category, and payee.
+      - If it is a job/delivery/gig income: explicitly say "บันทึกเข้า **[รายรับ]** ..." with net amount.
+      - If it is an incentive/bonus: explicitly say "บันทึกเข้า **[รายรับ - อินเซนทีฟ]** ..." with amount and date.
+      
       If the user uploads an image of a receipt or slip, you MUST extract the payee name, amount, date/time, and transactionId (เลขที่รายการ/เลขที่อ้างอิง) if it exists on the slip and call the 'addExpense' tool.
       When extracting the category, always check the Payee Category History Map first. If a match is found, use it. If not, use the custom lists or default 'อื่นๆ'.
       If the user provides JSON data, process it by calling the appropriate tools (addExpense, addJob, setIncentive) for each entry in the JSON.
@@ -731,6 +807,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       
       // Handle function calls
       let duplicateAlertMessage = '';
+      const recordedActions: string[] = [];
       if (functionCalls) {
         for (const call of functionCalls) {
           if (call.name === 'addExpense') {
@@ -795,18 +872,20 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
               transactionId: args.transactionId || undefined
             });
             const bal = (res as any)?.balanceAfter;
+            recordedActions.push(`บันทึกเข้า **[รายจ่าย]** จำนวน **฿${args.amount.toLocaleString()}** (หมวดหมู่: ${finalCategory}${args.payee ? ` / ผู้รับ: ${args.payee}` : ''})`);
             if (bal !== undefined) {
               toast.success(`${t.synced || 'เพิ่มรายจ่ายสำเร็จ'} (ยอดคงเหลือ ฿${bal.toLocaleString()})`);
-              speakFeedback(`จ่ายไป ${args.amount} บาท ยอดคงเหลือ ${bal} บาท ค่ะ`);
+              speakFeedback(`บันทึกเข้ารายจ่าย ${args.amount} บาท ยอดคงเหลือ ${bal} บาท ค่ะ`);
             } else {
               toast.success(t.synced || 'เพิ่มรายจ่ายสำเร็จ');
-              speakFeedback(`จ่ายไป ${args.amount} บาท สำเร็จแล้วค่ะ`);
+              speakFeedback(`บันทึกเข้ารายจ่าย ${args.amount} บาท สำเร็จแล้วค่ะ`);
             }
           } else if (call.name === 'setIncentive') {
             const args = call.args as any;
             setIncentive(args.date, args.amount);
+            recordedActions.push(`บันทึกเข้า **[รายรับ - อินเซนทีฟ]** จำนวน **฿${args.amount.toLocaleString()}** (วันที่: ${args.date})`);
             toast.success(t.synced || 'บันทึกอินเซนทีฟสำเร็จ');
-            speakFeedback(`บันทึกเงินพิเศษ ${args.amount} บาท เรียบร้อยค่ะ`);
+            speakFeedback(`บันทึกเข้ารายรับ อินเซนทีฟ ${args.amount} บาท เรียบร้อยค่ะ`);
           } else if (call.name === 'addJob' && addJob) {
             const args = call.args as any;
             const finalAppNet = args.appNetIncome;
@@ -824,8 +903,9 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                 return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
               })()
             });
+            recordedActions.push(`บันทึกเข้า **[รายรับ]** งานใหม่จำนวน **฿${finalAppNet.toLocaleString()}** (สุทธิ)`);
             toast.success(t.synced || 'เพิ่มรายรับสำเร็จ');
-            speakFeedback(`ได้รับเงิน ${finalAppNet} บาท สำเร็จแล้วค่ะ`);
+            speakFeedback(`บันทึกเข้ารายรับ ${finalAppNet} บาท สำเร็จแล้วค่ะ`);
           } else if (call.name === 'updateJob' && updateJob) {
             const args = call.args as any;
             const jobToUpdate = jobs.find(j => j.id === args.id);
@@ -840,6 +920,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
                 dropoffLocation: args.dropoffLocation !== undefined ? args.dropoffLocation : jobToUpdate.dropoffLocation,
                 date: args.date || jobToUpdate.date
               });
+              recordedActions.push(`อัปเดตข้อมูล **[รายรับ]** งานสำเร็จ`);
               toast.success('อัปเดตงานสำเร็จ');
             }
           } else if (call.name === 'updatePreferences' && updatePreferences) {
@@ -900,9 +981,23 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
         }
       }
 
-      let finalAiText = aiResultText || (functionCalls ? "รายละเอียดได้รับการบันทึกเรียบร้อยแล้วครับ" : "ฉันยังไม่เข้าใจสิ่งที่คุณพยายามถามอย่างแน่ชัด ลองถามข้อมูลวันทำงาน เงินสะสม หรืออัปโหลดสลิปได้เลยครับ");
+      let finalAiText = aiResultText;
+      if (recordedActions.length > 0) {
+        const actionSummary = recordedActions.map(action => `✅ ${action}`).join('\n');
+        if (finalAiText) {
+          // If Gemini response doesn't already state [รายรับ] or [รายจ่าย], prepend clear summary
+          if (!finalAiText.includes('[รายรับ]') && !finalAiText.includes('[รายจ่าย]') && !finalAiText.includes('รายรับ') && !finalAiText.includes('รายจ่าย')) {
+            finalAiText = `${actionSummary}\n\n${finalAiText}`;
+          }
+        } else {
+          finalAiText = `${actionSummary}\n\nบันทึกข้อมูลเข้าระบบเรียบร้อยแล้วครับ`;
+        }
+      } else if (!finalAiText) {
+        finalAiText = functionCalls ? "รายละเอียดได้รับการบันทึกเรียบร้อยแล้วครับ" : "ฉันยังไม่เข้าใจสิ่งที่คุณพยายามถามอย่างแน่ชัด ลองถามข้อมูลวันทำงาน เงินสะสม หรืออัปโหลดสลิปได้เลยครับ";
+      }
+
       if (duplicateAlertMessage) {
-        finalAiText = aiResultText ? `${aiResultText}\n\n${duplicateAlertMessage}` : duplicateAlertMessage;
+        finalAiText = finalAiText ? `${finalAiText}\n\n${duplicateAlertMessage}` : duplicateAlertMessage;
       }
 
       setMessages(prev => [...prev, { 

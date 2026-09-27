@@ -7,7 +7,13 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  // Fallback for share target if service worker was not yet active
+  app.post("/share-target", (req, res) => {
+    res.redirect(303, "/?shared=1");
+  });
 
   // API routes FIRST
   app.post("/api/chat", async (req, res) => {
