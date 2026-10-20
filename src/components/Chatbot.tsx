@@ -105,41 +105,50 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
     scrollToBottom();
   }, [messages, isLoading]);
 
-  useEffect(() => {
-    if (sharedFile) {
-      if (!isOpen) {
-        setIsOpen(true);
-      }
-      let isCancelled = false;
-      toast.info('ได้รับสลิปที่แชร์แล้ว กำลังเตรียมส่งให้ AI ตรวจสอบ...');
+  const lastHandledFileRef = useRef<File | null>(null);
 
-      compressImage(sharedFile)
-        .then((imgUrl) => {
-          if (isCancelled) return;
+  useEffect(() => {
+    if (!sharedFile || lastHandledFileRef.current === sharedFile) return;
+    lastHandledFileRef.current = sharedFile;
+
+    if (!isOpen) {
+      setIsOpen(true);
+    }
+    toast.info('ได้รับสลิปที่แชร์แล้ว กำลังเตรียมส่งให้ AI ตรวจสอบ...');
+
+    const processSharedFile = async () => {
+      try {
+        let imgUrl = await compressImage(sharedFile);
+        if (!imgUrl) {
+          imgUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (event) => resolve(event.target?.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(sharedFile);
+          });
+        }
+        if (imgUrl) {
           setSelectedImages([imgUrl]);
           handleSend('ช่วยบันทึกข้อมูลสลิปนี้เข้าระบบให้หน่อย', [imgUrl]);
-          if (onClearSharedFile) onClearSharedFile();
-        })
-        .catch((err) => {
-          console.error('Error compressing shared file:', err);
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            if (isCancelled) return;
-            const fallbackUrl = event.target?.result as string;
-            if (fallbackUrl) {
-              setSelectedImages([fallbackUrl]);
-              handleSend('ช่วยบันทึกข้อมูลสลิปนี้เข้าระบบให้หน่อย', [fallbackUrl]);
-              if (onClearSharedFile) onClearSharedFile();
-            }
-          };
-          reader.readAsDataURL(sharedFile);
-        });
+        }
+      } catch (err) {
+        console.error('Error handling shared file:', err);
+        // Fallback to FileReader
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const fallbackUrl = event.target?.result as string;
+          if (fallbackUrl) {
+            setSelectedImages([fallbackUrl]);
+            handleSend('ช่วยบันทึกข้อมูลสลิปนี้เข้าระบบให้หน่อย', [fallbackUrl]);
+          }
+        };
+        reader.readAsDataURL(sharedFile);
+      } finally {
+        if (onClearSharedFile) onClearSharedFile();
+      }
+    };
 
-      return () => {
-        isCancelled = true;
-      };
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    processSharedFile();
   }, [sharedFile, isOpen, onClearSharedFile, setIsOpen]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -197,7 +206,14 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
     const finalInput = typeof overrideInput === 'string' ? overrideInput : input;
     const finalImages = Array.isArray(overrideImages) ? overrideImages : selectedImages;
 
-    if ((!finalInput.trim() && finalImages.length === 0) || isLoading) return;
+    if (!finalInput.trim() && finalImages.length === 0) return;
+    if (isLoading) {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      } else {
+        return;
+      }
+    }
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -985,10 +1001,7 @@ export const Chatbot = React.forwardRef<any, ChatbotProps>(({ jobs, expenses, in
       if (recordedActions.length > 0) {
         const actionSummary = recordedActions.map(action => `✅ ${action}`).join('\n');
         if (finalAiText) {
-          // If Gemini response doesn't already state [รายรับ] or [รายจ่าย], prepend clear summary
-          if (!finalAiText.includes('[รายรับ]') && !finalAiText.includes('[รายจ่าย]') && !finalAiText.includes('รายรับ') && !finalAiText.includes('รายจ่าย')) {
-            finalAiText = `${actionSummary}\n\n${finalAiText}`;
-          }
+          finalAiText = `${actionSummary}\n\n${finalAiText}`;
         } else {
           finalAiText = `${actionSummary}\n\nบันทึกข้อมูลเข้าระบบเรียบร้อยแล้วครับ`;
         }

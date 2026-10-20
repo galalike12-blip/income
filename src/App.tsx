@@ -73,6 +73,7 @@ function MainContent() {
     }
 
     const retrieveSharedFileFromCache = async () => {
+      // 1. Try CacheStorage (written by Service Worker)
       if ('caches' in window) {
         try {
           const cache = await caches.open('shared-files-cache');
@@ -95,6 +96,27 @@ function MainContent() {
           console.error('Error reading shared file from CacheStorage:', e);
         }
       }
+
+      // 2. Try Server fallback endpoint (/api/get-shared-file)
+      try {
+        const res = await fetch('/api/get-shared-file');
+        if (res.ok) {
+          const blob = await res.blob();
+          const fileName = decodeURIComponent(res.headers.get('X-File-Name') || 'shared_slip.jpg');
+          const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+          console.log('Successfully retrieved shared file from Server fallback:', file);
+          setSharedFile(file);
+          setIsExpenseModalOpen(false);
+          setIsChatOpen(true);
+          if (window.location.search.includes('shared=')) {
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+          return true;
+        }
+      } catch (e) {
+        // Silent server check fail
+      }
+
       return false;
     };
 

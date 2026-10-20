@@ -1,7 +1,12 @@
 import express from "express";
 import path from "path";
+import multer from "multer";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+
+// In-memory storage for share-target fallback when service worker isn't intercepting
+let latestServerSharedFile: { buffer: Buffer; mimeType: string; originalname: string; timestamp: number } | null = null;
+const upload = multer({ limits: { fileSize: 25 * 1024 * 1024 } });
 
 async function startServer() {
   const app = express();
@@ -10,9 +15,37 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  // Fallback for share target if service worker was not yet active
-  app.post("/share-target", (req, res) => {
-    res.redirect(303, "/?shared=1");
+  // Robust fallback for share target if service worker was not yet active
+  app.post("/share-target", upload.any(), (req, res) => {
+    try {
+      const files = req.files as Express.Multer.File[] | undefined;
+      if (files && files.length > 0) {
+        const file = files.find(f => f.fieldname === 'receipt') || files[0];
+        if (file && file.buffer) {
+          latestServerSharedFile = {
+            buffer: file.buffer,
+            mimeType: file.mimetype || 'image/jpeg',
+            originalname: file.originalname || 'shared_slip.jpg',
+            timestamp: Date.now()
+          };
+          console.log('Server received share-target file:', file.originalname, file.size);
+        }
+      }
+    } catch (e) {
+      console.error('Error processing server share-target:', e);
+    }
+    res.redirect(303, "/?shared=server&t=" + Date.now());
+  });
+
+  app.get("/api/get-shared-file", (req, res) => {
+    if (latestServerSharedFile && (Date.now() - latestServerSharedFile.timestamp < 120000)) {
+      const file = latestServerSharedFile;
+      latestServerSharedFile = null;
+      res.setHeader('Content-Type', file.mimeType);
+      res.setHeader('X-File-Name', encodeURIComponent(file.originalname));
+      return res.send(file.buffer);
+    }
+    return res.status(404).json({ message: "No shared file" });
   });
 
   // API routes FIRST
